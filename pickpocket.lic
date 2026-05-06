@@ -1,0 +1,769 @@
+=begin
+	Pickpocketing script.
+	
+	WORK IN PROGRESS.
+	
+	Commands:
+	;pickpocket setup to enter setup menu.
+	;pickpocket help to see the help menu
+	;pickpocket stats <name> to see your stats against the specified mark
+	;pickpocket stats all to see all of your theft stats against all marks
+	;pickpocket <name> to steal from the specified mark. Stealing via this method will keep track of stats against the mark.
+	;pickpocket <name> <container> same as above but steals from the specified container from the mark.
+	;pickpocket add <name> = This sets the specified person's level to 100 in the script's database
+	
+	########################################################
+	Ways to contact me:
+	In game: Dreaven
+	Player's Corner: Tgo01
+	Discord: Dreaven#6436
+	Email: LordDreaven@gmail.com
+	If you like my scripts feel free to send me a tip via Paypal at: LordDreaven@gmail.com
+	########################################################
+	
+	Author: Dreaven
+	Version: 3
+=end
+
+CharSettings['setup_has_been_run'] = nil unless CharSettings['setup_has_been_run']
+
+if Gem.loaded_specs["gtk3"]
+	gtk_version = 3
+else
+	gtk_version = 2
+end
+
+setup = proc{
+	CharSettings['setup_has_been_run'] = true
+	Gtk.queue {
+		$PICKPOCKET_WINDOW = Gtk::Window.new
+		$PICKPOCKET_WINDOW.title = "Pickpocket"
+		$PICKPOCKET_WINDOW.set_border_width(10)
+		
+		#GTK2 and GTK3 nonsense:
+		if gtk_version == 2
+			$PICKPOCKET_BOX = Gtk::VBox.new(false)
+			$PICKPOCKET_BOX.set_border_width(5)
+
+			$PICKPOCKET_VERTICAL_BOX1 = Gtk::VBox.new(false, 0)
+		else
+			$PICKPOCKET_BOX = Gtk::Box.new(:vertical)
+			$PICKPOCKET_BOX.set_border_width(5)
+
+			$PICKPOCKET_VERTICAL_BOX1 = Gtk::Box.new(:vertical, 0)
+		end
+		#####
+
+		$PICKPOCKET_WINDOW.add($PICKPOCKET_BOX)
+		$PICKPOCKET_NOTEBOOK = Gtk::Notebook.new
+		$PICKPOCKET_NOTEBOOK.set_show_border(true)
+		$PICKPOCKET_BOX.add($PICKPOCKET_NOTEBOOK)
+		$PICKPOCKET_NOTEBOOK.append_page($PICKPOCKET_VERTICAL_BOX1, Gtk::Label.new('Options'))
+		$PICKPOCKET_ENTRY = Hash.new 
+		$PICKPOCKET_TABLE_SIZE = Hash.new
+	}
+
+	Gtk.queue {
+		$PICKPOCKET_TABLE1 = Gtk::Table.new(6, 3, false)
+		$PICKPOCKET_TABLE1.row_spacings=3
+		$PICKPOCKET_TABLE1.column_spacings=3
+		$PICKPOCKET_VERTICAL_BOX1.pack_start($PICKPOCKET_TABLE1, false, false, 0)
+	}
+
+	def self.add_label_entry(table, label, variable)
+		size = $PICKPOCKET_TABLE_SIZE[table] || 0
+
+		label = Gtk::Label.new(label)
+		align = Gtk::Alignment.new 1, 0, 0, 0
+		align.set_padding(4, 0, 3, 4)
+		align.add(label)
+		table.attach(align, 0, 1, size, size + 1)
+
+		entry = Gtk::Entry.new
+		entry.text = UserVars.pickpocket[variable].to_s
+		entry.set_width_request(157)
+		table.attach(entry, 1, 2, size, size + 1)
+
+		$PICKPOCKET_ENTRY[variable] = entry
+		$PICKPOCKET_TABLE_SIZE[table] += 1
+	end
+
+	Gtk.queue {
+		$PICKPOCKET_ENTRY = Hash.new
+		add_label_entry($PICKPOCKET_TABLE1, "Races to ignore", 'races_to_ignore')
+		add_label_entry($PICKPOCKET_TABLE1, "Profession to ignore", 'professions_to_ignore')
+		add_label_entry($PICKPOCKET_TABLE1, "People to ignore", 'names_ignore_list')
+		add_label_entry($PICKPOCKET_TABLE1, "Use Rgambit PUT", 'use_rgambit_put')
+		add_label_entry($PICKPOCKET_TABLE1, "Hide before stealing", 'hide_before_stealing')
+		add_label_entry($PICKPOCKET_TABLE1, "Sack for stolen goods", 'stolen_goods_sack')
+	}
+
+	def self.add_checkbox(table, x_pos, label, variable, default = false)
+		size = $PICKPOCKET_TABLE_SIZE[table] || 0
+		checkbox = Gtk::CheckButton.new label
+		value = UserVars.pickpocket[variable].nil? ? default : UserVars.pickpocket[variable]
+		checkbox.set_active(value)
+		table.attach(checkbox, x_pos, x_pos + 1, size, size + 1)
+		$PICKPOCKET_ENTRY[variable] = checkbox
+		$PICKPOCKET_TABLE_SIZE[table] += 1 if x_pos == 1
+	end
+        
+	Gtk.queue {
+		$PICKPOCKET_WINDOW.signal_connect("delete_event") {
+			$PICKPOCKET_SETUP_COMPLETED = true
+		}
+	}
+        
+	Gtk.queue {
+
+		label = Gtk::Label.new
+		label.set_markup("<b>Races to ignore:</b> List races you do not want to steal from, separate each race with just a comma, capitalization doesn't matter. Example: human,halfling\nRaces must be spelled like in following list: Aelotoi, Burghal Gnome, Dark Elf, Dwarf, Elf, Erithian, Forest Gnome, Giantman, Half-Elf, Half-Krolvin, Halfling, Human, Sylvankind\n\n<b>Professions to ignore:</b> List professions you do not want to steal from, separate each profession with just a comma, capitalization doesn't matter. Example: rogue,warrior\nProfessions must be spelled like in following list: Bard, Cleric, Empath, Monk, Paladin, Ranger, Rogue, Sorcerer, Warrior, Wizard\n\n<b>People to ignore:</b> List people you do not want to steal from, separate each name with just a comman, capitalization doesn't matter. Example: Bob,Jim\n\n<b>Use Rgambit PUT:</b> Enter <b>yes</b> if you have at least 62 ranks of Rogue Gambits and you want to hide and use rgambit PUT to stow stolen items.\n\n<b>Hide before stealing:</b> Enter <b>yes</b> to hide before stealing.\n\n<b>Sack for stolen goods:</b> Name of container you want to put stolen goods.")
+		align = Gtk::Alignment.new(1, 0, 0, 0)
+		align.set_padding(50, 0, 0, 40)
+		align.add(label)
+		$PICKPOCKET_TABLE1.attach(align, 1, 2, 8, 9)
+
+		$PICKPOCKET_WINDOW.show_all
+	}
+        
+	$PICKPOCKET_SETUP_COMPLETED = false
+	until($PICKPOCKET_SETUP_COMPLETED)
+		sleep 1
+	end
+	
+	UserVars.pickpocket ||= Hash.new
+	$PICKPOCKET_ENTRY.keys.each { |key|
+		if( $PICKPOCKET_ENTRY[key].class.to_s =~ /CheckButton/ )
+			value = $PICKPOCKET_ENTRY[key].active?
+			UserVars.pickpocket[key] = $PICKPOCKET_ENTRY[key].active?
+		else
+			UserVars.pickpocket[key] = $PICKPOCKET_ENTRY[key].text.strip.downcase
+		end
+	}
+
+	UserVars.save()
+        
+	Gtk.queue {
+		$PICKPOCKET_WINDOW.destroy
+	}
+}
+
+exp_required_for_level = Array.new
+number = 0
+total = 0
+amount = 2500
+100.times{
+	number += 1
+	if number <= 15
+		amount = [(2500 * (number -1)),2500].max
+	elsif number <= 25
+		amount = (2000 * (number -15) + 35000)
+	elsif number <= 40
+		amount = (1500 * (number -25) + 55000)
+	elsif number <= 50
+		amount = (1000 * (number -40) + 77500)
+	else
+		amount = (500 * (number -50) + 87500)
+	end
+	exp_required_for_level[number] = amount + total
+	total += amount
+}
+
+fame_required_for_level = Array.new
+fame_per_exp_point = 6
+number = 0
+100.times{
+	number += 1
+	fame_required_for_level[number] = (exp_required_for_level[number] * fame_per_exp_point)
+}
+
+CharSettings['potential_marks_stats'] = Hash.new unless CharSettings['potential_marks_stats']
+CharSettings['time_mark_caught_thief'] = Hash.new unless CharSettings['time_mark_caught_thief']
+
+potential_marks_level = Hash.new
+
+level_estimates_based_on_fame = Array.new
+
+silvers_stolen = 0
+item_stolen = nil
+steal_attempt = nil
+successful_steal_attempt = nil
+successful_item_steal_attempt = nil
+successful_silver_steal_attempt = nil
+mark_had_no_silvers = nil
+mark_had_no_items_to_steal = nil
+silence = nil
+use_rgambit = nil
+hide_before_stealing = nil
+stow_items = nil
+stolen_goods_sack = nil
+math = nil
+seconds = nil
+
+get_everyones_levels = nil
+steal_from_mark = nil
+display_ignore_list = nil
+show_ignore_list = nil
+get_list_of_marks = nil
+current_mark_name = nil
+current_mark_value = nil
+longest_name = 0
+longest_level = 0
+longest_race = 0
+
+text = nil
+mark = nil
+
+silence = proc {
+	action = proc { |server_string|
+		if server_string =~ /You cannot get close enough to even try\.|You are still recovering from your last larceny attempt\./
+			nil
+		else
+			server_string
+		end
+	}
+		DownstreamHook.add("#{script.name}_silence", action)
+}
+
+before_dying{
+	DownstreamHook.remove("#{script.name}_silence")
+}
+
+get_list_of_marks = proc{
+	current_name = current_mark_name.count"^$"
+	if longest_name > current_name
+		math = longest_name - current_name
+		text += "#{current_mark_name}"
+		math.times{text += " "}
+		text += "   Level: "
+	else
+		text += "#{current_mark_name}   Level: "
+	end
+
+	current_level = current_mark_value.to_s.count"^$"
+	if (longest_level > current_level) || current_mark_value == 101
+		if current_mark_value == 101
+			math = longest_level - 1
+			text += "-"
+		else
+			math = longest_level - current_level
+			text += "#{current_mark_value}"
+			text += "*" if level_estimates_based_on_fame.include?(current_mark_name)
+		end
+		math.times{text += " "}
+		text = text.chop if level_estimates_based_on_fame.include?(current_mark_name)
+		text += "   "
+	else
+		text += "#{current_mark_value}   "
+	end
+		
+	text += "Race: "
+	if CharSettings['potential_marks_stats'][current_mark_name][:Race].nil?
+		current_race = 1
+	else
+		current_race = CharSettings['potential_marks_stats'][current_mark_name][:Race].count"^$"
+	end
+	if longest_race > current_race
+		math = longest_race - current_race
+		if CharSettings['potential_marks_stats'][current_mark_name][:Race].nil?
+			text += "-"
+		else
+			text += "#{CharSettings['potential_marks_stats'][current_mark_name][:Race]}"
+		end
+		math.times{text += " "}
+		text += "   "
+	else
+		text += "#{CharSettings['potential_marks_stats'][current_mark_name][:Race]}"
+		text += "   "
+	end
+		
+	text += "Profession: "
+	if CharSettings['potential_marks_stats'][current_mark_name][:Profession].nil?
+		text += "-"
+	else
+		text += "#{CharSettings['potential_marks_stats'][current_mark_name][:Profession]}"
+	end
+	text += "\n"
+}
+
+stow_items = proc{
+	waitrt?
+	if use_rgambit
+		if checkright || checkleft
+			until hidden?
+				waitrt?
+				fput "hide"
+				sleep 1
+			end
+			waitrt?
+			fput "rgambit stealth put my #{checkright} into my #{stolen_goods_sack}" if checkright
+			fput "rgambit stealth put my #{checkleft} into my #{stolen_goods_sack}" if checkleft
+			sleep 0.1
+			if checkright || checkleft
+				fput "put my #{checkright} into my #{stolen_goods_sack}" if checkright
+				fput "put my #{checkleft} into my #{stolen_goods_sack}" if checkleft
+			end
+		end
+	else
+		fput "put my #{checkright} into my #{stolen_goods_sack}" if checkright
+		fput "put my #{checkleft} into my #{stolen_goods_sack}" if checkleft
+	end
+}
+
+steal_from_mark = proc{
+	silvers_stolen = 0
+	item_stolen = nil
+	steal_attempt = nil
+	successful_steal_attempt = nil
+	successful_item_steal_attempt = nil
+	successful_silver_steal_attempt = nil
+	mark_had_no_silvers = nil
+	mark_had_no_items_to_steal = nil
+	stow_items.call
+	until standing?
+		waitrt?
+		fput "stand"
+		sleep 0.1
+	end
+	if hide_before_stealing
+		until hidden?
+			waitrt?
+			fput "hide"
+			sleep 1
+		end
+	end
+	waitrt?
+	fput "steal #{mark} #{script.vars[2]}"
+	while line = get
+		if line =~ /^You couldn't find anything worth taking\.  Maybe you should offer [a-zA-Z]+ a donation instead\./ #Successful item steal attempt but mark has nothing in container to steal or you couldn't steal anything this attempt
+			steal_attempt = true
+			successful_steal_attempt = true
+			successful_item_steal_attempt = true
+			mark_had_no_items_to_steal = true
+			break
+		elsif line =~ /^You reach into [a-zA-Z]+\'s .* and pull out (an?|some) (.*)\./ #Successful item steal attempt
+			item_stolen = $2
+			steal_attempt = true
+			successful_steal_attempt = true
+			successful_item_steal_attempt = true
+			break
+		elsif line =~ /^You reach into [a-zA-Z]+\'s pockets and pull out (\d+) silvers?\./ #Silver steal attempt
+			silvers_stolen = $1.to_i
+			steal_attempt = true
+			successful_steal_attempt = true
+			successful_silver_steal_attempt = true
+			break
+		elsif line =~ /^You reach into [a-zA-Z]+\'s pockets and pull out nothing\./ #Silver steal attempt but mark has no silvers
+			steal_attempt = true
+			mark_had_no_silvers = true
+			successful_steal_attempt = true
+			successful_silver_steal_attempt = true
+			break
+		elsif line =~ /^You fail to gain sufficient advantage to pick [a-zA-Z]+ pocket\./ #Failed pickpocket attempt
+			steal_attempt = true
+			break
+		elsif line =~ /^I could not find what you were referring to\./ #Mark has left the room.
+			echo "Your mark has left the room."
+			break
+		elsif line =~ /^You are still recovering from your last larceny attempt\./ #Trying to steal too soon after a previous attempt to steal
+			echo "There is a 10 second cooldown between theft attempts. Try again."
+			break
+		elsif line =~ /^[a-zA-Z]+ notices your actions and turns suddenly\, grasping at your wrist/ #Caught stealing
+			CharSettings['time_mark_caught_thief'][mark] = Time.now
+			CharSettings['potential_marks_stats'][mark][:Total_Steal_Attempts] += 1
+			CharSettings['potential_marks_stats'][mark][:Total_Times_Caught_Stealing] += 1
+			echo "YOU WERE CAUGHT!"
+			break
+		elsif line =~ /^[a-zA-Z]+ is guarding [a-zA-Z]+ pockets very closely\.  You cannot get close enough to even try\./ #Mark has caught you stealing recently
+			echo "Time mark caught thief: #{CharSettings['time_mark_caught_thief'][mark]}"
+			if CharSettings['time_mark_caught_thief'][mark].nil? || Time.now > (CharSettings['time_mark_caught_thief'][mark] + 1200)
+				CharSettings['time_mark_caught_thief'][mark] = Time.now
+				CharSettings['potential_marks_stats'][mark][:Total_Times_Caught_Without_Thiefs_Knowledge] += 1
+				echo "The mark must have seen your last theft attempt! You can attempt to steal from them again in 20 minutes."
+			else
+				seconds = (CharSettings['time_mark_caught_thief'][mark] + 1200) - Time.now
+				math = (seconds / 60).truncate
+				text += "The mark caught you recently. Minutes until you can attempt to steal from them again: #{math}:"
+				math = (seconds % 60).truncate
+				text += "#{math}"
+				echo "#{text}"
+			end
+			break
+		end
+	end
+	if steal_attempt
+		CharSettings['potential_marks_stats'][mark][:Total_Steal_Attempts] += 1
+		CharSettings['time_mark_caught_thief'][mark] = nil
+		silence.call
+		Thread.new{ 
+			sleep 0.5
+			silence_me
+			put "steal #{mark}"
+			silence_me
+		}
+		while line = get
+			if line =~ /^[a-zA-Z]+ notices your actions and turns suddenly\, grasping at your wrist/
+				echo "YOU WERE CAUGHT!"
+				CharSettings['potential_marks_stats'][mark][:Total_Times_Caught_Stealing] += 1
+				CharSettings['potential_marks_stats'][mark][:Total_Times_Caught_Stealing_Items] += 1 if successful_item_steal_attempt
+				CharSettings['potential_marks_stats'][mark][:Total_Times_Caught_Stealing_Silvers] += 1 if successful_silver_steal_attempt
+				CharSettings['potential_marks_stats'][mark][:Total_Times_Mark_Had_No_Silvers] += 1 if mark_had_no_silvers
+				CharSettings['time_mark_caught_thief'][mark] = Time.now
+				break
+			elsif line =~ /^You are still recovering from your last larceny attempt\./
+				echo "SUCCESSFUL THEFT ATTEMPT!"
+				if successful_silver_steal_attempt
+					CharSettings['potential_marks_stats'][mark][:Total_Silvers_Stolen] += silvers_stolen
+					CharSettings['potential_marks_stats'][mark][:Total_Silver_Successful_Steal_Attempts] += 1
+				end
+				if item_stolen
+					CharSettings['potential_marks_stats'][mark][:All_Items_Stolen] = Array.new unless CharSettings['potential_marks_stats'][mark][:All_Items_Stolen]
+					CharSettings['potential_marks_stats'][mark][:All_Items_Stolen].push(item_stolen)
+				end
+				CharSettings['potential_marks_stats'][mark][:Total_Successful_Steal_Attempts] += 1 if successful_steal_attempt
+				CharSettings['potential_marks_stats'][mark][:Total_Item_Successful_Steal_Attempts] += 1 if successful_item_steal_attempt
+				CharSettings['potential_marks_stats'][mark][:Total_Times_Mark_Had_No_Silvers] += 1 if mark_had_no_silvers
+				CharSettings['potential_marks_stats'][mark][:Total_Times_Mark_Had_No_Items_To_Steal] += 1 if mark_had_no_items_to_steal
+				break
+			end
+		end
+	end
+	DownstreamHook.remove("#{script.name}_silence")
+	stow_items.call
+}
+
+races_to_ignore_list = Array.new
+if UserVars.pickpocket["races_to_ignore"].length > 0
+	temp_races_to_ignore = UserVars.pickpocket["races_to_ignore"].split(",")
+	temp_races_to_ignore.each{|i|
+		if i =~ /^Aelotoi$/i
+			races_to_ignore_list.push("Aelotoi")
+		elsif i =~ /^Burghal Gnome$/i
+			races_to_ignore_list.push("Burghal Gnome")
+		elsif i =~ /^Dark Elf$/i
+			races_to_ignore_list.push("Dark Elf")
+		elsif i =~ /^Dwarf$/i
+			races_to_ignore_list.push("Dwarf")
+		elsif i =~ /^Elf$/i
+			races_to_ignore_list.push("Elf")
+		elsif i =~ /^Erithian$/i
+			races_to_ignore_list.push("Erithian")
+		elsif i =~ /^Forest Gnome$/i
+			races_to_ignore_list.push("Forest Gnome")
+		elsif i =~ /^Giantman$/i
+			races_to_ignore_list.push("Giantman")
+		elsif i =~ /^Half\-Elf$/i
+			races_to_ignore_list.push("Half-Elf")
+		elsif i =~ /^Half-Krolvin$/i
+			races_to_ignore_list.push("Half-Krolvin")
+		elsif i =~ /^Halfling$/i
+			races_to_ignore_list.push("Halfling")
+		elsif i =~ /^Human$/i
+			races_to_ignore_list.push("Human")
+		elsif i =~ /^Sylvankind$/i
+			races_to_ignore_list.push("Sylvankind")
+		end
+	}
+end
+
+professions_to_ignore_list = Array.new
+if UserVars.pickpocket["professions_to_ignore"].length > 0
+	temp_professions_to_ignore = UserVars.pickpocket["professions_to_ignore"].split(",")
+	temp_professions_to_ignore.each{|i|
+		if i =~ /^Bard$/i
+			professions_to_ignore_list.push("Bard")
+		elsif i =~ /^Cleric$/i
+			professions_to_ignore_list.push("Cleric")
+		elsif i =~ /^Empath$/i
+			professions_to_ignore_list.push("Empath")
+		elsif i =~ /^Monk$/i
+			professions_to_ignore_list.push("Monk")
+		elsif i =~ /^Paladin$/i
+			professions_to_ignore_list.push("Paladin")
+		elsif i =~ /^Ranger$/i
+			professions_to_ignore_list.push("Ranger")
+		elsif i =~ /^Rogue$/i
+			professions_to_ignore_list.push("Rogue")
+		elsif i =~ /^Sorcerer$/i
+			professions_to_ignore_list.push("Sorcerer")
+		elsif i =~ /^Warrior$/i
+			professions_to_ignore_list.push("Warrior")
+		elsif i =~ /^Wizard$/i
+			professions_to_ignore_list.push("Wizard")
+		end
+	}
+end
+
+names_ignore_list = Array.new
+if UserVars.pickpocket["names_ignore_list"].length > 0
+	temp_names_to_ignore = UserVars.pickpocket["names_ignore_list"].split(",")
+	temp_names_to_ignore.each{|i|
+		i = i.downcase
+		i = i.capitalize
+		names_ignore_list.push(i)
+	}
+end
+
+#fput "sense"
+#while line = get
+#	if line =~ /Unless you find a wealthy corpse\, you would probably have more luck convincing a roa\'ter to dance than you would picking a pocket here\./ #Most difficult
+#		echo "Difficulty: Too difficult! ABORT MISSION!."
+#		exit
+#	elsif line =~ /The odds aren't really in your favor\, but when has that ever stopped you\?/ #Middle
+#		echo "Difficulty: Might work."
+#		break
+#	elsif line =~ /While not exactly a walk in the park, you could probably get away with it if you made careful choices\./ #Easiest
+#		echo "Difficulty: Looking good."
+#		break
+#	end
+#end
+
+potential_marks_stats = Hash.new
+potential_marks_profession = Hash.new
+potential_marks_race = Hash.new
+
+get_everyones_levels = proc{
+	checkpcs.each{|i|
+		profile_person = nil
+		profile_person = true if CharSettings['potential_marks_stats'][i][:Level] < 100
+		profile_person = true if races_to_ignore_list && CharSettings['potential_marks_stats'][i][:Race].nil?
+		profile_person = true if professions_to_ignore_list && CharSettings['potential_marks_stats'][i][:Profession].nil?
+		if profile_person
+			fput "profile #{i}"
+			while line = get
+				if line =~ /Level\: (\d+)/
+					potential_marks_level[i] = $1.to_i
+					if CharSettings['potential_marks_stats'].include?(i)
+						CharSettings['potential_marks_stats'][i][:Level] = $1.to_i
+					else
+						CharSettings['potential_marks_stats'].store(player_name = i, :Level => $1.to_i)
+					end
+				end
+				if line =~ /Profession\: ([a-zA-Z]+)/
+					if CharSettings['potential_marks_stats'].include?(i)
+						CharSettings['potential_marks_stats'][i][:Profession] = $1
+					else
+						CharSettings['potential_marks_stats'].store(player_name = i, :Profession => $1)
+					end
+				end
+				if line =~ /Race\: (Burghal Gnome)/ || line =~ /Race\: (Dark Elf)/ || line =~ /(Forest Gnome)/ || line =~ /(Half\-Elf)/ || line =~ /(Half\-Krolvin)/ || line =~ /Race\: ([a-zA-Z]+)/
+					if CharSettings['potential_marks_stats'].include?(i)
+						CharSettings['potential_marks_stats'][i][:Race] = $1
+					else
+						CharSettings['potential_marks_stats'].store(player_name = i, :Race => $1)
+					end
+				end
+				break if line =~ /Gender\:/
+			end
+		else
+			potential_marks_level[i] = CharSettings['potential_marks_stats'][i][:Level]
+		end
+		fame_total = nil
+		if potential_marks_level[i].nil?
+			fput "fame #{i}"
+			while line = get
+				if line =~ /^I could not find what you were referring to\.|^[a-zA-Z]+ has [a-zA-Z]+ fame disabled\./
+					break
+				elsif line =~ /^[a-zA-Z]+ has (.*) fame\./
+					fame_total = $1.delete(",").to_i
+					break
+				end
+			end
+		end
+		if fame_total
+			number = 0
+			if fame_total > fame_required_for_level[100]
+				potential_marks_level[i] = 100
+			else
+				fame_required_for_level.each{|t|
+					number += 1
+					if fame_required_for_level[number] > fame_total
+						potential_marks_level[i] = (number - 1)
+						level_estimates_based_on_fame.push(i)
+						break
+					end
+				}
+			end
+			if CharSettings['potential_marks_stats'].include?(i)
+				CharSettings['potential_marks_stats'][i][:Level] = potential_marks_level[i]
+			else
+				CharSettings['potential_marks_stats'].store(player_name = i, :Level => potential_marks_level[i])
+			end
+		end
+		potential_marks_level[i] = 101 if potential_marks_level[i].nil?
+	}
+
+	potential_marks_level = potential_marks_level.sort_by{|key,value| value}
+
+	potential_marks_level.each {|key,value|
+		current_name_length = key.count"^$"
+		longest_name = current_name_length if current_name_length > longest_name
+		
+		current_level_length = value.to_s.count"^$"
+		if level_estimates_based_on_fame.include?(key)
+			current_level_length += 1
+		end
+		longest_level = current_level_length if current_level_length > longest_level
+
+		if CharSettings['potential_marks_stats'][key][:Race].nil?
+			current_race_length = 1
+		else
+			current_race_length = CharSettings['potential_marks_stats'][key][:Race].count"^$"
+		end
+		longest_race = current_race_length if current_race_length > longest_race
+	}
+
+	text = "People being ignored due to race, profession, or name:\n"
+	text += "* after level means their level is an estimate based on their fame.\n"
+	text += "- means the value is unknown.\n"
+	potential_marks_level.each {|key,value|
+		if races_to_ignore_list.include?(CharSettings['potential_marks_stats'][key][:Race]) || professions_to_ignore_list.include?(CharSettings['potential_marks_stats'][key][:Profession]) || names_ignore_list.include?(key)
+			display_ignore_list = true
+			current_mark_name = key
+			current_mark_value = value
+			get_list_of_marks.call
+		end
+	}
+	_respond "#{text}" if display_ignore_list
+	_respond ""
+		
+	text = "Potential marks in order of level:\n"
+	text += "* after level means their level is an estimate based on their fame.\n"
+	text += "- means the value is unknown.\n"
+	potential_marks_level.each {|key,value|
+		if !races_to_ignore_list.include?(CharSettings['potential_marks_stats'][key][:Race]) && !professions_to_ignore_list.include?(CharSettings['potential_marks_stats'][key][:Profession]) && !names_ignore_list.include?(key)
+			current_mark_name = key
+			current_mark_value = value
+			get_list_of_marks.call
+		end
+	}
+	_respond "#{text}"
+}
+
+use_rgambit = true if UserVars.pickpocket["use_rgambit_put"]
+hide_before_stealing = true if UserVars.pickpocket["hide_before_stealing"]
+stolen_goods_sack = UserVars.pickpocket["stolen_goods_sack"]
+
+if script.vars[1] == 'setup'
+	CharSettings['setup_has_been_run'] = true if CharSettings['setup_has_been_run'].nil?
+	setup.call
+	exit
+elsif script.vars[1] == "help"
+	_respond ";pickpocket setup = to enter setup menu"
+	_respond ";pickpocket help = to see this help menu"
+	_respond ";pickpocket stats <name> = to see your stats against the specified mark"
+	_respond ";pickpocket stats all = to see all of your theft stats against all marks"
+	_respond ";pickpocket <name> = to steal from the specified mark. Stealing via this method will keep track of stats against the mark."
+	_respond ";pickpocket <name> <container> = same as above but steals from the specified container from the mark."
+	_respond ";pickpocket add <name> = This sets the specified character's level to 100 in the script's database"
+	exit
+elsif script.vars[1] == "add"
+	mark = script.vars[2].capitalize
+	if mark.nil?
+		echo "You must specify a character to set their level to 100 in the script's database."
+		echo "Example: ;pickpocket add <Bob> would tell the script that Bob is level 100."
+	elsif 4 > mark.length
+		echo "Character names can't be fewer than 4 characters! I don't think? If they can then let the author of this script know."
+	else
+		count = mark.count"^abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+		if count == 0
+			if CharSettings['potential_marks_stats'].include?(mark)
+				CharSettings['potential_marks_stats'][mark][:Level] = 100
+			else
+				CharSettings['potential_marks_stats'].store(mark, :Level => 100)
+			end
+			echo "#{mark} has been added to the database as being a level 100 character."
+		else
+			echo "Come on, you and I both know names can't have that kind of character in it. Who you trying to fool?"
+		end
+	end		
+elsif script.vars[1] == "stats" && script.vars[2]
+	if script.vars[2] == "all"
+		total_steal_attempts = 0
+		total_successful_steal_attempts = 0
+		total_times_caught_stealing = 0
+		total_times_caught_without_thiefs_knowledge = 0
+		total_silver_successful_steal_attempts = 0
+		total_times_caught_stealing_silvers = 0
+		total_times_mark_had_no_silvers = 0
+		total_item_successful_steal_attempts = 0
+		total_silvers_stolen = 0
+		total_times_caught_stealing_items = 0
+		total_times_mark_had_no_items_to_steal = 0
+		all_items_stolen = Hash.new
+		if CharSettings['potential_marks_stats']
+			CharSettings['potential_marks_stats'].each{|key,value|
+				total_steal_attempts += CharSettings['potential_marks_stats'][key][:Total_Steal_Attempts] if CharSettings['potential_marks_stats'][key][:Total_Steal_Attempts]
+				total_successful_steal_attempts += CharSettings['potential_marks_stats'][key][:Total_Successful_Steal_Attempts] if CharSettings['potential_marks_stats'][key][:Total_Successful_Steal_Attempts]
+				total_times_caught_stealing += CharSettings['potential_marks_stats'][key][:Total_Times_Caught_Stealing] if CharSettings['potential_marks_stats'][key][:Total_Times_Caught_Stealing]
+				total_times_caught_without_thiefs_knowledge += CharSettings['potential_marks_stats'][key][:Total_Times_Caught_Without_Thiefs_Knowledge] if CharSettings['potential_marks_stats'][key][:Total_Times_Caught_Without_Thiefs_Knowledge]
+				total_silver_successful_steal_attempts += CharSettings['potential_marks_stats'][key][:Total_Silver_Successful_Steal_Attempts] if CharSettings['potential_marks_stats'][key][:Total_Silver_Successful_Steal_Attempts]
+				total_times_caught_stealing_silvers += CharSettings['potential_marks_stats'][key][:Total_Times_Caught_Stealing_Silvers] if CharSettings['potential_marks_stats'][key][:Total_Times_Caught_Stealing_Silvers]
+				total_times_mark_had_no_silvers += CharSettings['potential_marks_stats'][key][:Total_Times_Mark_Had_No_Silvers] if CharSettings['potential_marks_stats'][key][:Total_Times_Mark_Had_No_Silvers]
+				total_silvers_stolen += CharSettings['potential_marks_stats'][key][:Total_Silvers_Stolen] if CharSettings['potential_marks_stats'][key][:Total_Silvers_Stolen]
+				total_item_successful_steal_attempts += CharSettings['potential_marks_stats'][key][:Total_Item_Successful_Steal_Attempts] if CharSettings['potential_marks_stats'][key][:Total_Item_Successful_Steal_Attempts]
+				total_times_caught_stealing_items += CharSettings['potential_marks_stats'][key][:Total_Times_Caught_Stealing_Items] if CharSettings['potential_marks_stats'][key][:Total_Times_Caught_Stealing_Items]
+				total_times_mark_had_no_items_to_steal += CharSettings['potential_marks_stats'][key][:Total_Times_Mark_Had_No_Items_To_Steal] if CharSettings['potential_marks_stats'][key][:Total_Times_Mark_Had_No_Items_To_Steal]
+
+				CharSettings['potential_marks_stats'][key][:All_Items_Stolen].each{|i|
+					all_items_stolen[i] += 1
+				}
+			}
+		end
+		_respond "Attempted thefts: #{total_steal_attempts}"
+		_respond "Successful thefts: #{total_successful_steal_attempts}"
+		_respond "Total times caught: #{total_times_caught_stealing}"
+		_respond "Total times caught without your knowledge: #{total_times_caught_without_thiefs_knowledge}"
+		_respond "Total silver theft attempts: #{total_silver_successful_steal_attempts}"
+		_respond "Times caught stealing silvers: #{total_times_caught_stealing_silvers}"
+		_respond "Times mark had no silvers to steal: #{total_times_mark_had_no_silvers}"
+		_respond "Total silvers stolen: #{total_silvers_stolen}"
+		_respond "Total item theft attempts: #{total_item_successful_steal_attempts}"
+		_respond "Times caught stealing items: #{total_times_caught_stealing_items}"
+		_respond "Times mark had no items to steal or you couldn't steal an item: #{total_times_mark_had_no_items_to_steal}"
+		_respond "All items stolen:"
+		all_items_stolen.each{|key,value|
+			_respond "#{key}: #{value}"
+		}
+	else
+		person = script.vars[2].capitalize
+		if CharSettings['potential_marks_stats'][person]
+			_respond "#{person}'s stats:"
+			_respond "Level: #{CharSettings['potential_marks_stats'][person][:Level]}" if CharSettings['potential_marks_stats'][person][:Level]
+			_respond "Race: #{CharSettings['potential_marks_stats'][person][:Race]}" if CharSettings['potential_marks_stats'][person][:Race]
+			_respond "Profession: #{CharSettings['potential_marks_stats'][person][:Profession]}" if CharSettings['potential_marks_stats'][person][:Profession]
+			_respond "Attempted thefts: #{CharSettings['potential_marks_stats'][person][:Total_Steal_Attempts]}" if CharSettings['potential_marks_stats'][person][:Total_Steal_Attempts]
+			_respond "Successful thefts: #{CharSettings['potential_marks_stats'][person][:Total_Successful_Steal_Attempts]}" if CharSettings['potential_marks_stats'][person][:Total_Successful_Steal_Attempts]
+			_respond "Total times caught: #{CharSettings['potential_marks_stats'][person][:Total_Times_Caught_Stealing]}" if CharSettings['potential_marks_stats'][person][:Total_Times_Caught_Stealing]
+			_respond "Total times caught without your knowledge: #{CharSettings['potential_marks_stats'][person][:Total_Times_Caught_Without_Thiefs_Knowledge]}" if CharSettings['potential_marks_stats'][person][:Total_Times_Caught_Without_Thiefs_Knowledge]
+			_respond "Total silver theft attempts: #{CharSettings['potential_marks_stats'][person][:Total_Silver_Successful_Steal_Attempts]}" if CharSettings['potential_marks_stats'][person][:Total_Silver_Successful_Steal_Attempts]
+			_respond "Times caught stealing silvers: #{CharSettings['potential_marks_stats'][person][:Total_Times_Caught_Stealing_Silvers]}" if CharSettings['potential_marks_stats'][person][:Total_Times_Caught_Stealing_Silvers]
+			_respond "Times mark had no silvers to steal: #{CharSettings['potential_marks_stats'][person][:Total_Times_Mark_Had_No_Silvers]}" if CharSettings['potential_marks_stats'][person][:Total_Times_Mark_Had_No_Silvers]
+			_respond "Total silvers stolen: #{CharSettings['potential_marks_stats'][person][:Total_Silvers_Stolen]}" if CharSettings['potential_marks_stats'][person][:Total_Silvers_Stolen]
+			_respond "Total item theft attempts: #{CharSettings['potential_marks_stats'][person][:Total_Item_Successful_Steal_Attempts]}" if CharSettings['potential_marks_stats'][person][:Total_Item_Successful_Steal_Attempts]
+			_respond "Times caught stealing items: #{CharSettings['potential_marks_stats'][person][:Total_Times_Caught_Stealing_Items]}" if CharSettings['potential_marks_stats'][person][:Total_Times_Caught_Stealing_Items]
+			_respond "Times mark had no items to steal or you couldn't steal an item: #{CharSettings['potential_marks_stats'][person][:Total_Times_Mark_Had_No_Items_To_Steal]}" if CharSettings['potential_marks_stats'][person][:Total_Times_Mark_Had_No_Items_To_Steal]
+			_respond "All items stolen:" if CharSettings['potential_marks_stats'][person][:All_Items_Stolen]
+			all_items_stolen = Hash.new
+			CharSettings['potential_marks_stats'][person][:All_Items_Stolen].each{|i|
+				all_items_stolen[i] += 1
+			}
+			all_items_stolen.each{|key,value|
+				_respond "#{key}: #{value}"
+			}
+		end
+	end
+	exit
+elsif script.vars[1]
+	mark = GameObj.pcs.find{ |i| i.name =~ /#{script.vars[1]}/i }
+	mark = mark.noun
+	if mark.nil?
+		echo "No one by that name is in the room with you."
+	else
+		echo "Your mark is #{mark}."
+		CharSettings['potential_marks_stats'].store(mark, :Level => 101) unless CharSettings['potential_marks_stats'][mark]
+		steal_from_mark.call
+	end
+else
+	get_everyones_levels.call
+end

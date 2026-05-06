@@ -1,0 +1,3972 @@
+=begin
+	   OSACommander Version: '4.0.7 (April 21, 2026)
+	
+	   Usage: 
+	
+	   ;osacommander info <ship type>                       Will gather your ship info and save your current ship type
+	   ;osacommander crew                                   Will display commands for auto crew login
+	   ;osacommander begin                                  Will go to bank to withdrawl silvers retrieve your ship and get underway
+	   ;osacommander undead                                 Orders crew to start undead combat scripts
+	   ;osacommander bless                                  Will begin a blessing sequence for your crew
+	   ;osacommander start                                  Orders crew to start combat scripts
+	   ;osacommander end                                    Orders crew to begin end sequence after enemy ship is cleared
+	   ;osacommander stop                                   Orders crew to stop all combat scripts and resets ship boarding settings
+	   ;osacommander exit                                   Orders crew to attention and to exit game
+	   ;osacommander pause                                  Pauses crew combat scripts
+	   ;osacommander setup                                  Opens Setup Menu For Commander
+	   ;osacommander unpause                                Unpauses crew combat scripts
+	   ;osacommander sheath                                 Orders crew to sheath thier weapons
+	   ;osacommander testcon <crew member>                  Orders a crew member to respond. For testing thier settings and connection
+	   ;osacommander kick <crew member                      Commands a crew member to depart from duty
+	   ;osacommander unkick <crew member                    Commands a crew member to return to duty
+	   ;osacommander muster                                 Takes a roll call of your crew members
+	   ;osacommander muster count                           Will determine who present is not of the ships company
+	   ;osacommander broadcast                              This will look ocean and broadcast the ships location and accept or decline any request to join
+	   ;osacommander summon                                 Call your crew to your location, they will then salute and join your group
+	   ;osacommander underway                               Orders crew to get ship underway
+	   ;osacommander repairs                                Orders crew to do repairs
+	   ;osacommander return                                 Turns off detection and returns to port, also does broadcast to set location and bring on new crew
+	   ;osacommander bread                                  Medical Officer will make mana bread and share it with everyone with Groupspellup checked
+	   ;osacommander spells                                 Orders crew to begin spellups
+	   ;osacommander spellup                                Orders crew to perform a mana spellup
+	   ;osacommander spellup <name>                         Orders crew to spellup a specific individual
+	   ;osacommander silvers                                Orders crew to give all silvers to the commander
+	   ;osacommander status                                 Orders crew to display status info in crew chat
+	   ;osacommander resource                               Orders crew to display resource info in crew chat
+	   ;osacommander gemstone                               Orders crew to display gemstone info in crew chat
+	   ;osacommander task                                   Orders crew to turn in and get new tasks
+	   ;osacommander task count                             Will determine who hasn't rogered up
+	   ;osacommander sell                                   Orders crew to sell thier loot and return when finished
+	   ;osacommander reset                                  Orders crew to reset osacrew scripts
+	   ;osacommander update <scriptname>                    Orders crew to update a script
+	   ;osacommander detection on/off                       Turns on or off your enemy ship detection
+	   ;osacommander cleanup on/off                         Turns on or off detection of the death of the Captain for straggler cleanup
+	   ;osacommander cleanup                                Begins the cleanup process
+	   ;osacommander scripted on/off                        Turns on or off acceptance of outside scripted crew members
+	   ;osacommander noscript on/off                        Turns on or off a pause for non-scripting members of crew to do tasks and deposit silver
+	   ;osacommander poaching on/off                        Turns on or off the anti-poaching feature for you and your crew. 
+	   ;osacommander checkversion                           Checks the version of all scripts for you and your crew members
+	   ;osacommander combat                                 Tells entire crew to start OSACombat.
+	   ;osacommander combat <name>                          Tells a specific crew member to start OSACombat.
+	   ;osacommander loot <name>                            Tells a specific crew member to turn on looting and the rest to turn off looting.
+	
+	   This is the OSA Commander script. It is ran from your ship captain to give orders to the crew. 
+	   Enjoy 
+	
+	   ~Peggyanne 
+	 PS: feel free to send me any bugs via discord Bait#4376 and I'll try my best to fix them.
+	 
+	 Change Log:
+	 
+                July 29, 2025 - Added A Changelog As Well As A Loot Command And Silver Sharing Option In Setup.
+               August 3, 2025 - Separated Status Report Into Three Reports: Status, Resource And Gemstone.
+              August 26, 2025 - Fixed Slight Variable Error With Silvers Sharing.
+           September 22, 2025 - Fixed Slight Error In Silver Readout.
+             December 6, 2025 - Removed Vars Dependancy, Added Yaml Support, Added Tooltips and Added Default Values.
+             January 20, 2026 - Fixed Incorrect Display Of Boarding Times And Formatted Clearing Times To Match.
+             January 25, 2026 - Added Anti-Poaching Command For Toggle and Changed Name of Setup Method To Prevent Cross Script Errors.
+             January 26, 2026 - Fixed Issue With Empath Commanders Stalling During Boarding and Fixed Issues With Sinking Ship Via Cannons.
+              Febuary 1, 2026 - Update Yaml Read/Write Methods To Include FLOCK Operations To Prevent Data Corruption.
+             Febuary 13, 2026 - Gave In To The Hype And Rewrote YAML config and GTK3 Using AI.
+               April 12, 2026 - Small Fix to Summon Function.
+               April 21, 2026 - Small Fix to Looting.
+=end 
+
+def commander_help_display
+	respond ""
+	respond "   OSACommander Version: #{$osa_data["$osa_commanderversion"]}"
+	respond ""
+	respond "   Usage: "
+	respond ""
+	respond "   ;osacommander info <ship type>                       Will gather your ship info and save your current ship type"
+	respond "   ;osacommander crew                                   Will display commands for auto crew login"
+	respond "   ;osacommander begin                                  Will go to bank to withdrawl silvers retrieve your ship and get underway"
+	respond "   ;osacommander undead                                 Orders crew to start undead combat scripts"
+	respond "   ;osacommander bless                                  Will begin a blessing sequence for your crew"
+	respond "   ;osacommander start                                  Orders crew to start combat scripts"
+	respond "   ;osacommander end                                    Orders crew to begin end sequence after enemy ship is cleared"
+	respond "   ;osacommander stop                                   Orders crew to stop all combat scripts and resets ship boarding settings"
+	respond "   ;osacommander exit                                   Orders crew to attention and to exit game"
+	respond "   ;osacommander pause                                  Pauses crew combat scripts"
+	respond "   ;osacommander setup                                  Opens setup menu for commander"
+	respond "   ;osacommander unpause                                Unpauses crew combat scripts"
+	respond "   ;osacommander sheath                                 Orders crew to sheath thier weapons"
+	respond "   ;osacommander testcon <crew member>                  Orders a crew member to respond. For testing thier settings and connection"
+	respond "   ;osacommander kick <crew member                      Commands a crew member to depart from duty"
+	respond "   ;osacommander unkick <crew member                    Commands a crew member to return to duty"
+	respond "   ;osacommander muster                                 Takes a roll call of your crew members"
+	respond "   ;osacommander muster count                           Will determine who present is not of the ships company"
+	respond "   ;osacommander broadcast                              This will look ocean and broadcast the ships location and accept or decline any request to join"
+	respond "   ;osacommander summon                                 Call your crew to your location, they will then salute and join your group"
+	respond "   ;osacommander underway                               Orders crew to get ship underway"
+	respond "   ;osacommander repairs                                Orders crew to do repairs"
+	respond "   ;osacommander return                                 Turns off detection and returns to port, also does broadcast to set location and bring on new crew"
+	respond "   ;osacommander bread                                  Medical Officer will make mana bread and share it with everyone with Groupspellup checked"
+	respond "   ;osacommander spells                                 Orders crew to begin spellups"
+	respond "   ;osacommander spellup                                Orders crew to perform a mana spellup"
+	respond "   ;osacommander spellup <name>                         Orders crew to spellup a specific individual"
+	respond "   ;osacommander silvers                                Orders crew to give all silvers to the commander"
+	respond "   ;osacommander status                                 Orders crew to display status info in crew chat"
+	respond "   ;osacommander resource                               Orders crew to display resource info in crew chat"
+	respond "   ;osacommander gemstone                               Orders crew to display gemstone info in crew chat"
+	respond "   ;osacommander task                                   Orders crew to turn in and get new tasks"
+	respond "   ;osacommander task count                             Will determine who hasn't rogered up"
+	respond "   ;osacommander sell                                   Orders crew to sell thier loot and return when finished"
+	respond "   ;osacommander reset                                  Orders crew to reset osacrew scripts"
+	respond "   ;osacommander update <scriptname>                    Orders crew to update a script"
+	respond "   ;osacommander detection on/off                       Turns on or off your enemy ship detection"
+	respond "   ;osacommander cleanup on/off                         Turns on or off detection of the death of the Captain for straggler cleanup"
+	respond "   ;osacommander cleanup                                Begins the cleanup process"
+	respond "   ;osacommander scripted on/off                        Turns on or off acceptance of outside scripted crew members"
+	respond "   ;osacommander noscript on/off                        Turns on or off a pause for non-scripting members of crew to do tasks and deposit silver"
+	respond "   ;osacommander poaching on/off                        Turns on or off the anti-poaching feature for you and your crew."
+	respond "   ;osacommander checkversion                           Checks the version of all scripts for you and your crew members"
+	respond "   ;osacommander combat                                 Tells entire crew to start OSACombat."
+	respond "   ;osacommander combat <name>                          Tells a specific crew member to start OSACombat."
+	respond "   ;osacommander loot <name>                            Tells a specific crew member to turn on looting and the rest to turn off looting."
+	respond ""
+	respond "   This is the OSA Commander script. It is ran from your ship captain to give orders to the crew. "
+	respond "   Enjoy "
+	respond ""
+	respond "   ~Peggyanne "
+	respond " PS: feel free to send me any bugs via discord Bait#4376 and I'll try my best to fix them. "
+	respond ""
+	respond "Changelog:"
+	respond ""
+	respond "           July 29, 2025 - Added A Changelog As Well As A Loot Command And Silver Sharing Option In Setup"
+	respond "          August 3, 2025 - Separated Status Report Into Three Reports: Status, Resource And Gemstone."
+	respond "         August 26, 2025 - Fixed Slight Variable Error With Silvers Sharing."
+	respond "      September 22, 2025 - Fixed Slight Error In Silver Readout."
+	respond "        December 6, 2025 - Removed Vars Dependancy, Added Yaml Support, Added Tooltips and Added Default Values."
+	respond "        January 20, 2026 - Fixed Incorrect Display Of Boarding Times And Formatted Clearing Times To Match."
+	respond "        January 25, 2026 - Added Anti-Poaching Command For Toggle and Changed Name of Setup Method To Prevent Cross Script Errors."
+	respond "        January 26, 2026 - Fixed Issue With Empath Commanders Stalling During Boarding and Fixed Issues With Sinking Ship Via Cannons."
+	respond "         Febuary 1, 2026 - Update Yaml Read/Write Methods To Include FLOCK Operations To Prevent Data Corruption."
+	respond "        Febuary 13, 2026 - Gave In To The Hype And Rewrote YAML config and GTK3 Using AI."
+	respond "          April 12, 2026 - Small Fix to Summon Function."
+	respond "          April 21, 2026 - Small Fix to Looting."
+	respond ""
+		exit
+end
+
+def ship_type
+	#Sloop Map
+	if !Room[29038].tags.include? "main_deck"
+		Room[29039].tags.push("cargo_hold")
+		Room[29038].tags.push("main_deck")
+		Room[29040].tags.push("crows_nest")
+		Room[29041].tags.push("helm")
+		Room[29042].tags.push("captains_quarters")
+		Room[29038].tags.push("main_cannon")
+	end
+	if !Room[30787].tags.include? "enemy_main_deck"
+		Room[30790].tags.push("enemy_cargo_hold")
+		Room[30787].tags.push("enemy_main_deck")
+		Room[30791].tags.push("enemy_crows_nest")
+		Room[30788].tags.push("enemy_helm")
+		Room[30789].tags.push("enemy_quarters")
+	end
+	if Room[29038].wayto["30787"].nil?
+		Room[29038].wayto["30787"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[29038].timeto["30787"] = 0.2
+		Room[29038].wayto["30792"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[29038].timeto["30792"] = 0.2
+		Room[29038].wayto["30266"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[29038].timeto["30266"] = 0.2
+		Room[29038].wayto["30798"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[29038].timeto["30798"] = 0.2
+		Room[29038].wayto["30805"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[29038].timeto["30805"] = 0.2
+		Room[29038].wayto["30778"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[29038].timeto["30778"] = 0.2
+	end
+	#Brigantine Map
+	if !Room[30142].tags.include? "main_deck"
+		Room[30145].tags.push("cargo_hold")
+		Room[30142].tags.push("main_deck")
+		Room[30144].tags.push("forward_deck")
+		Room[30143].tags.push("crows_nest")
+		Room[30147].tags.push("mess_hall")
+		Room[30146].tags.push("crew_quarters")
+		Room[30141].tags.push("helm")
+		Room[30140].tags.push("captains_quarters")
+		Room[30142].tags.push("main_cannon")
+		Room[30144].tags.push("forward_cannon")
+	end
+	if !Room[30792].tags.include? "enemy_main_deck"
+		Room[30795].tags.push("enemy_cargo_hold")
+		Room[30792].tags.push("enemy_main_deck")
+		Room[30797].tags.push("enemy_forward_deck")
+		Room[30796].tags.push("enemy_crows_nest")
+		Room[30793].tags.push("enemy_helm")
+		Room[30794].tags.push("enemy_quarters")
+	end
+	if Room[30142].wayto["30787"].nil?
+		Room[30142].wayto["30787"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30142].timeto["30787"] = 0.2
+		Room[30142].wayto["30792"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30142].timeto["30792"] = 0.2
+		Room[30142].wayto["30266"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30142].timeto["30266"] = 0.2
+		Room[30142].wayto["30798"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30142].timeto["30798"] = 0.2
+		Room[30142].wayto["30805"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30142].timeto["30805"] = 0.2
+		Room[30142].wayto["30778"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30142].timeto["30778"] = 0.2
+	end
+	#Carrack Map
+	if !Room[30119].tags.include? "main_deck"
+		Room[30125].tags.push("cargo_hold")
+		Room[30119].tags.push("main_deck")
+		Room[30121].tags.push("forward_deck")
+		Room[30122].tags.push("bow")
+		Room[30123].tags.push("crows_nest")
+		Room[30127].tags.push("mess_hall")
+		Room[30126].tags.push("crew_quarters")
+		Room[30120].tags.push("helm")
+		Room[30124].tags.push("captains_quarters")
+		Room[30119].tags.push("main_cannon")
+		Room[30121].tags.push("forward_cannon")
+	end
+	if !Room[30266].tags.include? "enemy_main_deck"
+		Room[30269].tags.push("enemy_cargo_hold")
+		Room[30266].tags.push("enemy_main_deck")
+		Room[30271].tags.push("enemy_forward_deck")
+		Room[30272].tags.push("enemy_bow")
+		Room[30270].tags.push("enemy_crows_nest")
+		Room[30267].tags.push("enemy_helm")
+		Room[30268].tags.push("enemy_quarters")
+	end
+	if Room[30119].wayto["30787"].nil?
+		Room[30119].wayto["30787"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30119].timeto["30787"] = 0.2
+		Room[30119].wayto["30792"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30119].timeto["30792"] = 0.2
+		Room[30119].wayto["30266"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30119].timeto["30266"] = 0.2
+		Room[30119].wayto["30798"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30119].timeto["30798"] = 0.2
+		Room[30119].wayto["30805"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30119].timeto["30805"] = 0.2
+		Room[30119].wayto["30778"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30119].timeto["30778"] = 0.2
+	end
+	#Galleon Map
+	if !Room[30176].tags.include? "main_deck"
+		Room[30182].tags.push("cargo_hold")
+		Room[30176].tags.push("main_deck")
+		Room[30177].tags.push("forward_deck")
+		Room[30178].tags.push("bow")
+		Room[30181].tags.push("crows_nest")
+		Room[30185].tags.push("social_room")
+		Room[30184].tags.push("mess_hall")
+		Room[30183].tags.push("crew_quarters")
+		Room[30179].tags.push("helm")
+		Room[30180].tags.push("captains_quarters")
+		Room[30176].tags.push("main_cannon")
+		Room[30177].tags.push("forward_cannon")
+	end
+	if !Room[30798].tags.include? "enemy_main_deck"
+		Room[30801].tags.push("enemy_cargo_hold")
+		Room[30798].tags.push("enemy_main_deck")
+		Room[30803].tags.push("enemy_forward_deck")
+		Room[30804].tags.push("enemy_bow")
+		Room[30802].tags.push("enemy_crows_nest")
+		Room[30799].tags.push("enemy_helm")
+		Room[30800].tags.push("enemy_quarters")
+	end
+	if Room[30176].wayto["30787"].nil?
+		Room[30176].wayto["30787"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30176].timeto["30787"] = 0.2
+		Room[30176].wayto["30792"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30176].timeto["30792"] = 0.2
+		Room[30176].wayto["30266"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30176].timeto["30266"] = 0.2
+		Room[30176].wayto["30798"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30176].timeto["30798"] = 0.2
+		Room[30176].wayto["30805"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30176].timeto["30805"] = 0.2
+		Room[30176].wayto["30778"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30176].timeto["30778"] = 0.2
+	end
+	#Frigate Map
+	if !Room[30166].tags.include? "main_deck"
+		Room[30167].tags.push("cargo_hold")
+		Room[30166].tags.push("main_deck")
+		Room[30171].tags.push("forward_deck")
+		Room[30172].tags.push("bow")
+		Room[30173].tags.push("crows_nest")
+		Room[30170].tags.push("social_room")
+		Room[30169].tags.push("mess_hall")
+		Room[30168].tags.push("crew_quarters")
+		Room[30174].tags.push("helm")
+		Room[30175].tags.push("captains_quarters")
+		Room[30166].tags.push("main_cannon")
+		Room[30171].tags.push("forward_cannon")
+	end
+	if !Room[30805].tags.include? "enemy_main_deck"
+		Room[30808].tags.push("enemy_cargo_hold")
+		Room[30805].tags.push("enemy_main_deck")
+		Room[30810].tags.push("enemy_forward_deck")
+		Room[30809].tags.push("enemy_crows_nest")
+		Room[30806].tags.push("enemy_helm")
+		Room[30807].tags.push("enemy_quarters")
+	end
+	if Room[30166].wayto["30787"].nil?
+		Room[30166].wayto["30787"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30166].timeto["30787"] = 0.2
+		Room[30166].wayto["30792"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30166].timeto["30792"] = 0.2
+		Room[30166].wayto["30266"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30166].timeto["30266"] = 0.2
+		Room[30166].wayto["30798"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30166].timeto["30798"] = 0.2
+		Room[30166].wayto["30805"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30166].timeto["30805"] = 0.2
+		Room[30166].wayto["30778"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30166].timeto["30778"] = 0.2
+	end
+	#Man O' War Map
+	if !Room[30130].tags.include? "main_deck"
+		Room[30136].tags.push("cargo_hold")
+		Room[30130].tags.push("main_deck")
+		Room[30131].tags.push("mid_deck")
+		Room[30132].tags.push("forward_deck")
+		Room[30133].tags.push("bow")
+		Room[30135].tags.push("crows_nest")
+		Room[30134].tags.push("forward_crows_nest")
+		Room[30139].tags.push("social_room")
+		Room[30138].tags.push("mess_hall")
+		Room[30137].tags.push("crew_quarters")
+		Room[30128].tags.push("helm")
+		Room[30129].tags.push("captains_quarters")
+		Room[30130].tags.push("main_cannon")
+		Room[30131].tags.push("mid_cannon")
+		Room[30132].tags.push("forward_cannon")
+	end
+	if !Room[30778].tags.include? "enemy_main_deck"
+		Room[30781].tags.push("enemy_cargo_hold")
+		Room[30778].tags.push("enemy_main_deck")
+		Room[30783].tags.push("enemy_mid_deck")
+		Room[30786].tags.push("enemy_forward_deck")
+		Room[30784].tags.push("enemy_bow")
+		Room[30782].tags.push("enemy_crows_nest")
+		Room[30785].tags.push("enemy_forward_crows_nest")
+		Room[30779].tags.push("enemy_helm")
+		Room[30780].tags.push("enemy_quarters")
+	end
+	if Room[30130].wayto["30787"].nil?
+		Room[30130].wayto["30787"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30130].timeto["30787"] = 0.2
+		Room[30130].wayto["30792"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30130].timeto["30792"] = 0.2
+		Room[30130].wayto["30266"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30130].timeto["30266"] = 0.2
+		Room[30130].wayto["30798"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30130].timeto["30798"] = 0.2
+		Room[30130].wayto["30805"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30130].timeto["30805"] = 0.2
+		Room[30130].wayto["30778"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30130].timeto["30778"] = 0.2
+	end
+end
+
+def ship_map
+	case Room.current.id
+	when (29038..29042)
+			self.save_script_data(:$osa_ship_type, "sloop")
+			self.save_script_data(:$osa_ship_map, ["main_deck", "cargo_hold", "crows_nest", "helm", "captains_quarters"])
+			if !$osa_data.key?('$osa_Slooptimes')
+				self.save_script_data(:$osa_Slooptimes, Array.new)
+				self.save_script_data(:$osa_Slooptimes, 0.35000000000000000, push: true)
+			end
+			self.save_script_data(:$osa_Slooptimes, $osa_data['$osa_Slooptimes'].last(50))
+	when (30140..30147)
+			self.save_script_data(:$osa_ship_type, "brigantine")
+			self.save_script_data(:$osa_ship_map, ["forward_deck", "main_deck", "crows_nest", "cargo_hold", "mess_hall", "crew_quarters", "helm", "captains_quarters"])
+			if !$osa_data.key?('$osa_Brigtimes')
+				self.save_script_data(:$osa_Brigtimes, Array.new)
+				self.save_script_data(:$osa_Brigtimes, 0.35000000000000000, push: true)
+			end
+			self.save_script_data(:$osa_Brigtimes, $osa_data['$osa_Brigtimes'].last(50))
+	when (30119..30127)
+			self.save_script_data(:$osa_ship_type, "carrack")
+			self.save_script_data(:$osa_ship_map, ["bow", "forward_deck", "crows_nest", "main_deck", "mess_hall", "cargo_hold", "crew_quarters", "helm", "captains_quarters"])
+			if !$osa_data.key?('$osa_Cartimes')
+				self.save_script_data(:$osa_Cartimes, Array.new)
+				self.save_script_data(:$osa_Cartimes, 0.35000000000000000, push: true)
+			end
+			self.save_script_data(:$osa_Cartimes, $osa_data['$osa_Cartimes'].last(50))
+	when (30176..30186)
+			self.save_script_data(:$osa_ship_type, "galleon")
+			self.save_script_data(:$osa_ship_map, ["bow", "forward_deck", "crows_nest", "main_deck", "social_room", "mess_hall", "cargo_hold", "crew_quarters", "helm", "captains_quarters"])
+			if !$osa_data.key?('$osa_Galtimes')
+				self.save_script_data(:$osa_Galtimes, Array.new)
+				self.save_script_data(:$osa_Galtimes, 0.35000000000000000, push: true)
+			end
+			self.save_script_data(:$osa_Galtimes, $osa_data['$osa_Galtimes'].last(50))
+	when (30166..30175)
+			self.save_script_data(:$osa_ship_type, "frigate")
+			self.save_script_data(:$osa_ship_map, ["bow", "forward_deck", "crows_nest", "main_deck", "social_room", "mess_hall", "cargo_hold", "crew_quarters", "helm", "captains_quarters"])
+			if !$osa_data.key?('$osa_Fritimes')
+				self.save_script_data(:$osa_Fritimes, Array.new)
+				self.save_script_data(:$osa_Fritimes, 0.35000000000000000, push: true)
+			end
+			self.save_script_data(:$osa_Fritimes, $osa_data['$osa_Fritimes'].last(50))
+	when (30128..30139)
+			self.save_script_data(:$osa_ship_type, "man o' war")
+			self.save_script_data(:$osa_ship_map, ["bow", "forward_crows_nest", "forward_deck", "mid_deck", "crows_nest", "main_deck", "social_room", "mess_hall", "cargo_hold", "crew_quarters", "helm", "captains_quarters"])
+			if !$osa_data.key?('$osa_Mantimes')
+				self.save_script_data(:$osa_Mantimes, Array.new)
+				self.save_script_data(:$osa_Mantimes, 0.35000000000000000, push: true)
+			end
+			self.save_script_data(:$osa_Mantimes, $osa_data['$osa_Mantimes'].last(50))
+	end
+end
+
+def commander_map_gangplank
+	if $osa_data["$osa_commander_ship_type"] == "man o' war"
+		Room[$osa_data["$osa_gangplank"]].wayto["30130"] = StringProc.new("gangplank = GameObj.loot.find{|o| o.noun == \"gangplank\" }.id;if !gangplank.nil?;fput \"go #\#{gangplank}\";else;ship = GameObj.loot.find{|o| o.noun =~ /sloop|brigantine|carrack|frigate|galleon|^man/ }.id; if !ship.nil?;fput \"go #\#{ship}\";else;echo \"Couldnt find gangplank or ship\";end;end;")
+		Room[$osa_data["$osa_gangplank"]].timeto["30130"] = 0.2
+		Room["30130"].wayto["#{$osa_data["$osa_gangplank"]}"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room["30130"].timeto["#{$osa_data["$osa_gangplank"]}"] = 0.2
+	end
+	if $osa_data["$osa_commander_ship_type"] == "frigate"
+		Room[$osa_data["$osa_gangplank"]].wayto["30166"] = StringProc.new("gangplank = GameObj.loot.find{|o| o.noun == \"gangplank\" }.id;if !gangplank.nil?;fput \"go #\#{gangplank}\";else;ship = GameObj.loot.find{|o| o.noun =~ /sloop|brigantine|carrack|frigate|galleon|^man/ }.id; if !ship.nil?;fput \"go #\#{ship}\";else;echo \"Couldnt find gangplank or ship\";end;end;")
+		Room[$osa_data["$osa_gangplank"]].timeto["30166"] = 0.2
+		Room["30166"].wayto["#{$osa_data["$osa_gangplank"]}"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room["30166"].timeto["#{$osa_data["$osa_gangplank"]}"] = 0.2
+	end
+	if $osa_data["$osa_commander_ship_type"] == "galleon"
+		Room[$osa_data["$osa_gangplank"]].wayto["30176"] = StringProc.new("gangplank = GameObj.loot.find{|o| o.noun == \"gangplank\" }.id;if !gangplank.nil?;fput \"go #\#{gangplank}\";else;ship = GameObj.loot.find{|o| o.noun =~ /sloop|brigantine|carrack|frigate|galleon|^man/ }.id; if !ship.nil?;fput \"go #\#{ship}\";else;echo \"Couldnt find gangplank or ship\";end;end;")
+		Room[$osa_data["$osa_gangplank"]].timeto["30176"] = 0.2
+		Room["30176"].wayto["#{$osa_data["$osa_gangplank"]}"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room["30176"].timeto["#{$osa_data["$osa_gangplank"]}"] = 0.2
+	end
+	if $osa_data["$osa_commander_ship_type"] == "carrack"
+		Room[$osa_data["$osa_gangplank"]].wayto["30119"] = StringProc.new("gangplank = GameObj.loot.find{|o| o.noun == \"gangplank\" }.id;if !gangplank.nil?;fput \"go #\#{gangplank}\";else;ship = GameObj.loot.find{|o| o.noun =~ /sloop|brigantine|carrack|frigate|galleon|^man/ }.id; if !ship.nil?;fput \"go #\#{ship}\";else;echo \"Couldnt find gangplank or ship\";end;end;")
+		Room[$osa_data["$osa_gangplank"]].timeto["30119"] = 0.2
+		Room["30119"].wayto["#{$osa_data["$osa_gangplank"]}"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room["30119"].timeto["#{$osa_data["$osa_gangplank"]}"] = 0.2
+	end
+	if $osa_data["$osa_commander_ship_type"] == "brigantine"
+		Room[$osa_data["$osa_gangplank"]].wayto["30142"] = StringProc.new("gangplank = GameObj.loot.find{|o| o.noun == \"gangplank\" }.id;if !gangplank.nil?;fput \"go #\#{gangplank}\";else;ship = GameObj.loot.find{|o| o.noun =~ /sloop|brigantine|carrack|frigate|galleon|^man/ }.id; if !ship.nil?;fput \"go #\#{ship}\";else;echo \"Couldnt find gangplank or ship\";end;end;")
+		Room[$osa_data["$osa_gangplank"]].timeto["30142"] = 0.2
+		Room["30142"].wayto["#{$osa_data["$osa_gangplank"]}"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room["30142"].timeto["#{$osa_data["$osa_gangplank"]}"] = 0.2
+	end
+	if $osa_data["$osa_commander_ship_type"] == "sloop"
+		Room[$osa_data["$osa_gangplank"]].wayto["29038"] = StringProc.new("gangplank = GameObj.loot.find{|o| o.noun == \"gangplank\" }.id;if !gangplank.nil?;fput \"go #\#{gangplank}\";else;ship = GameObj.loot.find{|o| o.noun =~ /sloop|brigantine|carrack|frigate|galleon|^man/ }.id; if !ship.nil?;fput \"go #\#{ship}\";else;echo \"Couldnt find gangplank or ship\";end;end;")
+		Room[$osa_data["$osa_gangplank"]].timeto["29038"] = 0.2
+		Room["29038"].wayto["#{$osa_data["$osa_gangplank"]}"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room["29038"].timeto["#{$osa_data["$osa_gangplank"]}"] = 0.2
+	end
+end
+
+def commander_clear_gangplank
+	Room[$osa_data["$osa_gangplank"]].wayto.delete ("30130")
+	Room[$osa_data["$osa_gangplank"]].timeto.delete ("30130")
+	Room[30130].wayto.delete ("#{$osa_data["$osa_gangplank"]}")
+	Room[30130].timeto.delete ("#{$osa_data["$osa_gangplank"]}")
+	Room[$osa_data["$osa_gangplank"]].wayto.delete ("30166")
+	Room[$osa_data["$osa_gangplank"]].timeto.delete ("30166")
+	Room[30166].wayto.delete ("#{$osa_data["$osa_gangplank"]}")
+	Room[30166].timeto.delete ("#{$osa_data["$osa_gangplank"]}")
+	Room[$osa_data["$osa_gangplank"]].wayto.delete ("30176")
+	Room[$osa_data["$osa_gangplank"]].timeto.delete ("30176")
+	Room[30176].wayto.delete ("#{$osa_data["$osa_gangplank"]}")
+	Room[30176].timeto.delete ("#{$osa_data["$osa_gangplank"]}")
+	Room[$osa_data["$osa_gangplank"]].wayto.delete ("30119")
+	Room[$osa_data["$osa_gangplank"]].timeto.delete ("30119")
+	Room[30119].wayto.delete ("#{$osa_data["$osa_gangplank"]}")
+	Room[30119].timeto.delete ("#{$osa_data["$osa_gangplank"]}")
+	Room[$osa_data["$osa_gangplank"]].wayto.delete ("30142")
+	Room[$osa_data["$osa_gangplank"]].timeto.delete ("30142")
+	Room[30142].wayto.delete ("#{$osa_data["$osa_gangplank"]}")
+	Room[30142].timeto.delete ("#{$osa_data["$osa_gangplank"]}")
+	Room[$osa_data["$osa_gangplank"]].wayto.delete ("29038")
+	Room[$osa_data["$osa_gangplank"]].timeto.delete ("29038")
+	Room[29038].wayto.delete ("#{$osa_data["$osa_gangplank"]}")
+	Room[29038].timeto.delete ("#{$osa_data["$osa_gangplank"]}")
+end
+
+
+def cargo_hold
+	ship_type
+	start_script("go2", ["cargo_hold"]) if !Room.current.tags.include? "cargo_hold"
+	wait_while { running?("go2") }
+end
+
+def main_deck
+	ship_type
+	start_script("go2", ["main_deck"]) if !Room.current.tags.include? "main_deck"
+	wait_while { running?("go2") }
+end
+
+def mid_deck
+	ship_type
+	start_script("go2", ["mid_deck"]) if !Room.current.tags.include? "mid_deck"
+	wait_while { running?("go2") }
+end
+
+def forward_deck
+	ship_type
+	start_script("go2", ["forward_deck"]) if !Room.current.tags.include? "forward_deck"
+	wait_while { running?("go2") }
+end
+
+def bow
+	ship_type
+	start_script("go2", ["bow"]) if !Room.current.tags.include? "bow"
+	wait_while { running?("go2") }
+end
+
+def crows_nest
+	ship_type
+	start_script("go2", ["crows_nest"]) if !Room.current.tags.include? "crows_nest"
+	wait_while { running?("go2") }
+end
+
+def forward_crows_nest
+	ship_type
+	start_script("go2", ["forward_crows_nest"]) if !Room.current.tags.include? "forward_crows_nest"
+	wait_while { running?("go2") }
+end
+
+def social_room
+	ship_type
+	start_script("go2", ["social_room"]) if !Room.current.tags.include? "social_room"
+	wait_while { running?("go2") }
+end
+
+def mess_hall
+	ship_type
+	start_script("go2", ["mess_hall"]) if !Room.current.tags.include? "mess_hall"
+	wait_while { running?("go2") }
+end
+
+def crew_quarters
+	ship_type
+	start_script("go2", ["crew_quarters"]) if !Room.current.tags.include? "crew_quarters"
+	wait_while { running?("go2") }
+end
+
+def helm
+	ship_type
+	start_script("go2", ["helm"]) if !Room.current.tags.include? "helm"
+	wait_while { running?("go2") }
+end
+
+def captains_quarters
+	ship_type
+	start_script("go2", ["captains_quarters"]) if !Room.current.tags.include? "captains_quarters"
+	wait_while { running?("go2") }
+end
+
+def enemy_cargo_hold
+	ship_type
+	start_script("go2", ["enemy_cargo_hold"]) if !Room.current.tags.include? "enemy_cargo_hold"
+	wait_while { running?("go2") }
+end
+
+def enemy_main_deck
+	ship_type
+	start_script("go2", ["enemy_main_deck"]) if !Room.current.tags.include? "enemy_main_deck"
+	wait_while { running?("go2") }
+end
+
+def enemy_mid_deck
+	ship_type
+	start_script("go2", ["enemy_mid_deck"]) if !Room.current.tags.include? "enemy_mid_deck"
+	wait_while { running?("go2") }
+end
+
+def enemy_forward_deck
+	ship_type
+	start_script("go2", ["enemy_forward_deck"]) if !Room.current.tags.include? "enemy_forward_deck"
+	wait_while { running?("go2") }
+end
+
+def enemy_bow
+	ship_type
+	start_script("go2", ["enemy_bow"]) if !Room.current.tags.include? "enemy_bow"
+	wait_while { running?("go2") }
+end
+
+def enemy_crows_nest
+	ship_type
+	start_script("go2", ["enemy_crows_nest"]) if !Room.current.tags.include? "enemy_crows_nest"
+	wait_while { running?("go2") }
+end
+
+def enemy_forward_crows_nest
+	ship_type
+	start_script("go2", ["enemy_forward_crows_nest"]) if !Room.current.tags.include? "enemy_forward_crows_nest"
+	wait_while { running?("go2") }
+end
+
+def enemy_helm
+	ship_type
+	start_script("go2", ["enemy_helm"]) if !Room.current.tags.include? "enemy_helm"
+	wait_while { running?("go2") }
+end
+
+def enemy_quarters
+	ship_type
+	start_script("go2", ["enemy_quarters"]) if !Room.current.tags.include? "enemy_quarters"
+	wait_while { running?("go2") }
+end
+
+def determine_to_engage
+	@enemy_type_list = Array.new
+	@enemy_ship_list = Array.new
+	@enemy_cannon_list = Array.new
+	@enemy_type_list.push ("pirate") if $osa_data["$osa_enemy_pirate"]
+	@enemy_type_list.push ("krolvin") if $osa_data["$osa_enemy_krolvin"]
+	@enemy_type_list.push ("undead") if $osa_data["$osa_enemy_undead"]
+	@enemy_ship_list.push ("Sloop") if $osa_data["$osa_board_sloop"]
+	@enemy_ship_list.push ("Brigantine") if $osa_data["$osa_board_brigantine"]
+	@enemy_ship_list.push ("Carrack") if $osa_data["$osa_board_carrack"]
+	@enemy_ship_list.push ("Galleon") if $osa_data["$osa_board_galleon"]
+	@enemy_ship_list.push ("Frigate") if $osa_data["$osa_board_frigate"]
+	@enemy_ship_list.push ("Man O\' War") if $osa_data["$osa_board_man"]
+	@enemy_cannon_list.push ("Sloop") if $osa_data["$osa_fire_sloop"]
+	@enemy_cannon_list.push ("Brigantine") if $osa_data["$osa_fire_brigantine"]
+	@enemy_cannon_list.push ("Carrack") if $osa_data["$osa_fire_carrack"]
+	@enemy_cannon_list.push ("Galleon") if $osa_data["$osa_fire_galleon"]
+	@enemy_cannon_list.push ("Frigate") if $osa_data["$osa_fire_frigate"]
+	@enemy_cannon_list.push ("Man O\' War") if $osa_data["$osa_fire_man"]
+	if (@enemy_type_list.include? $osa_data["$osa_enemy_type"]) and (@enemy_ship_list.include? $osa_data["$osa_enemy_ship_type"])
+		self.save_script_data(:$osa_engage, true, push: false)
+	else
+		self.save_script_data(:$osa_engage, false, push: false)
+	end
+	if (@enemy_cannon_list.include? $osa_data["$osa_enemy_ship_type"])
+		self.save_script_data(:$osa_cannon_engage, true, push: false)
+	else
+		self.save_script_data(:$osa_cannon_engage, false, push: false)
+	end
+end
+
+def commander_vessel_messaging
+	waitrt?
+	@ph_vessel_messaging = rand(1..11)
+	if @ph_vessel_messaging == 1
+		fput "yell We Are Engaging A #{$osa_data["$osa_enemy_type"]} Vessel, All Hands Man Your Battlestations!"
+	elsif @ph_vessel_messaging == 2
+		fput "yell Surface Contact, Port Side, Bearing #{"%03d" % rand(225..315)}, #{$osa_data["$osa_enemy_type"]} Vessel Inbound!"
+	elsif @ph_vessel_messaging == 3
+		fput "yell Surface Contact, Starboard Side, Bearing #{"%03d" % rand(46..135)}, #{$osa_data["$osa_enemy_type"]} Vessel Inbound!"
+	elsif @ph_vessel_messaging == 4
+		fput "yell Surface Contact, Dead Ahead, Bearing #{"%03d" % rand(0..45)}, #{$osa_data["$osa_enemy_type"]} Vessel Inbound!"
+	elsif @ph_vessel_messaging == 5
+		fput "yell Surface Contact, Dead Ahead, Bearing #{"%03d" % rand(316..359)}, #{$osa_data["$osa_enemy_type"]} Vessel Inbound!"	
+	elsif @ph_vessel_messaging == 6
+		fput "yell Surface Contact, Dead Astern, Bearing #{"%03d" % rand(136..224)}, #{$osa_data["$osa_enemy_type"]} Vessel Inbound!"
+	elsif @ph_vessel_messaging == 7
+		fput "yell Cannon Fire Inbound, Brace For Shock!"
+		fput "yell #{$osa_data["$osa_enemy_type"]} Vessel Approaching!"
+	elsif @ph_vessel_messaging == 8
+		fput "yell #{$osa_data["$osa_enemy_type"]} Ship Detected, She's Caught Between The Devil And The Deep Blue Sea!"
+		fput "yell To Your Battlestations!"
+	elsif @ph_vessel_messaging == 9
+		fput "yell #{$osa_data["$osa_enemy_type"]} Vessel Inbound! She Be Sailing Close To The Wind Me Boys!"
+		fput "yell Time To Make Waves!"
+	elsif @ph_vessel_messaging == 10
+		fput "yell #{$osa_data["$osa_enemy_type"]} Vessel Starboard Side!"
+		fput "yell She Be Choc-a-Block, Knock Seven Bells!"
+	elsif @ph_vessel_messaging == 11
+		fput "yell #{$osa_data["$osa_enemy_type"]} Vessel Port Side!"
+		fput "yell She Be Choc-a-Block, Knock Seven Bells!"
+	end
+end
+
+def do_not_board
+	LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Crew, We Do Not Have Authorization To Engage This Vessel!")
+	helm
+	fput "turn wheel port"
+	waitfor /The (.*) drifts steadily toward the (.*) port/
+	if $osa_data["$osa_crewsize"].count != 0
+		commander_call_muster
+	end
+	if $osa_data["$osa_crewsize"].count != 0
+		commander_get_underway
+	else
+		commander_solo_get_underway
+	end
+end
+
+def flag_settings
+	flagset = Lich::Util.quiet_command("flag", /You may also access these settings through/, end_pattern = /war in towns with active justice./, include_end = true ,timeout = 3, silent = true)
+		if flagset.to_s =~ /ShowRoomID         OFF/
+			#do_client "flag showroomid on"
+			Lich::Util.quiet_command("flag showroomid on", /You will now display the room ID./, end_pattern = /You will now display the room ID./, include_end = true ,timeout = 3, silent = true)
+			$roomflagon = true
+		end
+		if flagset.to_s =~ /ShowRoomID         ON/
+			$roomflagon = false
+		end
+end
+
+def commander_broadcast_location
+	main_deck
+	fput "push gangplank"
+	flag_settings
+	broadcast = Lich::Util.quiet_command("look ocean", /\[(.*)\]/, end_pattern = /(Open waters: (.*)|Obvious paths: (.*))/, include_end = false ,timeout = 3, silent = true)
+		if broadcast.to_s =~ /\(([0-9,]+)\)/
+			$gangplank_id = Room["u#{$1}"].id
+			$gangplank_title = Room["u#{$1}"].title[0]
+			$gangplank_city = Room["u#{$1}"].location
+		end
+	LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "The Ship Is Now Moored In #{$gangplank_city}. Room Number: #{$gangplank_id} #{$gangplank_title}")
+	if $roomflagon == true
+		#fput "flag showroomid off"
+		Lich::Util.quiet_command("flag showroomid off", /You will no longer display the room ID./, end_pattern = /You will no longer display the room ID./, include_end = true ,timeout = 3, silent = true)
+	end
+	if !$osa_data["$osa_gangplank"].nil? 
+		Room[$osa_data["$osa_gangplank"]].tags.delete("myship") if Room[$osa_data["$osa_gangplank"]].tags.include? "myship"
+	end
+	commander_clear_gangplank
+	self.save_script_data(:$osa_gangplank, $gangplank_id)
+	Room[$osa_data["$osa_gangplank"]].tags.push("myship") if !Room[$osa_data["$osa_gangplank"]].tags.include? "myship"
+	commander_map_gangplank
+	if $osa_data["$osa_othersailors"]
+		commander_give_permission
+	end
+end
+
+def determine_enemy_type
+	result = Lich::Util.quiet_command("look ocean", /\[(.*)\]/, end_pattern = /(Open waters: (.*)|Obvious paths: (.*))/, include_end = false ,timeout = 3, silent = true)
+	if result.to_s =~ /You notice (.*) approaching your position/
+		self.save_script_data(:$osa_enemyship, $1)
+		if $1.include? "ethereal"
+			self.save_script_data(:$osa_enemy_type, "undead")
+			self.save_script_data(:$osa_creature_type, "undead")
+		end
+		if $1.include? "krolvin"
+			self.save_script_data(:$osa_enemy_type, "krolvin")
+			self.save_script_data(:$osa_creature_type, "living")
+		end
+		if $1.include? "dark"
+			self.save_script_data(:$osa_enemy_type, "pirate")
+			self.save_script_data(:$osa_creature_type, "living")
+		end
+		if $1.downcase.include? "sloop"
+			self.save_script_data(:$osa_enemy_ship_type, "Sloop")
+			self.save_script_data(:$osa_enemy_ship_map, ["enemy_main_deck", "enemy_crows_nest", "enemy_helm", "enemy_cargo_hold"])
+		elsif $1.downcase.include? "brigantine"
+			self.save_script_data(:$osa_enemy_ship_type, "Brigantine")
+			self.save_script_data(:$osa_enemy_ship_map, ["enemy_forward_deck", "enemy_main_deck", "enemy_crows_nest", "enemy_helm", "enemy_cargo_hold"])
+		elsif $1.downcase.include? "carrack"
+			self.save_script_data(:$osa_enemy_ship_type, "Carrack")
+			self.save_script_data(:$osa_enemy_ship_map, ["enemy_bow", "enemy_forward_deck", "enemy_main_deck", "enemy_crows_nest", "enemy_helm", "enemy_cargo_hold"])
+		elsif $1.downcase.include? "galleon"
+			self.save_script_data(:$osa_enemy_ship_type, "Galleon")
+			self.save_script_data(:$osa_enemy_ship_map, ["enemy_bow", "enemy_forward_deck", "enemy_main_deck", "enemy_crows_nest", "enemy_helm", "enemy_cargo_hold"])
+		elsif $1.downcase.include? "frigate"
+			self.save_script_data(:$osa_enemy_ship_type, "Frigate")
+			self.save_script_data(:$osa_enemy_ship_map, ["enemy_forward_deck", "enemy_main_deck", "enemy_crows_nest", "enemy_helm", "enemy_cargo_hold"])
+		elsif $1.downcase.include? "man o' war"
+			self.save_script_data(:$osa_enemy_ship_type, "Man O' War")
+			self.save_script_data(:$osa_enemy_ship_map, ["enemy_bow", "enemy_forward_deck", "enemy_forward_crows_nest", "enemy_mid_deck", "enemy_main_deck", "enemy_crows_nest", "enemy_helm", "enemy_cargo_hold"])
+		end
+		
+	end
+end
+
+def commander_checkforenemies
+	@deadnpcs = GameObj.npcs.find_all { |i| i.status =~ /dead|gone/ }
+    @deadnpcs.delete_if { |npc| (npc.name =~ /animated/ && npc.name !~ /animated slush/) }
+    @deadnpcs.delete_if { |npc| npc.noun =~ /child|traveller|scribe|merchant|dignitary|official|magistrate/i && npc.name !~ /ethereal|celestial|unworldly/i }
+    @deadnpcs.delete_if { |npc| npc.noun =~ /^(?:arm|appendage|claw|limb|pincer|tentacle)s?$|^(?:palpus|palpi)$/i }
+	@npcs = GameObj.targets.find_all { |i| i.status !~ /dead|gone/ }
+	@npcs.delete_if { |npc| (npc.name =~ /animated/ && npc.name !~ /animated slush/) }
+	@npcs.delete_if { |npc| ($osa_data["$osa_exclusion"].to_s.include? npc.name) }
+    @npcs.delete_if { |npc| npc.noun =~ /child|traveller|scribe|merchant|dignitary|official|magistrate/i && npc.name !~ /ethereal|celestial|unworldly/i }
+    @npcs.delete_if { |npc| npc.noun =~ /^(?:arm|appendage|claw|limb|pincer|tentacle)s?$|^(?:palpus|palpi)$/i }
+end	
+
+def cleanup_target_routine
+	if $osa_data["$osa_enemy_type"] == "pirate"
+		Lich::Util.quiet_command("target random", /(Could not find a valid target\.|You are now targeting (.*)\.)/, end_pattern = /(Could not find a valid target\.|You are now targeting (.*)\.)/, include_end = false ,timeout = 3, silent = true)
+		#if GameObj.targets.count > 0
+		commander_checkforenemies
+		if @npcs.count > 0
+			fput "say Send them to the bottom boys!"
+		end
+	end
+	waitrt?
+	waitcastrt?
+	wait_until {GameObj.targets.count {|npc| npc.status !~ /dead|gone/ && npc.name !~ /animated| arm|arms|tentacle|tentacles/ } < 1}
+	waitrt?
+	waitcastrt?
+	cleanup_loot_routine
+end
+
+def cleanup_loot_routine
+	dead_npcs = GameObj.npcs.find_all { |i| i.status == 'dead' && i.type !~ /escort/i }
+	if dead_npcs.count > 0
+		Script.run "eloot"
+		wait_while { running?("eloot") }
+		if GameObj.loot.find_all{|item| item.type =~ /box/}
+			if $osa_data['$osa_straggler_boxes'].nil?
+				self.save_script_data(:$osa_straggler_boxes, Array.new)
+			end
+			self.save_script_data(:$osa_straggler_boxes, Room.current.id, push: true)
+		end
+	else
+		return
+	end
+end
+
+def change_stance(new_stance, force = true)
+    return if Spell[216].active? || dead?
+    perfect_stance = nil
+    if new_stance =~ /10|20|30|40|50|60|70|80|90|100/i
+      perfect_stance = new_stance
+      new_stance = "advance" if perfect_stance =~ /10|20/i
+      new_stance = "forward" if perfect_stance =~ /30|40/i
+      new_stance = "neutral" if perfect_stance =~ /50|60/i
+      new_stance = "guarded" if perfect_stance =~ /70|80/i
+      new_stance = "defensive" if perfect_stance =~ /90|100/i
+    end
+    if (stance() =~ /#{new_stance}/)
+      return
+    elsif (checkcastrt() > 0 && new_stance =~ /def/)
+      return if stance() == 'guarded'
+    end
+
+    if ((force) && (perfect_stance != nil) && (CMan.known?("Stance Perfection")))
+      dothistimeout("cman stance #{perfect_stance}", 3, /You are now in an?|You move into an?|You fall back into a|Cast Roundtime in effect|You are unable to change/)
+    elsif (force)
+      dothistimeout("stance #{new_stance}", 3, /You are now in an?|You move into an?|You fall back into a|Cast Roundtime in effect|You are unable to change/)
+    else
+      fput "stance #{new_stance}"
+    end
+end
+
+def wait_rt
+	pause 0.1
+	waitrt?
+	waitcastrt?
+end	
+
+def stance_defensive
+	wait_rt
+    change_stance('defensive')
+end
+
+def stance_offensive
+	wait_rt
+    change_stance('offensive')
+end
+
+def cleanup_aoe_routine
+	if $osa_data["$osa_stealth_disabler"] == 0
+		stance_defensive
+		fput "search"
+		waitrt?
+		waitcastrt?
+	elsif $osa_data["$osa_stealth_disabler"] == 1
+		$stealth_disabler = "Dispel Invisibility"
+		cast_disabler
+	elsif $osa_data["$osa_stealth_disabler"] == 2
+		$stealth_disabler = "Searing Light"
+		cast_disabler
+	elsif $osa_data["$osa_stealth_disabler"] == 3
+		$stealth_disabler = "Light"
+		cast_disabler
+	elsif $osa_data["$osa_stealth_disabler"] == 4
+		$stealth_disabler = "Censure"
+		cast_disabler
+	elsif $osa_data["$osa_stealth_disabler"] == 5
+		$stealth_disabler = "Divine Wrath"
+		cast_disabler
+	elsif $osa_data["$osa_stealth_disabler"] == 6
+		$stealth_disabler = "Elemental Wave"
+		cast_disabler
+	elsif $osa_data["$osa_stealth_disabler"] == 7
+		$stealth_disabler = "Major Elemental Wave"
+		cast_disabler
+	elsif $osa_data["$osa_stealth_disabler"] == 8
+		$stealth_disabler = "Cone of Elements"
+		cast_disabler
+	elsif $osa_data["$osa_stealth_disabler"] == 9
+		$stealth_disabler = "Sunburst"
+		cast_disabler
+	elsif $osa_data["$osa_stealth_disabler"] == 10
+		$stealth_disabler = "Nature's Fury"
+		cast_disabler
+	elsif $osa_data["$osa_stealth_disabler"] == 11
+		$stealth_disabler = "Grasp of the Grave"
+		cast_disabler
+	elsif $osa_data["$osa_stealth_disabler"] == 12
+		$stealth_disabler = "Implosion"
+		cast_disabler
+	elsif $osa_data["$osa_stealth_disabler"] == 13
+		$stealth_disabler = "Tremors"
+		cast_disabler
+	elsif $osa_data["$osa_stealth_disabler"] == 14
+		$stealth_disabler = "Call Wind"
+		cast_disabler
+	elsif $osa_data["$osa_stealth_disabler"] == 15
+		$stealth_disabler = "Aura of the Arkati"
+		cast_disabler
+	elsif $osa_data["$osa_stealth_disabler"] == 16
+		$stealth_disabler = "Judgement"
+		cast_disabler
+	elsif $osa_data["$osa_stealth_disabler"] == 17
+		stance_offensive
+		fput "cman eviscerate"
+		stance_defensive
+	elsif $osa_data["$osa_stealth_disabler"] == 18
+		stance_offensive
+		Warcry.use("Cry", "All")
+		stance_defensive
+	elsif $osa_data["$osa_stealth_disabler"] == 19
+		stance_defensive
+		fput "symbol of sleep"
+		waitrt?
+		waitcastrt?
+	end
+end
+
+def cast_disabler
+	if !Spell["#{$stealth_disabler}"].known?
+		respond ""
+		respond "You Have Selected A Stealth Diabling Spell You Do Not Know, Please Select One Known To Your Character. Defaulting To Search"
+		respond ""
+		return
+		fput "search"
+		waitrt?
+		waitcastrt?
+	else
+		fput "prep #{$stealth_disabler}"
+		fput "cast"
+		waitrt?
+		waitcastrt?
+		if $stealth_disabler == "Light"
+			fput "search"
+			waitrt?
+			waitcastrt?
+		end
+	end
+end
+
+def cleanup_pirate_routine
+	cleanup_aoe_routine
+	result = matchtimeout 5, /slashes with a|lunges forward|flies out of the shadows toward|is revealed from hiding|boldly accosts|leaps out of (his|her) hiding place|swings (.*) at you!|stumbles slightly as (he|she)|springs from hiding|is forced out of hiding/
+		if result.to_s =~ /slashes with a|lunges forward|is revealed from hiding|boldly accosts|leaps out of (his|her) hiding place|swings (.*) at you!|stumbles slightly as (he|she)|springs from hiding|is forced out of hiding/
+			waitrt?
+			waitcastrt?
+			cleanup_target_routine
+		elsif result.to_s =~ /flies out of the shadows toward/
+			cleanup_aoe_routine
+			cleanup_target_routine
+		else
+			return
+		end
+end
+
+def cleanup_listen_routine
+	if !checkroom.include?	("Enemy Ship")
+		return
+	end
+	waitrt?
+	waitcastrt?
+	result = dothistimeout "listen", 3, /You've cleared out all the enemies aboard the|You listen carefully for any potential threats/
+		if result.to_s =~ /You've cleared out all the enemies aboard the/
+			waitrt?
+			waitcastrt?
+			self.save_script_data(:$osa_cleanup_done, true, push: false)
+		elsif result.to_s =~ /You listen carefully for any potential threats/
+			waitrt?
+			waitcastrt?
+			return
+		end
+end
+
+def cleanup_check_for_enemies
+	if !checkroom.include?	("Enemy Ship")
+		enemy_main_deck
+	end
+	waitrt?
+	waitcastrt?
+	result = dothistimeout "listen", 3, /You've cleared out all the enemies aboard the|You listen carefully for any potential threats/
+		if result.to_s =~ /You've cleared out all the enemies aboard the/
+			waitrt?
+			waitcastrt?
+			self.save_script_data(:$osa_cleanup_done, true, push: false)
+			echo "Cleanup Completed, The Ship Is Now Safe"
+			cleanup_finished
+		elsif result.to_s =~ /You listen carefully for any potential threats/
+			waitrt?
+			waitcastrt?
+			@ship_rooms_present.each do |n|
+				start_script("go2", [n])
+				wait_while { running?("go2") }	
+				cleanup_listen_routine
+				if $osa_data["$osa_cleanup_done"]
+					cleanup_loot_routine
+					break
+				end
+				if $osa_data["$osa_enemy_type"] == "pirate"
+					cleanup_pirate_routine
+				end
+				cleanup_loot_routine
+				cleanup_target_routine
+				if $osa_data["$osa_cleanup_done"]
+					break
+				end
+			end
+			cleanup_check_for_enemies
+		end
+end
+
+def cleanup_begin_routine
+	self.save_script_data(:$osa_cleanup_done, false, push: false)
+	self.save_script_data(:$osa_piratehunter, false, push: false)
+	determine_enemy_type
+	@ship_rooms_present = Array.new
+	@ship_rooms_present = $osa_data["$osa_enemy_ship_map"]
+	$osa_data["$osa_ship_map"].each do |n|
+		@ship_rooms_present.push(n)
+	end
+	@ship_rooms_present.delete("captains_quarters")
+	cleanup_check_for_enemies
+end
+
+def cleanup_finished
+	if  $osa_data["$osa_cleanup_type"] == nil
+		commander_end_routine
+	end
+	if $osa_data["$osa_cleanup_type"] == "raze"
+		if running? "osacombat"
+			stop_script "osacombat"
+			wait_until {!running? "osacombat"}
+		end
+		pause 3
+		enemy_main_deck
+	end
+	if $osa_data["$osa_cleanup_type"] == "spawn"
+		if running? "osacombat"
+			stop_script "osacombat"
+			wait_until {!running? "osacombat"}
+		end
+		pause 3
+		enemy_quarters
+	end
+end
+
+def commander_gemstone_check
+	if checkname == $osa_data["$osa_commander"] && !$killtracker[:weekly_gemstone].nil?
+		pause 1
+		respond ""
+		respond "    Your Gemstone Stats Are:           Weekly Gemstone: #{$killtracker[:weekly_gemstone]} | Monthly Gemstones:  #{$killtracker[:monthly_gemstones]} | Weekly Searches: #{$killtracker[:weekly_ascension_searches]}"
+		respond ""
+	end
+end
+
+def recieve_bless
+	result = matchtimeout 15, /a moment and then gently dissipates|leaving a soft white afterglow|appears to become incorporated into it|but it quickly returns to normal/
+		if result.to_s =~ /a moment and then gently dissipates|leaving a soft white afterglow|appears to become incorporated into it|but it quickly returns to normal/
+			return
+		else
+			respond ""
+			respond "                                  Something May Have Gone Wrong With The Bless                               "
+			respond ""
+		end
+end
+
+def self_bless
+	if Spell[1604].known? and Spell[1604].affordable?
+		Spell[1604].cast
+	end
+	waitcastrt?
+	if Spell[304].known? and Spell[304].affordable?
+		Spell[304].cast
+	else
+		fput "symbol bless"
+	end
+end
+
+def get_self_bless
+	if ($osa_data["$osa_needbless"]) and ($osa_data["$osa_blesser"])
+		if $osa_data["$osa_uachands"].empty? and $osa_data["$osa_uacfeet"].empty?
+			fput "gird"
+			pause 1
+		else
+			if !$osa_data["$osa_uachands"].empty?
+				fput "remove #{$osa_data["$osa_uachands"]}"
+				pause 0.5
+			end
+			if !$osa_data["$osa_uacfeet"].empty?
+				fput "remove #{$osa_data["$osa_uacfeet"]}"
+			end
+		end
+		if !GameObj.left_hand.id.nil? && GameObj.right_hand.id.nil?
+			fput "swap"
+		end
+		if !GameObj.left_hand.id.nil? && !GameObj.right_hand.id.nil?
+			self_bless
+			waitrt?
+			waitcastrt?
+			fput "swap"
+			self_bless
+			waitrt?
+			waitcastrt?
+			fput "swap"
+		else
+			self_bless
+			waitrt?
+			waitcastrt?
+		end
+		if $osa_data["$osa_uachands"].empty? and $osa_data["$osa_uacfeet"].empty?
+			fput "store both"
+			return
+		else
+			if !$osa_data["$osa_uachands"].empty?
+				fput "wear #{$osa_data["$osa_uachands"]}"
+				pause 0.5
+			end
+			if !$osa_data["$osa_uacfeet"].empty?
+				fput "wear #{$osa_data["$osa_uacfeet"]}"
+			end
+		end	
+	end
+end
+
+def get_bless
+	if $osa_data["$osa_needbless"]
+		LNet.send_message(attr = { 'type' => 'private', 'to' => $osa_data["$osa_blesser"] }, "I Need Blessed Please!")
+		waitfor /^\[#{$osa_data["$osa_crew"]}\]-GSIV:#{$osa_data["$osa_blesser"]}\: \"#{checkname}/
+		if $osa_data["$osa_uachands"].empty? and $osa_data["$osa_uacfeet"].empty?
+			fput "gird"
+		else
+			if !$osa_data["$osa_uachands"].empty?
+				fput "remove #{$osa_data["$osa_uachands"]}"
+				pause 0.5
+			end
+			if !$osa_data["$osa_uacfeet"].empty?
+				fput "remove #{$osa_data["$osa_uacfeet"]}"
+			end
+		end
+		if !GameObj.left_hand.id.nil? && GameObj.right_hand.id.nil?
+			fput "swap"
+		end
+		if !GameObj.left_hand.id.nil? && !GameObj.right_hand.id.nil?
+			LNet.send_message(attr = { 'type' => 'private', 'to' => $osa_data["$osa_blesser"] }, "I Have Two.")
+			LNet.send_message(attr = { 'type' => 'private', 'to' => $osa_data["$osa_blesser"] }, "I Am Ready.")
+			recieve_bless
+			fput "swap"
+			LNet.send_message(attr = { 'type' => 'private', 'to' => $osa_data["$osa_blesser"] }, "Ok, The Next One Is Ready.")
+			recieve_bless
+		else
+			LNet.send_message(attr = { 'type' => 'private', 'to' => $osa_data["$osa_blesser"] }, "I Have One.")
+			LNet.send_message(attr = { 'type' => 'private', 'to' => $osa_data["$osa_blesser"] }, "I Am Ready.")
+			recieve_bless
+		end
+		if $osa_data["$osa_uachands"].empty? and $osa_data["$osa_uacfeet"].empty?
+			fput "store both"
+		else
+			if !$osa_data["$osa_uachands"].empty?
+				fput "wear #{$osa_data["$osa_uachands"]}"
+				pause 0.5
+			end
+			if !$osa_data["$osa_uacfeet"].empty?
+				fput "wear #{$osa_data["$osa_uacfeet"]}"
+			end
+		end	
+	end
+end
+
+def cast_bless
+	result = matchtimeout 5, /^\[Private\]-GSIV:#{@name}\: \"I Am Ready.\"|^\[Private\]-GSIV:#{@name}\: \"Ok, The Next One Is Ready.\"/
+		if result.to_s =~ /^\[Private\]-GSIV:#{@name}\: \"I Am Ready.\"|^\[Private\]-GSIV:#{@name}\: \"Ok, The Next One Is Ready.\"/
+			if Spell[1604].known? and Spell[1604].affordable?
+				Spell[1604].cast("#{@name}")
+			end
+			waitcastrt?
+			if Spell[304].known? and Spell[304].affordable?
+				Spell[304].cast("#{@name}")
+			else
+				fput "symbol bless #{@name}"
+			end
+		end
+end
+		
+def give_bless
+	LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "#{@name}")
+	result = matchtimeout 5, /^\[Private\]-GSIV:#{@name}\: \"I Have One.\"|^\[Private\]-GSIV:#{@name}\: \"I Have Two.\"/
+		if result.to_s =~ /^\[Private\]-GSIV:#{@name}\: \"I Have One.\"/
+			cast_bless
+		elsif result.to_s =~ /^\[Private\]-GSIV:#{@name}\: \"I Have Two.\"/
+			2.times{cast_bless}
+		end
+end
+
+def who_needs_blessed
+	result = matchtimeout 3, /^\[Private\]-GSIV:(.*)\: \"I Need Blessed Please!\"/
+	if result.to_s =~ /^\[Private\]-GSIV:(.*)\: \"I Need Blessed Please!\"/
+		@blessname.push($1)
+		who_needs_blessed
+	end
+end
+
+def begin_bless
+	if (Spell[304].known? or Spell[9802].known?) && $osa_data["$osa_givebless"]
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "I Will Be Providing All Crew Blessings!")
+		@blessname = Array.new
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Does Anyone Need A Bless?")
+		who_needs_blessed
+		@blessname.each do |n|
+			@name = n
+			give_bless
+		end
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "The Crew Has Been Properly Blessed!")
+	else
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Can Anyone Bless?")
+		result = matchtimeout 3, /^\[Private\]-GSIV:(.*)\: \"I Can Captain!\"/
+		if result.to_s =~ /^\[Private\]-GSIV:(.*)\: \"I Can Captain!\"/
+			self.save_script_data(:$osa_data["$osa_blesser"], $1)
+			
+			LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "#{$osa_data["$osa_blesser"]}, Will You Please Bless The Crew?")
+			waitfor /^\[#{$osa_data["$osa_crew"]}\]-GSIV:#{$osa_data["$osa_blesser"]}\: \"Does Anyone Need A Bless\?\"/
+			get_bless
+			waitfor /^\[#{$osa_data["$osa_crew"]}\]-GSIV:#{$osa_data["$osa_blesser"]}\: \"The Crew Has Been Properly Blessed Captain!"/
+		else
+			LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "We Do Not Have Anyone Present Who Can Bless The Crew, We Will Continue Without!")
+		end
+	end		
+end
+
+def lower_sail
+	result = dothistimeout "lower sail", 3, /you slowly lower the (.*) sail until it is at half mast|you slowly lower the (.*) sail until it is fully open|far as it can go!/
+        waitrt?
+	if result.to_s =~ /...wait/
+		waitrt?
+		lower_sail
+	elsif result.to_s =~ /you slowly lower the (.*) sail until it is at half mast/
+		waitrt?
+		lower_sail
+	elsif result.to_s =~ /you slowly lower the (.*) sail until it is fully open/
+		@lowered_sail = true
+		waitrt?
+	elsif result.to_s =~ /far as it can go!/
+		end
+end
+
+def raise_anchor
+	result = dothistimeout "push capstan", 3, /begin to push|one final push|anchor is already up/
+        waitrt?
+	if result.to_s =~ /...wait/
+		waitrt?
+		raise_anchor
+	elsif result.to_s =~ /begin to push/
+		waitrt?
+		raise_anchor
+	elsif result.to_s =~ /one final push/
+		@anchor_aweigh = true
+		waitrt?
+	elsif result.to_s =~ /anchor is already up/
+		return
+	end
+end
+
+def one_mast
+	fput "pull gangplank"
+	lower_sail
+	if @lowered_sail
+		waitrt?
+		if checkname == $osa_data["$osa_commander"]
+			fput "yell Main Mast Unfurled, She's Ready to Sail!"
+		else
+			fput "yell Main Mast Unfurled, She's Ready to Sail Captain!"
+		end
+		@lowered_sail = false
+	end
+	pause 0.5
+	move "west"
+end
+
+def two_masts
+	fput "pull gangplank"
+	lower_sail
+	if @lowered_sail
+		waitrt?
+		fput "yell Main Mast Unfurled"
+		@lowered_sail = false
+	end
+	pause 0.5
+	move "east"
+	lower_sail
+	if @lowered_sail
+		waitrt?
+		if checkname == $osa_data["$osa_commander"]
+			fput "yell Fore Mast Unfurled, She's Ready to Sail!"
+		else
+			fput "yell Fore Mast Unfurled, She's Ready to Sail Captain!"
+		end
+		@lowered_sail = false
+	end
+	pause 0.5
+	move "west"
+	pause 0.5
+	move "west"
+end
+
+def three_masts
+	fput "pull gangplank"
+	lower_sail
+	if @lowered_sail
+		waitrt?
+		fput "yell Mizzen Mast Unfurled"
+		@lowered_sail = false
+	end
+	pause 0.5
+	move "east"
+	lower_sail
+	if @lowered_sail
+		waitrt?
+		fput "yell Main Mast Unfurled"
+		@lowered_sail = false
+	end
+	pause 0.5
+	move "east"
+	lower_sail
+	if @lowered_sail
+		waitrt?
+		if checkname == $osa_data["$osa_commander"]
+			fput "yell Fore Mast Unfurled, She's Ready to Sail!"
+		else
+			fput "yell Fore Mast Unfurled, She's Ready to Sail Captain!"
+		end
+		@lowered_sail = false
+	end
+	pause 0.5
+	move "west"
+	pause 0.5
+	move "west"
+	pause 0.5
+	move "west"
+end
+
+def commander_task_complete
+	@taskcount = Array.new
+	@taskcount.clear
+	$osa_data["$osa_crewsize"].count.times {
+	result = matchtimeout 600, /^\[Private\]-GSIV:(.*)\: \"Task Complete\"$/
+	if result.to_s =~ /^\[Private\]-GSIV:(.*)\: \"Task Complete\"$/
+			@taskcount.push($1)
+	end}
+end
+
+def commander_crew_request
+		result = matchtimeout 5, /^\[Private\]-GSIV:(.*)\: \"Crewman (.*), Requesting Permission To Come Aboard!"$/
+		if result.to_s =~ /^\[Private\]-GSIV:(.*)\: \"Crewman (.*), Requesting Permission To Come Aboard!"$/
+			@commander_request.push($2)
+			commander_crew_request
+		else
+			respond "
+			No Remaining Crew Requests, Moving On!
+			"
+		end
+end
+
+def format_number(number)
+  num_groups = number.to_s.chars.to_a.reverse.each_slice(3)
+  num_groups.map(&:join).join(',').reverse
+end
+
+def end_of_encounter
+	self.save_script_data(:$osa_endbalancecommas, format_number($osa_data["$osa_endbalance"]))
+	respond ""
+	respond ""
+	respond ""
+	respond ""
+	_respond "\<preset id=\"thought\"\>" + "                             --------------------------------------------------------------------------------" + "\<\/preset\>"
+	respond ""
+	_respond "\<preset id=\"speech\"\>" + "                                      --* Encounter With #{$osa_data["$osa_enemyship"].split(/\b/).map(&:capitalize).join} *--" + "\<\/preset\>"
+	respond ""                            
+	_respond "\<preset id=\"speech\"\>" + "                                          Time To Board Vessel:" + "\<\/preset\>"
+	_respond "\<preset id=\"monster\"\>" + "                                          #{$osa_data["$osa_boardingtime"].as_time}" + "\<\/preset\>"
+	respond ""  
+	_respond "\<preset id=\"speech\"\>" + "                                          Time To Clear Vessel:" + "\<\/preset\>"
+	_respond "\<preset id=\"monster\"\>" + "                                          #{$osa_data["$osa_clearing_time"]}" + "\<\/preset\>"
+	respond ""  
+	_respond "\<preset id=\"speech\"\>" + "                                          Total Enemies Defeated This Vessel:" + "\<\/preset\>"
+	_respond "\<preset id=\"monster\"\>" + "                                          #{$osa_data["$osa_enemy_count"].gsub(/"|\[|\]/, '')}" + "\<\/preset\>"
+	respond ""  
+	_respond "\<preset id=\"speech\"\>" + "                                          Total Boxes Found This Vessel:" + "\<\/preset\>"
+	_respond "\<preset id=\"monster\"\>" + "                                          #{$osa_data["$osa_amount_of_boxes"]}" + "\<\/preset\>"
+	respond ""  
+	_respond "\<preset id=\"speech\"\>" + "                                          Total Silver Made This Vessel:" + "\<\/preset\>"
+	_respond "\<preset id=\"monster\"\>" + "                                          #{$osa_data["$osa_endbalancecommas"]}" + "\<\/preset\>"
+	respond ""
+	_respond "\<preset id=\"thought\"\>" + "                             --------------------------------------------------------------------------------" + "\<\/preset\>"
+	respond ""
+	respond ""
+	respond ""
+	respond ""
+	LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Encounter With #{$osa_data["$osa_enemyship"].split(/\b/).map(&:capitalize).join} | Time To Board Vessel: #{$osa_data["$osa_boardingtime"].as_time}| Time To Clear Vessel: #{$osa_data["$osa_clearing_time"]} | Total Enemies Defeated This Vessel: #{$osa_data["$osa_enemy_count"].gsub(/"|\[|\]/, '')} | Total Boxes Found This Vessel: #{$osa_data["$osa_amount_of_boxes"]} | Total Silver Made This Vessel: #{$osa_data["$osa_endbalancecommas"]}")
+	if $osa_data["$osa_stowaways"]
+		fput "whisper ooc group Encounter With #{$osa_data["$osa_enemyship"].split(/\b/).map(&:capitalize).join}| Time To Board Vessel: #{$osa_data["$osa_boardingtime"].as_time} | Time To Clear Vessel: #{$osa_data["$osa_clearing_time"]} | Total Enemies Defeated This Vessel: #{$osa_data["$osa_enemy_count"].gsub(/"|\[|\]/, '')} | Total Boxes Found This Vessel: #{$osa_data["$osa_amount_of_boxes"]} | Total Silver Made This Vessel: #{$osa_data["$osa_endbalancecommas"]}"
+	end
+end
+
+def enemy_counter
+	result = dothistimeout "listen", 10, /\[Enemies Left\: (.*)\]/
+		if result.to_s =~ /Enemies Left: (.*)\]/
+			self.save_script_data(:$osa_enemy_count, $1)
+		end
+end
+
+def commander_check_crew
+	if $osa_data["$osa_crewsize"].nil?
+		respond ""
+		respond "                       You Must First Perform A Muster                                                               "
+		respond ""
+	end
+	@crew_check = (@crew_check + 1)
+	if (@crew_check + $osa_data["$osa_crewsize"].count) > $osa_data["$osa_commander_max_crew"]
+		LNet.send_message(attr = { 'type' => 'private', 'to' => @crew_request }, "Permission Denied, Im Sorry Shipmate But The Ship Is Too Full Right Now. Try Again Later!")
+	else
+		LNet.send_message(attr = { 'type' => 'private', 'to' => @crew_request }, "Permission Granted, Come Aboard!")
+		self.save_script_data(:$osa_crewsize, @crew_request.uniq, push: true)
+	end
+end
+
+def commander_final_approach
+	wait_while {GameObj.pcs.any? {|s| s.status =~ /sitting|^lying|prone|stunned/}}
+	main_deck
+	waitfor /collide against your/
+	wait_while {GameObj.pcs.any? {|s| s.status =~ /sitting|^lying|prone|stunned/}}
+	enemy_main_deck
+	self.save_script_data(:$osa_helmsman_endtime, Time.now)
+	self.save_script_data(:$osa_boardingtime, (($osa_data["$osa_helmsman_endtime"] - $osa_data["$osa_helmsman_start_time"])/60))
+	return
+end
+
+def commander_final_approach_2
+	wait_while {GameObj.pcs.any? {|s| s.status =~ /sitting|^lying|prone|stunned/}}
+	enemy_main_deck
+	self.save_script_data(:$osa_helmsman_endtime, Time.now)
+	self.save_script_data(:$osa_boardingtime, (($osa_data["$osa_helmsman_endtime"] - $osa_data["$osa_helmsman_start_time"])/60))
+	return
+end
+
+def commander_navigator
+	waitrt?
+	waitcastrt?
+	wait_until {!checkstunned}
+	wait_until {!checkwebbed}
+	wait_until {!checkbound}
+	wait_while { running?("ecure") }
+	pause 0.1
+	if !$osa_data['$osa_boarding']
+		commander_sunk_ship
+	else
+		wait_while { running?("ecure") }
+		result = dothistimeout "turn wheel ship", 20, /You will be upon the|of boarding range!|The sides of the (.*) collide against your (.*)!|in boarding range!|ways out!|sailing closer!|...wait/
+		if result.to_s =~ /of boarding range!|ways out!|sailing closer!/
+			commander_navigator
+		elsif result.to_s =~ /...wait/
+			commander_navigator
+		elsif result.to_s =~ /in boarding range!|You will be upon the/
+			if @warning == true
+				commander_final_approach
+			end
+			waitrt?
+			@warning = true
+			fput "group open"
+			fput "turn wheel ship"
+			waitrt?
+			pause 0.5
+			LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Thirty second warning, drop what yer doing and prepare for battle. Here they come!")
+			fput "yell Thirty second warning, drop what yer doing and prepare for battle. Here they come!"
+			commander_final_approach
+		elsif result.to_s =~ /The sides of the (.*) collide against your (.*)!/
+			commander_final_approach_2
+		else
+			commander_navigator
+		end
+	end
+end
+
+def commander_helmsman
+	waitrt?
+	wait_until {!checkstunned}
+	wait_until {!checkwebbed}
+	wait_until {!checkbound}
+	wait_while { running?("ecure") }
+	result = dothistimeout "turn wheel ship", 600, /The sides of the (.*) collide against your (.*)!|in boarding range!|You will be upon the|Tenebrous Cauldron.  Victory is yours!/
+		if result.to_s =~ /in boarding range!|You will be upon the/
+			if @warning == true
+				commander_final_approach
+			end
+			waitrt?
+			pause 0.5
+			LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Thirty second warning, drop what yer doing and prepare for battle. Here they come!")
+			fput "yell Thirty second warning, drop what yer doing and prepare for battle. Here they come!"
+			@warning = true
+			fput "group open"
+			commander_final_approach
+		elsif result.to_s =~ /Tenebrous Cauldron.  Victory is yours!/
+			commander_sunk_ship
+		elsif result.to_s =~ /The sides of the (.*) collide against your (.*)!/
+			commander_final_approach_2
+		end
+end
+
+def commander_check_role
+	self.save_script_data(:$osa_boarding, true, push: false)
+	self.save_script_data(:$osa_sunk_ship, false, push: false)
+	if $osa_data["$osa_helmsman_enabled"]
+		commander_navigator
+	else
+		commander_helmsman
+	end
+end
+
+def commander_check_balance
+	balance_line = Lich::Util.quiet_command("bank acc", /You currently have the following amounts on deposit\:/, end_pattern = /(You currently have (.*) inter-town bank transfer option available.)/, include_end = false ,timeout = 3, silent = true)
+	if balance_line.to_s =~ /Total\: ([0-9,]+)/
+		@bankbalance = $1.to_s.delete(',').to_i
+	end
+end
+
+def commander_determine_group_members
+	res = Lich::Util.quiet_command("group", /You are leading (.*)|You are not currently in a group.|You are grouped with (.*)./, end_pattern = /GROUP HELP for a list of other options./, include_end = false ,timeout = 3, silent = true)
+	grouped = res.to_s.scan(/[A-Z]\w*/).flatten.uniq
+	grouped.delete_if { |name| name =~  /Your|You/i }
+	grouped.each{|member| $osa_everyone_in_my_group.push(member) if !$osa_everyone_in_my_group.include? (member) }
+	self.save_script_data(:$osa_everyone_in_my_group, $osa_everyone_in_my_group)
+end
+
+def commander_apply_support
+	@supportlist.each do |n, t|
+		@support_rec = n
+		@support_type = t
+		if @support_type == "Blessing"
+			waitrt?
+			fput "armor blessing #{@support_rec}"
+			pause 5
+		elsif @support_type == "Reinforcement"
+			waitrt?
+			fput "armor reinforcement #{@support_rec}"
+			pause 5
+		elsif @support_type == "Support"
+			waitrt?
+			fput "armor support #{@support_rec}"
+			pause 5
+		elsif @support_type == "Casting"
+			waitrt?
+			fput "armor casting #{@support_rec}"
+			pause 5
+		elsif @support_type == "Evasion"
+			waitrt?
+			fput "armor evasion #{@support_rec}"
+			pause 5
+		elsif @support_type == "Fluidity"
+			waitrt?
+			fput "armor fluidity #{@support_rec}"
+			pause 5
+		elsif @support_type == "Stealth"
+			waitrt?
+			fput "armor stealth #{@support_rec}"
+			pause 5
+		end
+	end
+end
+
+def commander_self_armor_spec
+	if $osa_data["$osa_my_armor_spec"].downcase.include? "blessing"
+		pause 5
+		waitrt?
+		fput "armor blessing"
+	elsif $osa_data["$osa_my_armor_spec"].downcase.include? "reinforcement"
+		pause 5
+		waitrt?
+		fput "armor reinforcement"
+	elsif $osa_data["$osa_my_armor_spec"].downcase.include? "support"
+		pause 5
+		waitrt?
+		fput "armor support"
+	elsif $osa_data["$osa_my_armor_spec"].downcase.include? "casting"
+		pause 5
+		waitrt?
+		fput "armor casting"
+	elsif $osa_data["$osa_my_armor_spec"].downcase.include? "evasion"
+		pause 5
+		waitrt?
+		fput "armor evasion"
+	elsif $osa_data["$osa_my_armor_spec"].downcase.include? "fluidity"
+		pause 5
+		waitrt?
+		fput "armor fluidity"
+	elsif $osa_data["$osa_my_armor_spec"].downcase.include? "stealth"
+		pause 5
+		waitrt?
+		fput "armor stealth"
+	end
+end
+
+def need_mana
+	while running?("ewaggle")
+		if percentmana < 15
+			LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, $mana_message)
+			wait_until {percentmana > 15}
+		end
+	end
+end
+
+def mana_share
+	$mana_type = Array.new
+	$mana_type.clear
+	$my_mana_type = Array.new
+	$my_mana_type.clear
+	if (Skills.smc >= 24)
+		$mana_type.push ("Spiritual")
+		$my_mana_type.push ("Spiritual")
+	end
+	if (Skills.mmc >= 24)
+		$mana_type.push ("Mental")
+		$my_mana_type.push ("Mental")
+	end
+	if (Skills.emc >= 24)
+		$mana_type.push ("Elemental")
+		$my_mana_type.push ("Elemental")
+	end
+	if $mana_type.count > 1
+		$new_mana_type = $mana_type.last()
+		$mana_type.delete "#{$mana_type.last()}"
+		$mana_type.push ("or #{$new_mana_type}")
+	end
+	if $mana_type.count.to_i == 3
+		$mana_message = "I Need #{$mana_type[0]}, #{$mana_type[1]} #{$mana_type[2]} Mana!"
+	end
+	if $mana_type.count.to_i == 2
+		$mana_message = "I Need #{$mana_type[0]} #{$mana_type[1]} Mana!"
+	end
+	if $mana_type.count.to_i == 1
+		$mana_message = "I Need #{$mana_type[0]} Mana!"
+	end
+end
+
+def spellup_time_left
+	$timeleft = Array.new
+	Spell.active.each { |s| 
+		if ((s.timeleft <= 250) and (s.timeleft > 2)) 
+			$timeleft.push (s.timeleft)
+		end}
+		if $timeleft.sum <= 1
+			$osa_data["$osa_waggletimeleft"] = 1
+		else
+			$osa_data["$osa_waggletimeleft"] = ($timeleft.sum/$timeleft.count)
+		end
+end
+
+def commander_spell_up
+	commander_call_muster
+	if !$osa_data["$osa_medical_officer"].empty? && $osa_data["$osa_use_bread"]
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Let Us Break Bread Together!")
+		waitfor /^\[#{$osa_data["$osa_crew"]}\]-(GSIV:#{$osa_data["$osa_medicalofficer"]}|You): "Bread Is Served!\"/
+		pause 1
+	end
+	LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Does Anyone Need Armor Adjustments?")
+	pause 4
+	LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Spells")
+	spellup = Lich::Util.quiet_command("mana", /Normal/, end_pattern = /You have used the MANA SPELLUP ability (.*) out of (.*) times for today\./, include_end = true ,timeout = 3, silent = true)
+	if spellup.to_s =~ /You have used the MANA SPELLUP ability (.*) out of (.*) times for today\./
+		if ($2 == "0") or ($1 == $2 )
+			$mana_spellup = false
+		else
+			$mana_spellup = true
+		end
+		if !$osa_data["$osa_mana_spellup"]
+			$mana_spellup = false
+		end
+		if $mana_spellup
+			spellup_time_left
+			if ($osa_data["$osa_waggletimeleft"] <= 90)
+				waitrt?
+				waitcastrt?
+				pause 0.2
+				fput "mana spellup"
+			end
+		end
+	end
+	spellup
+	if $osa_data["$osa_groupspellup"]
+		commander_determine_group_members
+		if $osa_data["$osa_selfspellup"]
+			start_script("ewaggle", ['--start-at=181', '--stop-at=240', $osa_everyone_in_my_group, 'self'])
+		else
+			start_script("ewaggle", ['--start-at=181', '--stop-at=240', $osa_everyone_in_my_group])
+		end
+	else
+		if $osa_data["$osa_selfspellup"]
+			start_script("ewaggle", ['--start-at=181', '--stop-at=240', 'self'])
+		end
+	end
+	do_client ";e need_mana"
+	commander_task_complete
+	wait_until { !running?("ewaggle") }
+	if $osa_data["$osa_armor_specs"]
+		commander_apply_support
+		@supportlist.clear
+	end
+	commander_self_armor_spec
+	pause 5
+	fput "group open"
+	$osa_data["$osa_crewsize"].each{|pc|;fput "hold #{pc}"}
+	LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Spell Up Completed")
+end
+
+def check_for_muster
+	$call_muster = false
+	$osa_data["$osa_crewsize"].each do |n|
+		$call_muster = true if !checkpcs.include? (n)
+	end
+	checkpcs.each do |n|
+		$call_muster = true if !$osa_data["$osa_crewsize"].include? (n)
+	end
+end
+
+def commander_call_muster
+	check_for_muster
+	if $call_muster
+		self.save_script_data(:$osa_crewsize, Array.new)
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Quarters! All Hands To Quarters For Muster, Instruction and Inspection!")
+		commander_take_muster
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "All Present And Accounted For! We Have #{$osa_data["$osa_crewsize"].count} Crew Onboard For A Total Compliment of #{$osa_data["$osa_crewsize"].count + 1} Personnel!")
+		pause 3
+	else
+		respond ""
+		respond " ------ Crewsize Matches All Crew Present, Skipping Muster! ------ "
+		respond ""
+	end
+end
+
+def commander_take_muster
+	muster = matchtimeout 6, /Crewman (.*) Reporting For Duty Captain/
+	if muster.to_s =~ /Crewman (.*) Reporting For Duty Captain/
+		self.save_script_data(:$osa_crewsize, $1, push: true)
+		self.save_script_data(:$osa_crewsize, $osa_data['$osa_crewsize'].uniq)
+		commander_take_muster
+	end
+end
+
+def commander_begin_balance
+	commander_check_balance
+	self.save_script_data(:$osa_beginbalance, @bankbalance)
+end
+
+def commander_after_balance
+	commander_check_balance
+	self.save_script_data(:$osa_afterbalance, @bankbalance)
+end
+
+def commander_left_hand
+	if GameObj.left_hand.id.nil?
+		return
+	else
+		if (GameObj.left_hand.noun.to_s == "box") or (GameObj.left_hand.noun.to_s == "strongbox") or (GameObj.left_hand.noun.to_s == "coffer") or (GameObj.left_hand.noun.to_s == "trunk") or (GameObj.left_hand.noun.to_s == "chest")
+			fput "drop left"
+		else 
+			multifput "store left", "stow left"
+		end
+	end
+end
+
+def commander_right_hand
+	if GameObj.right_hand.id.nil?
+		return
+	else
+		if (GameObj.right_hand.noun.to_s == "box") or (GameObj.right_hand.noun.to_s == "strongbox") or (GameObj.right_hand.noun.to_s == "coffer") or (GameObj.right_hand.noun.to_s == "trunk") or (GameObj.right_hand.noun.to_s == "chest")
+			fput "drop right"
+		else 
+			multifput "store right", "stow right"
+		end
+	end
+end
+
+def commander_sell_loot
+	commander_begin_balance
+	if $osa_data["$osa_use_security_officer"]
+		start_script("eloot", ['start'])
+		wait_while { running?("eloot") }
+		LNet.send_message(attr = { 'type' => 'private', 'to' => $osa_data["$osa_securityofficer"] }, "Your Services Are Requested At #{$osa_data["$osa_security_officer_location"]} Crewman")
+	end
+	commander_have_boxes
+	#ELoot.data.settings[:loot_types].push("gem", "skin", "alchemy", "armor", "clothing", "collectible", "jewelry", "uncommon", "scroll", "reagent", "weapon", "wand", "valuable", "lockpick", "magic")
+	start_script("go2", [$osa_data["$osa_gangplank"]])
+	wait_while { running?("go2") }
+	start_script("eloot", ['sell'])
+	wait_while { running?("eloot") }
+	LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Crew, Sell Your Loot!")
+	commander_crew_share
+end
+
+def give_boxes_to_security_officer
+	wait_until { checkpcs.include? ($osa_data["$osa_securityofficer"]) }
+	#start_script('foreach', ['box', 'in', 'inventory;get', 'item;move', 'item', 'to', 'ground;sleep', '0.5'])
+	#wait_while { running?("foreach") }
+	ELoot.find_boxes.each do | box_in_inventory |
+		multifput "get ##{box_in_inventory.id}", "drop ##{box_in_inventory.id}"
+	end
+	if @done_with_sec_off
+		LNet.send_message(attr = { 'type' => 'private', 'to' => $osa_data["$osa_securityofficer"] }, "That's All Of Them!")
+		waitfor /^\[Private\]-GSIV:#{$osa_data["$osa_securityofficer"]}\: \"All Set, Captain!"/
+		commander_loot_boxes
+		commander_loot_silvers
+		commander_loot_room
+		waitrt?
+		pause 0.5
+	end
+end
+
+def commander_loot_silvers
+	boxes = GameObj.loot.find_all{|item| item.type =~ /box/}
+	if $osa_data["$osa_fossil_charm"]
+		boxes.each{|box|
+		getsilver = dothistimeout "point my #{$osa_data["$osa_charm_adjective"]} charm at ##{box.id}", 5, /^You summon a swarm of/
+			if getsilver.to_s =~ /^You summon a swarm of/
+				waitrt?
+				pause 0.5
+			end
+		}
+	else
+		boxes.each{|box| 
+		getsilver = dothistimeout "get coins in ##{box.id}", 5, /^You gather the/
+			if getsilver.to_s =~ /^You gather the/
+				waitrt?
+				pause 0.5
+			end
+		}
+	end
+end
+
+def commander_loot_boxes
+	boxes = GameObj.loot.find_all{|item| item.type =~ /box/}
+	boxes.each{|box|
+	fput "open ##{box.id}"
+	lootmybox = dothistimeout "loot ##{box.id}", 5, /^You search through (.*) and note some interesting treasure but are unable to take any of it|There is no loot inside the (.*)|You search through (.*) and remove (.*) which you promptly stow away./
+		if lootmybox.to_s =~ /^You search through (.*) and note some interesting treasure but are unable to take any of it/
+			waitrt?
+			pause 0.5
+			start_script("eloot", ['sell'])
+			wait_while { running?("eloot") }
+			fput "loot ##{box.id}"
+		elsif lootmybox.to_s =~ /^There is no loot inside the (.*)|You search through (.*) and remove (.*) which you promptly stow away./
+			waitrt?
+			pause 0.5
+		end
+	}
+end	
+
+def commander_loot_room
+	loottheroom = dothistimeout "loot room", 3, /^In a desperate attempt to pick up and stow as much treasure as you can manage|With a discerning eye, you gather up what treasure|There is no loot/
+	if loottheroom.to_s =~ /^In a desperate attempt to pick up and stow as much treasure as you can manage/
+		commander_right_hand
+		commander_left_hand
+		start_script("go2", [$osa_data["$osa_gangplank"]])
+		wait_while { running?("go2") }
+		start_script("eloot", ['sell'])
+		wait_while { running?("eloot") }
+		main_deck
+		commander_loot_room
+	elsif loottheroom.to_s =~ /^With a discerning eye, you gather up what treasure|There is no loot/
+		waitrt?
+		pause 0.5
+	end
+end
+
+def commander_yes_boxes
+	commander_right_hand
+	commander_left_hand
+	pause 0.5
+	if $osa_data["$osa_use_security_officer"]
+		start_script("go2", [$osa_data["$osa_security_officer_location"]])
+		wait_while { running?("go2") }
+		give_boxes_to_security_officer
+	end
+	if $osa_data["$osa_no_script_picking"]
+		captains_quarters
+		ELoot.find_boxes.each do | box_in_inventory |
+			multifput "get ##{box_in_inventory.id}", "drop ##{box_in_inventory.id}"
+		end
+	else
+		start_script("go2", [$osa_data["$osa_gangplank"]])
+		wait_while { running?("go2") }
+		start_script("eloot", ['pool'])
+		wait_while { running?("eloot") }
+	end
+	pause 0.5
+	main_deck
+end
+
+def commander_have_boxes
+	result = dothistimeout "loot room", 3, /There is no loot/
+	if result.to_s =~ /There is no loot/
+		@done_with_sec_off = true
+	end
+		commander_yes_boxes
+	if !@done_with_sec_off
+		commander_have_boxes
+	end
+end
+
+def commander_stowaways
+	if $osa_data["$osa_stowaways"]
+	fput "whisper group #{$whisper_message}"
+	#fput "whisper group Please let me know when you're all set"
+		echo "
+		--------------------------------------------~~~~~~|       Waiting For Party Members           |~~~~~~~~-------------------------------------------------------
+                                                  		|                                           |
+		--------------------------------------------~~~~~~|  Please Type \"\Yes\"\ When Ready To Continue |~~~~~~~~-------------------------------------------------------
+		"
+		waitfor "A good positive attitude never hurts."
+	end
+end
+
+def commander_give_permission
+	@commander_request = Array.new
+	@crew_check = 0
+	commander_crew_request
+	if !@commander_request.nil?
+		@commander_request.each do |n|
+			@crew_request = n
+			commander_check_crew
+		end
+		@commander_request.clear
+	end
+end
+
+def go_to_handler
+	start_script("go2", ["handler"])
+	wait_while { running?("go2") }
+	if Room.current.location == "Kraken's Fall"
+		start_script("go2", ['28950'])
+		wait_while { running?("go2") }
+	end
+end
+
+def commander_check_task
+checktask = Lich::Util.quiet_command("osa task", /OSA TASK/, end_pattern = /Expedites your current task cooldown./, include_end = false ,timeout = 3, silent = true)
+    if checktask.to_s =~ /You do not currently have a task from the Sea Hag's Roost/
+			go_to_handler
+			fput "take board"
+			pause 0.5
+			captains_quarters
+			return
+	elsif checktask.to_s =~ /You should return to the Sea Hag's Roost to report your success/
+		if saturated?
+			if $osa_data["$osa_uselte"]
+				fput "boost long"
+			end
+			wait_until {!saturated?}
+		end
+		go_to_handler
+		fput "turn board"
+		pause 0.5
+		fput "take board"
+		pause 0.5
+		captains_quarters
+		return
+	elsif checktask.to_s =~ /Abandons your current task/
+		return
+	else
+		return
+    end
+end
+
+def commander_crew_share
+	captains_quarters
+	commander_task_complete
+	commander_check_task
+	if $osa_data["$osa_crewsize"].count != 0
+		wait_until {$osa_data["$osa_crewsize"].sort! & checkpcs.sort! == $osa_data["$osa_crewsize"].sort!}
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Task Time!")
+		commander_task_complete
+	end
+	GameObj.pcs.each{|pc|;fput "hold ##{pc.id}"}
+	$whisper_message = "We are about to turn in the salvage crate and share loot, please let me know when you are ready to go."
+	commander_stowaways
+	start_script("go2", ['handler'])
+	wait_while { running?("go2") }
+	$whisper_message = "Turn in any completed tasks and get a new one. Then, let me know when you're all set."
+	commander_stowaways
+	fput "stow all"
+	commander_start_handler
+	start_script("go2", ['bank'])
+	wait_while { running?("go2") }
+	LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Silvers")
+	pause 2
+	fput "depo all"
+	if ($osa_data["$osa_share_silvers"])
+		if $osa_data["$osa_fwi"]
+			@bank_room = Room.current
+			fput "turn my #{Vars.mapdb_fwi_trinket}"
+			wait_until {Room.current != @bank_room}
+			start_script("go2", ['bank'])
+			wait_while { running?("go2") }
+			fput "depo all"
+			commander_after_balance
+			self.save_script_data(:$osa_endbalance, ($osa_data["$osa_afterbalance"].to_i - $osa_data["$osa_beginbalance"].to_i)) 
+			if $osa_data["$osa_endbalance"] > 0
+				fput "withdraw #{$osa_data["$osa_endbalance"]} silver"
+				pause 0.5
+			end
+			@bank_room = Room.current
+			fput "turn my #{Vars.mapdb_fwi_trinket}"
+			wait_until {Room.current != @bank_room}
+			fput "share all"
+			pause 0.5
+			@bank_room = Room.current
+			fput "turn my #{Vars.mapdb_fwi_trinket}"
+			wait_until {Room.current != @bank_room}
+			start_script("go2", ['bank'])
+			wait_while { running?("go2") }
+			fput "depo all"
+			@bank_room = Room.current
+			fput "turn my #{Vars.mapdb_fwi_trinket}"
+			wait_until {Room.current != @bank_room}
+			$whisper_message = "Please deposit your silvers and let me know when you're all set"
+			commander_stowaways
+		end
+		if !$osa_data["$osa_fwi"]
+			fput "depo all"
+			commander_after_balance
+			self.save_script_data(:$osa_endbalance, ($osa_data["$osa_afterbalance"].to_i - $osa_data["$osa_beginbalance"].to_i))
+			if $osa_data["$osa_endbalance"] > 0
+				fput "withdraw #{$osa_data["$osa_endbalance"]} silver"
+				pause 0.5
+			end
+			fput "share all"
+			pause 0.5
+			fput "depo all"
+			$whisper_message = "Please desposit your silvers and let me know when you're all set"
+			commander_stowaways
+		end
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Deposit")
+	else
+		fput "depo all"
+		commander_after_balance
+		self.save_script_data(:$osa_endbalance, ($osa_data["$osa_afterbalance"].to_i - $osa_data["$osa_beginbalance"].to_i))
+	end
+	pause 2
+	captains_quarters
+	#do_client ";eloot load"
+	spellup_time_left
+	if $osa_data["$osa_crewsize"].count > 1 and ($osa_data["$osa_waggletimeleft"] <= $osa_data["$osa_time_left_setting"].to_f)
+		commander_spell_up
+	else
+		respond ""
+		respond " ------ Average Spell Duration Is Above Setting, Skipping Spellup ------ "
+		respond ""
+	end
+	end_of_encounter
+	if $osa_data["$osa_crewsize"].count == 0
+		do_client ";force osacrew repairs"
+	end
+	return
+end
+
+def commander_go_gangplank
+	result = dothistimeout "go gangplank", 3, /|As you approach the|Where are you trying to go|You make your way across the/
+		if result.to_s =~ /As you approach the/
+			fput "push gangplank"
+			pause 0.5
+			move "go gangplank"
+			return
+		elsif result.to_s =~ /You make your way across the/
+			return
+		elsif result.to_s =~ /Where are you trying to go?/
+			fput "go #{@ship_type.split.first}"
+			return
+		else
+			return
+		end
+end
+
+def commander_after_raze
+	waitrt?
+	helm
+	wait_until { $osa_data["$osa_sunk_ship"] }
+	if $osa_data["$osa_netlauncher"]
+		check_for_crate
+	end
+	helm
+	fput "turn wheel port"
+	waitfor /The (.*) drifts steadily toward the (.*) port/
+	LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Moored!")
+	waitrt?
+	fput "yell Moored!"
+	cargo_hold
+	fput "take supply crate"
+	multifput "put my crate in wood", "put my crate in balls"
+	pause 1
+	if (GameObj.left_hand.noun.to_s == "crate") or (GameObj.right_hand.noun.to_s == "crate")
+		fput "drop supply crate"
+	end
+	if $osa_data["$osa_crewsize"].count != 0
+		captains_quarters
+		pause 1.5
+		if $osa_data["$osa_stowaways"]
+			fput "whisper group I will now sell all the loot and drop our boxes in the locksmith pool. I will return shortly. Please do not depart the ship."
+		end
+		multifput "disband","group open"
+		pause 0.5
+	end
+	commander_broadcast_location
+	commander_sell_loot
+end
+
+def commander_raze_it
+	result = dothistimeout "raze", 3, /You grab a nearby|Are you sure you|You cannot raze/
+	if result.to_s =~ /You grab a nearby/
+		commander_after_raze
+	elsif result.to_s =~ /Are you sure you/
+		commander_raze_it
+	elsif result.to_s =~ /You cannot raze/
+		fput "stow all"
+		start_script "osacombat"
+		pause 3
+		self.save_script_data(:$osa_cleanup_type, "raze")
+		cleanup_begin_routine
+		self.save_script_data(:$osa_cleanup_type, nil)
+		commander_raze_it
+	else
+		commander_raze_it
+	end
+end
+
+def commander_wait_yell
+	fput "group open"
+	enemy_main_deck
+	self.save_script_data(:$osa_amount_of_boxes, GameObj.loot.count {|item| item.type =~ /box/})
+	do_client ";foreach box on ground;drag item;go gangplank;sleep 0.5"
+	wait_while { running?("foreach") }
+	fput "loot room"
+	if $osa_data["$osa_crewsize"].count != 0
+		captains_quarters
+		commander_task_complete
+		$whisper_message = "Next we will sink the enemy ship, please let me know when you're all set"
+		commander_stowaways
+		GameObj.pcs.each{|pc|;fput "hold ##{pc.id}"}
+		enemy_main_deck
+	end
+	commander_raze_it
+end
+
+def commander_hands_full
+	enemy_main_deck
+	commander_left_hand
+	commander_right_hand
+	do_client ";foreach box in #{Vars.lootsack};move to ground;sleep 0.5"
+	wait_while { running?("foreach") }
+	enemy_quarters
+end
+
+def get_straggler_boxes
+	$osa_data["$osa_straggler_boxes"].each do |n|
+		@room_with_box = n
+		start_script("go2", [@room_with_box])
+		wait_while { running?("go2") }
+		straggler_boxes = GameObj.loot.find_all{|item| item.type =~ /box/}
+		straggler_boxes.each{|box|
+			fput "drag #{box}"
+			if Room.current.title.to_s.include? "Enemy"
+				enemy_main_deck
+			else
+				main_deck
+			end
+			if Room.current.title.to_s.include? "Enemy"
+				fput "go gangplank"
+			end
+			fput "drag stop"
+			start_script("go2", [@room_with_box]) if !Room.current.tags.include? @room_with_box
+			wait_while { running?("go2") }
+		}
+	end
+end
+	
+def commander_get_treasure
+	result = dothistimeout "search pile", 5, /You search around in the|Are you sure you would|You take a moment to|How do you plan|You cannot SEARCH/
+		if result.to_s =~ /You search around in the|How do you plan/
+			waitrt?
+			if (GameObj.left_hand.noun.to_s == "crate") or (GameObj.right_hand.noun.to_s == "crate")
+				fput "stow all"
+				commander_wait_yell
+			else
+				commander_hands_full
+				commander_get_treasure
+			end
+		elsif result.to_s =~ /Are you sure you would/
+			commander_get_treasure
+		elsif result.to_s =~ /You take a moment to/
+			commander_wait_yell
+		elsif result.to_s =~ /You cannot SEARCH/
+			fput "stow all"
+			start_script "osacombat"
+			pause 3
+			self.save_script_data(:$osa_cleanup_type, "spawn")
+			cleanup_begin_routine
+			self.save_script_data(:$osa_cleanup_type, nil)
+			enemy_quarters
+			commander_get_treasure
+		else
+			enemy_quarters
+			commander_get_treasure
+		end
+end
+
+def commander_prep_it
+		move "down"
+		fput "drag supply crate"
+		move "up"
+		waitrt?
+		multifput "go gangplank", "go gangplank", "drag supply crate"
+		waitrt?
+		move "down"
+		waitrt?
+		fput "drag stop"
+		get_straggler_boxes
+		self.save_script_data(:$osa_straggler_boxes, Array.new)
+		enemy_quarters
+		fput "stow set #{Vars.lootsack}"
+		commander_get_treasure
+end
+
+def commander_give_coins
+	LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Silvers")
+	pause 1
+	fput "depo all"
+end
+
+def exp_check
+	@capped = false
+	@resource = nil
+	@resource_total = nil
+	@resource_weekly = nil
+	exp = Lich::Util.quiet_command("exp", /Level:/, end_pattern = /You mind is (.*)\./, include_end = false ,timeout = 3, silent = true)
+	if exp.to_s =~ /Exp to next TP: ([0-9,]+)/
+		@capped = true
+		@exptntp = $1
+	elsif exp.to_s =~ /Exp until lvl: ([0-9,]+)/
+		@capped = false
+	end
+	if exp.to_s =~ /PTPs\/MTPs: ([0-9,]+)\/([0-9,]+)/
+		@mtrainingpoints = $2
+		@ptrainingpoints = $1
+	end
+	pause 1
+	resource = Lich::Util.quiet_command("resource", /Health: ([0-9,]+)\/([0-9,]+)     Mana: ([0-9,]+)\/([0-9,]+)     Stamina: ([0-9,]+)\/([0-9,]+)     Spirit: ([0-9,]+)\/([0-9,]+)/, end_pattern = /Suffused (.*): ([0-9,]+)/, include_end = true, timeout = 0.5, silent = true)
+	if resource.to_s =~ /(Necrotic Energy|Essence|Motes of Tranquility|Devotion|Nature's Grace|Luck Inspiration|Grit|Guile): ([0-9,]+)\/50,000/
+		@resource = $1
+		@resource_weekly = $2
+	end
+	if resource.to_s =~ /([0-9,]+)\/200,000/
+		@resource_total = $1
+	end
+	if resource.to_s =~ /(.*) ([0-9,]+)\/200,000/
+		@resource_total = $2
+	end
+	if !@capped && !@resource.nil? && checkname == $osa_data["$osa_commander"]
+		respond ""
+		respond "                   Your Stats Are:           Health: #{health}/#{maxhealth} | Mana: #{mana}/#{maxmana} | Stamina: #{stamina}/#{maxstamina} | Spirit: #{spirit}/#{maxspirit} | Exp Till Level #{Stats.level.to_i + 1}: #{XMLData.next_level_text.to_i} | State Of Mind: #{checkmind.split(/ |\_/).map(&:capitalize).join(" ")} | Weekly #{@resource}: #{@resource_weekly} | Total #{@resource}: #{@resource_total}"
+		respond ""
+	end
+	if !@capped && @resource.nil? && checkname == $osa_data["$osa_commander"]
+		respond ""
+		respond "                   Your Stats Are:           Health: #{health}/#{maxhealth} | Mana: #{mana}/#{maxmana} | Stamina: #{stamina}/#{maxstamina} | Spirit: #{spirit}/#{maxspirit} | Exp Till Level #{Stats.level.to_i + 1}: #{XMLData.next_level_text.to_i} | State Of Mind: #{checkmind.split(/ |\_/).map(&:capitalize).join(" ")}"
+		respond ""
+	end
+	if @capped && !@resource.nil? && checkname == $osa_data["$osa_commander"]
+		respond ""
+		respond "                   Your Stats Are:           Health: #{health}/#{maxhealth} | Mana: #{mana}/#{maxmana} | Stamina: #{stamina}/#{maxstamina} | Spirit: #{spirit}/#{maxspirit} | Exp Till Next TP: #{@exptntp} | #{@ptrainingpoints} PTP\'s | #{@mtrainingpoints} MTP\'s | State Of Mind: #{checkmind.split(/ |\_/).map(&:capitalize).join(" ")} | Weekly #{@resource}: #{@resource_weekly} | Total #{@resource}: #{@resource_total}"
+		respond ""
+	end
+	if @capped && @resource.nil? && checkname == $osa_data["$osa_commander"]
+		respond ""
+		respond "                   Your Stats Are:           Health: #{health}/#{maxhealth} | Mana: #{mana}/#{maxmana} | Stamina: #{stamina}/#{maxstamina} | Spirit: #{spirit}/#{maxspirit} | Exp Till Next TP: #{@exptntp} | #{@ptrainingpoints} PTP\'s | #{@mtrainingpoints} MTP\'s | State Of Mind: #{checkmind.split(/ |\_/).map(&:capitalize).join(" ")}"
+		respond ""
+	end
+end
+
+def commander_solo_get_underway
+	ph_off
+	waitrt?
+	main_deck
+	do_client ";force osacrew underway"
+	waitfor /You yell, "Underway!"/
+	captains_quarters
+	if percentmana <= 84
+		respond ""
+		respond "          -----------------------------------------------------"
+		respond "          |                Waiting For Mana                   |"
+		respond "          -----------------------------------------------------"
+		respond ""
+		wait_until {percentmana >= 85}
+	end
+	do_client ";foreach food, junk in #{Vars.lootsack};move to bucket;sleep 0.5"
+	wait_while { running?("foreach") }
+	pause 0.5
+	ph_on
+end
+
+def commander_get_underway
+	ph_off
+	waitrt?
+	LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "All Hands Make Ready To Get Underway!")
+	fput "yell All Hands Make Preparations For Getting Underway!"
+	pause 2
+	waitrt?
+	waitcastrt?
+	echo "Raising Anchor"
+	helm
+	raise_anchor
+	waitrt?
+	if @anchor_aweigh
+		fput "yell Anchor's Aweigh!"
+		@anchor_aweigh = false
+	end
+	#move "go wooden door"
+	captains_quarters
+	commander_task_complete
+	if percentmana <= 84
+		respond ""
+		respond "          -----------------------------------------------------"
+		respond "          |                Waiting For Mana                   |"
+		respond "          -----------------------------------------------------"
+		respond ""
+		wait_until {percentmana >= 85}
+	end
+	do_client ";foreach food, junk in #{Vars.lootsack};move to bucket;sleep 0.5"
+	wait_while { running?("foreach") }
+	pause 0.5
+	GameObj.pcs.each{|pc|;fput "hold ##{pc.id}"}
+	multifput "depart","depart"
+	LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Underway!")
+	fput "yell Underway!"
+	ph_on
+end
+
+def commander_ship_info
+	shipinfo = Lich::Util.quiet_command("ship info #{@ship_type}", /SHIP INFO/, end_pattern = /Captain\'s Chambers Room Style\: (.*)./, include_end = false ,timeout = 3, silent = true)
+		if shipinfo.to_s =~ /Ship Name: (.*) Ship Status/
+			self.save_script_data(:$osa_commander_ship_name, $1.tr('",', '').chop)
+		end
+		if shipinfo.to_s =~ /Gangplank Material: (.*) Gangplank Color:/
+			if $1.tr('",', '').chop.chop == "Not Set"
+				self.save_script_data(:$osa_commander_gangplank, "slender gangplank")
+			else
+				self.save_script_data(:$osa_commander_gangplank, "#{$1.tr('",', '').chop.chop} gangplank")
+			end
+		end
+	if (!$osa_data["$osa_helmsman_enabled"] == nil) or ($osa_data["$osa_helmsman_enabled"])
+		checkrole = Lich::Util.quiet_command("osa role", /Roles/, end_pattern = /You can change your declared role at the Inking Den of Kraken's Fall./, include_end = false ,timeout = 3, silent = true)
+				if checkrole.to_s =~ /Current Role: (.*) Active Bonuses/
+					@role = $1.tr('",', '').chop.chop
+				end
+				if checkrole.to_s =~ /Navigator(.*)Rank\: (.*) Total Experience/
+					@rank = $2.tr('",', '').chop.chop
+				end
+				if (@role == ("Navigator") and @rank == ("Veteran")) or (@role == ("Navigator") and @rank == ("Master"))
+					self.save_script_data(:$osa_helmsman_enabled, true, push: false)
+				else
+					self.save_script_data(:$osa_helmsman_enabled, false, push: false)
+				end
+	end
+	respond "Checking Command Information"
+	pause 0.15
+	respond "."
+	pause 0.25
+	respond ".."
+	pause 0.35
+	respond "... Command Information Saved"
+	respond ""
+end
+
+def commander_board_ship
+	if !$osa_data["$osa_gangplank"].nil? 
+		Room[$osa_data["$osa_gangplank"]].tags.delete("myship") if Room[$osa_data["$osa_gangplank"]].tags.include? "myship"
+	end
+	commander_clear_gangplank
+	self.save_script_data(:$osa_gangplank, Room.current.id)
+	Room[$osa_data["$osa_gangplank"]].tags.push("myship") if !Room[$osa_data["$osa_gangplank"]].tags.include? "myship"
+	commander_map_gangplank
+	crows_nest
+	fput "ship flag black"
+	if $osa_data["$osa_crewsize"].count != 0
+		commander_call_muster
+	end
+	if $osa_data["$osa_crewsize"].count != 0
+		commander_get_underway
+	else
+		commander_solo_get_underway
+	end
+	waitrt?
+	return
+end
+
+def commander_check_handler
+	fput "ask #{checknpcs.last} about ret #{$osa_data["$osa_commander_ship_type"]}"
+	result = dothistimeout "ask #{checknpcs.last} about ret #{$osa_data["$osa_commander_ship_type"]}", 3, /Looks like we have some space around the (.*)./
+		if result.to_s =~ /Looks like we have some space around the (.*)./
+			@shiplocation = $1
+		if @shiplocation.include? "Thrak"
+			@pier_map = [29738, 29739, 29740, 29741, 29742] 
+		elsif @shiplocation.include? "Helga"
+			@pier_map = [30228, 30232, 30233, 30234, 30235]
+		elsif @shiplocation.include? "Beldrin"
+			@pier_map = [30223, 30227, 30229, 30230, 30231]
+		elsif @shiplocation.include? "Dakris"
+			@pier_map = [30221, 30222, 30224, 30225, 30226]
+		elsif @shiplocation.include? "Larton"
+			@pier_map = [30220, 30219, 30218, 30217, 30216]
+		elsif @shiplocation.include? "Green"
+			@pier_map = [30192, 30191, 30190, 30189, 30188]
+		elsif @shiplocation.include? "White"
+			@pier_map = [30193, 30209, 30210, 30211, 30212]
+		elsif @shiplocation.include? "Blue"
+			@pier_map = [30194, 30205, 30206, 30207, 30208]
+		elsif @shiplocation.include? "Gold"
+			@pier_map = [30195, 30201, 30202, 30203, 30204]
+		elsif @shiplocation.include? "Crimson"
+			@pier_map = [30196, 30197, 30198, 30199, 30200]
+		elsif @shiplocation.include? "Asterfire"
+			@pier_map = [30241, 30250, 30251, 30252, 30253]
+		elsif @shiplocation.include? "Geode"
+			@pier_map = [30242, 30249, 30254, 30255, 30256]
+		elsif @shiplocation.include? "Dreamstone"
+			@pier_map = [30243, 30248, 30257, 30258, 30259]
+		elsif @shiplocation.include? "Dragonfire"
+			@pier_map = [30244, 30247, 30260, 30261, 30262]
+		elsif @shiplocation.include? "Sunstone"
+			@pier_map = [30245, 30246, 30263, 302564, 30265]
+		elsif @shiplocation.include? "Dovesnail"
+			@pier_map = [29503, 29504, 29505, 29506, 29507]
+		elsif @shiplocation.include? "Wentletrap"
+			@pier_map = [29508, 29509, 29510, 29511, 29512]
+		elsif @shiplocation.include? "Moonsnail"
+			@pier_map = [29513, 29514, 29515, 29516, 29517]
+		elsif @shiplocation.include? "Sandsilver"
+			@pier_map = [29518, 29519, 29520, 29521, 29522]
+		elsif @shiplocation.include? "Hornsnail"
+			@pier_map = [29523, 29524, 29525, 29526, 29527]
+		elsif @shiplocation.include? "First"
+			@pier_map = [29033, 29034, 29035, 29036, 29037]
+		elsif @shiplocation.include? "Second"
+			@pier_map = [29032, 29044, 29045, 29046, 29150]
+		elsif @shiplocation.include? "Third"
+			@pier_map = [29043, 29151, 29152, 29153, 29154]
+		elsif @shiplocation.include? "Fourth"
+			@pier_map = [29155, 29156, 29157, 29156, 29157]
+		elsif @shiplocation.include? "Fifth"
+			@pier_map = [29060, 29061, 29062, 29063, 29064]
+		elsif @shiplocation.include? "Broken Pier"
+			@pier_map = [32350]
+		elsif @shiplocation.include? "Greying Pier"
+			@pier_map = [32347]	
+		elsif @shiplocation.include? "Old Pier"
+			@pier_map = [32356]
+		elsif @shiplocation.include? "Decaying Pier"
+			@pier_map = [32355]	
+		elsif @shiplocation.include? "Crumbling Pier"
+			@pier_map = [32360]
+		elsif @shiplocation.include? "Cracked Pier"
+			@pier_map = [32359]
+		elsif @shiplocation.include? "Weathered Pier"
+			@pier_map = [32358]	
+		elsif @shiplocation.include? "Port Pier"
+			@pier_map = [32357]	
+		elsif @shiplocation.include? "Starboard Pier"
+			@pier_map = [32351]
+		elsif @shiplocation.include? "Salty Pier"
+			@pier_map = [32352]
+		elsif @shiplocation.include? "Rimy Pier"
+			@pier_map = [32353]
+		elsif @shiplocation.include? "Gelid Pier"
+			@pier_map = [32348]
+		elsif @shiplocation.include? "Snowy Pier"
+			@pier_map = [32349]
+		elsif @shiplocation.include? "Gleaming Pier"
+			@pier_map = [32370]
+		elsif @shiplocation.include? "Shivering Pier"
+			@pier_map = [32371]
+		elsif @shiplocation.include? "Cold Pier"
+			@pier_map = [32372]
+		elsif @shiplocation.include? "Crab Pier"
+			@pier_map = [32340]	
+		elsif @shiplocation.include? "Albatross Pier"
+			@pier_map = [32346]
+		elsif @shiplocation.include? "Barrow Pier"
+			@pier_map = [32345]
+		elsif @shiplocation.include? "Highland Pier"
+			@pier_map = [32344]
+		elsif @shiplocation.include? "Moon Pier"
+			@pier_map = [32343]
+		elsif @shiplocation.include? "Shadowed Pier"
+			@pier_map = [32342]
+		elsif @shiplocation.include? "Crawling Pier"
+			@pier_map = [32341]
+		elsif @shiplocation.include? "Briar Pier"
+			@pier_map = [32354]
+		elsif @shiplocation.include? "Docks, Shoreline"
+			@pier_map = [32339]
+		elsif @shiplocation.include? "Soaring Wyvern"
+			@pier_map = [31502, 31517, 31516, 31503, 31518]
+		elsif @shiplocation.include? "Rampant Wyvern"
+			@pier_map = [31500, 31501, 31515, 31514, 31513]
+		elsif @shiplocation.include? "Roaring Wyvern"
+			@pier_map = [31498, 31499, 31508, 31507, 31506]
+		elsif @shiplocation.include? "Resting Wyvern"
+			@pier_map = [31496, 31497, 31510, 31509, 31505]
+		elsif @shiplocation.include? "Staring Wyvern"
+			@pier_map = [31494, 31495, 31512, 31511, 31504]
+		elsif @shiplocation.include? "Pier 1"
+			@pier_map = [32908, 32909, 32910, 32911, 32912]
+		elsif @shiplocation.include? "Pier 2"
+			@pier_map = [32907, 32913, 32914, 32915, 32916]
+		elsif @shiplocation.include? "Pier 3"
+			@pier_map = [32906, 32917, 32918, 32919, 32920]
+		elsif @shiplocation.include? "Pier 4"
+			@pier_map = [32905, 32921, 32922, 32923, 32924]
+		elsif @shiplocation.include? "Pier 5"
+			@pier_map = [32504, 32925, 32926, 32927, 32928]
+		elsif @shiplocation.include? "Acistira Pier"
+			@pier_map = [33831, 33832, 33833, 33834, 33835]
+		elsif @shiplocation.include? "Naefira Pier"
+			@pier_map = [33836, 33837, 33838, 33839, 33840]
+		elsif @shiplocation.include? "Taerethil Pier"
+			@pier_map = [33841, 33842, 33843, 33844, 33845]
+		elsif @shiplocation.include? "Resaeun Pier"
+			@pier_map = [33846, 33847, 33848, 33849, 33850]
+		elsif @shiplocation.include? "Aelerine Pier"
+			@pier_map = [33851, 33852, 33853, 33854, 33855]
+		end
+	end
+end
+
+def commander_crew_menu
+	if variable[2].nil?
+		respond "
+		Please Select A Valid Option: 
+			
+			Login: Logs In All Of Your Personal Crew
+			
+			Add: Adds A Crew Members Name To Your Personal Crew
+			
+			Delete: Deletes A Crew Member From Your Personal Crew
+			
+			Clear: Clears Your Personal Crew
+			
+			Display: Displays Your Personal Crew
+		"
+		return
+	end
+	if variable[2].downcase == "login"
+		respond "
+			Login Sequence Initiated...
+			"
+		start_script("elogin", ["set", "realm", "prime"])
+		wait_while { running?("elogin") }
+		pause 0.5
+		$osa_data['$osa_roster'].each do |n|
+			echo "Logging In #{n}"
+			start_script("elogin", ["#{n}"])
+			wait_while { running?("elogin") }
+			pause 15
+		end
+		respond "
+			Login Complete Captain!
+			"
+	end
+	if variable[2].downcase == "add"
+		respond "
+				Saving #{variable[3].capitalize} To Your Personal Crew!
+				"
+		if $osa_data['$osa_roster'].nil?
+			self.save_script_data(:$osa_roster, Array.new)
+		end
+		self.save_script_data(:$osa_roster, variable[3].capitalize, push: true)
+		self.save_script_data(:$osa_roster, $osa_data['$osa_roster'].uniq)
+		echo 
+		return
+	end
+	if variable[2].downcase == "delete"
+		respond "
+				Removing #{variable[3].capitalize} From Your Personal Crew!
+				"
+		self.delete_script_data(:$osa_roster, variable[3].capitalize)
+	end
+	if variable[2].downcase == "clear"
+		respond "
+				Clearing Your Personal Crew!
+				"
+		self.save_script_data(:$osa_roster, Array.new)
+		return
+	end
+	if variable[2].downcase == "display"
+		respond "
+				Your Personal Crew Includes:
+				"
+				puts $osa_data["$osa_roster"]
+		respond ""
+		return
+	end
+end
+
+def commander_muster_up
+	if $osa_data["$osa_crewsize"].nil?
+		respond ""
+		respond "      You Have Not Built A Ships Roster Yet!"
+		respond "       Please Call A Muster Then Try Again"
+		respond ""
+		return
+	end
+	if (checkpcs - $osa_data["$osa_crewsize"]).count > 0 && !checkpcs.nil?
+		respond ""
+		respond "      The Following People Present Are Not Part Of The Crew:"
+		respond ""
+		puts checkpcs - $osa_data["$osa_crewsize"]
+		respond ""
+	else
+		respond ""
+		respond "      All Present Adventurers Are Members Of The Crew!"
+		respond ""
+	end
+end
+
+def commander_roger_up
+	@new_taskcount = Array.new
+	@new_taskcount.push(@taskcount)
+	if $osa_data["$osa_crewsize"].nil?
+		respond ""
+		respond "      You Have Not Built A Ships Roster Yet!"
+		respond "       Please Call A Muster Then Try Again"
+		respond ""
+		return
+	end
+	if ($osa_data["$osa_crewsize"] - @new_taskcount).count > 0
+		respond ""
+		respond "      The Following Crew Have Not Rogered Up:"
+		respond ""
+		puts $osa_data["$osa_crewsize"] - @new_taskcount
+		respond ""
+	else
+		respond ""
+		respond "      All Crew Have Rogered Up!"
+		respond ""
+	end
+end
+
+def commander_start_up
+	if $osa_data["$osa_crewsize"].count != 0
+		commander_call_muster
+	end
+	$osa_data["$osa_crewsize"].each do |n|
+		@crewmember = n
+		fput "hold #{@crewmember}"
+	end
+	start_script("go2", ['bank'])
+	wait_while { running?("go2") }
+	if $osa_data["$osa_commander_ship_type"] == "sloop"
+		@shipcost = "5000"
+	end
+	if $osa_data["$osa_commander_ship_type"] == "brigantine"
+		@shipcost = "7500"
+	end
+	if $osa_data["$osa_commander_ship_type"] == "carrack"
+		@shipcost = "7500"
+	end
+	if $osa_data["$osa_commander_ship_type"] == "galleon"
+		@shipcost = "10000"
+	end
+	if $osa_data["$osa_commander_ship_type"] == "frigate"
+		@shipcost = "10000"
+	end
+	if $osa_data["$osa_commander_ship_type"] == "man o' war"
+		@shipcost = "12500"
+	end
+	fput "withdraw #{@shipcost} sil"
+	start_script("go2", ['handler'])
+	wait_while { running?("go2") }
+	pause 0.5
+	commander_check_handler
+	@found_ship = false
+	@pier_map.each do |pier_berth|
+		waitrt?
+		start_script("go2", [pier_berth]) 
+		wait_while { running?("go2") }
+		if GameObj.loot.count {|item| item.name =~ /#{$osa_data["$osa_commander_ship_type"]}/} > 0
+			if $osa_data["$osa_commander_ship_type"] == "man o' war"
+				fput "look man"
+			else
+				fput "look #{$osa_data["$osa_commander_ship_type"]}"
+			end
+			result = matchtimeout 3, /Sprawling across the back of the (.*) it reads, "(.*)"/
+				if result.to_s =~ /Sprawling across the back of the (.*) it reads, "(.*)"/
+					if $osa_data["$osa_commander_ship_name"] == $2
+						@found_ship = true
+						break
+					end
+				end
+		end
+	end
+	if @found_ship == false
+		echo "The Ship Isn't Here, Something Went Wrong, Restart"
+		exit
+	end
+	commander_board_ship
+end
+
+def commander_start_handler
+	result = dothistimeout "get salvage crate from my #{Vars.lootsack}", 3, /Get what?|You remove|You grab a|You retrieve/
+	if result.to_s =~ /Get what?/
+	respond ""
+	_respond "\<preset id=\"thought\"\>" + "*** All Out of Crates***" + "\<\/preset\>"
+	respond ""
+	return
+	elsif result.to_s =~ /You remove|You grab a|You retrieve|You slip your hand through/
+	commander_handler
+	else
+		respond ""
+		respond " ---------------==========================================================--------------- "
+		respond ""		                 
+		respond "                Hands Are Full, Clear Your Hands Then Type Yes To Continue        "
+		respond ""
+		respond " ---------------==========================================================--------------- "
+		waitfor /A good positive attitude never hurts/
+		commander_start_handler
+	end
+end
+
+def commander_handler
+	pause 0.5
+	fput "give salvage crate to #{checknpcs.last}"
+	pause 0.5
+	fput "give salvage crate to #{checknpcs.last}"
+	pause 0.5
+	@handler_box = GameObj.right_hand.noun
+	multifput "open my #{@handler_box}", "look in my #{@handler_box}", "empty my #{@handler_box} into my #{Vars.lootsack}"
+	waitrt
+	pause 1
+	fput "throw my #{@handler_box}"
+	@handler_box = nil
+	commander_start_handler
+end
+
+def scripted_crew_off
+	if $osa_data["$osa_othersailors"]
+		self.save_script_data(:$osa_othersailors, false, push: false)
+		respond "     *===============================================================================*
+					|          *****You Are No Longer Accepting Outside Scripted Crew*****          |
+					*===============================================================================*"
+	else
+		respond "    Scripted Crew Is Disabled"
+	end
+end
+
+def scripted_crew_on
+	if !$osa_data["$osa_othersailors"]
+		self.save_script_data(:$osa_othersailors, true, push: false)
+		respond "     *===============================================================================*
+					|             *****You Are Now Accepting Outside Scripted Crew*****             |
+					*===============================================================================*"
+	else
+		respond "    Scripted Crew Is Enabled"
+	end
+end
+
+def anti_poaching_off
+	LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Enable Poaching!")
+	if $osa_data["$osa_check_for_group"]
+		self.save_script_data(:$osa_check_for_group, false, push: false)
+		respond "    *===========================================================*
+				|             *****Anti-Poaching Disabled*****              |
+				*===========================================================* 			"
+	else
+		respond "    Anti-Poaching Already Disabled"
+	end
+end
+
+def anti_poaching_on
+	LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Disable Poaching!")
+	if !$osa_data["$osa_check_for_group"]
+		self.save_script_data(:$osa_check_for_group, true, push: false)
+		respond "    *===========================================================*
+				|             *****Anti-Poaching Enabled*****               |
+				*===========================================================* 			"
+	else
+		respond "    Anti-Poaching Already Enabled"
+	end
+end
+
+def ph_off
+	if $osa_data["$osa_piratehunter"]
+		self.save_script_data(:$osa_piratehunter, false, push: false)
+		respond "     *===============================================================================*
+					|                    *****Enemy Ship Detection Disabled*****                    |     
+					|                               Godspeed Captain!                               |
+					*===============================================================================*"
+	else
+		respond "    Enemy Detection Already Disabled"
+	end
+end
+
+def ph_on
+	if !$osa_data["$osa_piratehunter"]
+		self.save_script_data(:$osa_piratehunter, true, push: false)
+		respond "    *===============================================================================*
+				|                    *****Enemy Ship Detection Enabled*****                     |     
+				|                            Happy Hunting Captain!                             |
+				*===============================================================================*"
+	else
+		respond "    Enemy Detection Already Enabled"
+	end
+end
+
+def no_script_off
+	if $osa_data["$osa_stowaways"]
+		self.save_script_data(:$osa_stowaways, false, push: false)
+		respond "    *===============================================================================*
+				|                 *****Non-Scripting Guest Mode Disabled*****                   |
+				*===============================================================================*"
+	else
+		respond "    Non-Scripting Guest Mode Already Disabled"
+	end
+end
+
+def no_script_on
+	if !$osa_data["$osa_stowaways"]
+		self.save_script_data(:$osa_stowaways, true, push: false)
+		respond "    *===============================================================================*
+				|                 *****Non-Scripting Guest Mode Enabled*****                    |
+				*===============================================================================*"
+	else
+		respond "    Non-Scripting Guest Mode Already Enabled"
+	end
+end
+
+def cleanup_off
+	if $osa_data["$osa_cleanup"]
+		self.save_script_data(:$osa_cleanup, false, push: false)
+		respond "    *===============================================================================*
+				|             *****You Are No Longer Looking For Stragglers*****                |
+				*===============================================================================*"
+	else
+		respond "    Clean Up Is Disabled"
+	end
+end
+
+def cleanup_on
+	if !$osa_data["$osa_cleanup"]
+		self.save_script_data(:$osa_cleanup, true, push: false)
+		respond "    *===============================================================================*
+				|               *****You Are Now Looking For Stragglers*****                    |
+				*===============================================================================*"
+	else
+		respond "    Cleanup Is Enabled"
+	end
+end
+
+def commander_end_routine
+	self.save_script_data(:$osa_clearing_end_time, Time.now)
+	if $osa_data["$osa_enemyship"] == nil
+		self.save_script_data(:$osa_enemyship, "a pirate ship")
+	end
+	if $osa_data["$osa_boardingtime"].nil?
+		self.save_script_data(:$osa_boardingtime, ((Time.now - Time.now)/60))
+	end
+	if $osa_data["$osa_helmsman_endtime"].nil?
+		self.save_script_data(:$osa_helmsman_endtime, Time.now)
+	end
+	self.save_script_data(:$osa_clearing_time, (($osa_data["$osa_clearing_end_time"] - $osa_data["$osa_helmsman_endtime"])/60).as_time)
+	pause 2
+	if $osa_data["$osa_crewsize"].count != 0
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Turn To!")
+		pause 2
+	end
+	if XMLData.injuries.any?{|key,value| value["wound"] > 1}
+		start_script("eherbs", ['--buy=off', '--mending=on', '--skipscars=on', '--yaba=on', '--potions=on'])
+		wait_until {!running? "eherbs"}
+	end
+	if XMLData.injuries.any?{|key,value| value["wound"] > 1}
+		echo "You still have some wounds, this may inhibate your ability to handle loot!"
+	end
+	if running? "osacombat"
+		stop_script "osacombat"
+		wait_until {!running? "osacombat"}
+	end
+	enemy_main_deck
+	commander_prep_it
+end
+
+def commander_avg_sink_time
+	if $osa_data['$osa_enemy_ship_type'] == "Sloop"
+		if $osa_data['$osa_Sloop_sink_times'].nil?
+			self.save_script_data(:$osa_Sloop_sink_times, Array.new)
+		end
+		self.save_script_data(:$osa_Sloop_sink_times, $osa_data['$osa_sinkingtime'], push: true)
+		self.save_script_data(:$osa_Sloop_sink_times, $osa_data['$osa_Sloop_sink_times'].last(50))
+		if ($osa_data['$osa_Sloop_best_sink_time'].nil?)
+			self.save_script_data(:$osa_Sloop_best_sink_time, 100)
+		end
+		if ($osa_data['$osa_Sloop_best_sink_time'] >= $osa_data['$osa_Sloop_sink_times'].min())
+			self.save_script_data(:$osa_Sloop_best_sink_time, $osa_data['$osa_Sloop_sink_times'].min())
+		end
+		self.save_script_data(:$osa_best_sink_time, $osa_data['$osa_Sloop_best_sink_time'])
+		self.save_script_data(:$osa_average_sink_time, ($osa_data['$osa_Sloop_sink_times'].sum/$osa_data['$osa_Sloop_sink_times'].size.to_f))
+	end
+	if $osa_data['$osa_enemy_ship_type'] == "Brigantine"
+		if $osa_data['$osa_Brig_sink_times'].nil?
+			self.save_script_data(:$osa_Brig_sink_times, Array.new)
+		end
+		self.save_script_data(:$osa_Brig_sink_times, $osa_data['$osa_sinkingtime'], push: true)
+		self.save_script_data(:$osa_Brig_sink_times, $osa_data['$osa_Brig_sink_times'].last(50))
+		if ($osa_data['$osa_Brig_best_sink_time'].nil?)
+			self.save_script_data(:$osa_Brig_best_sink_time, 100)
+		end
+		if ($osa_data['$osa_Brig_best_sink_time'] >= $osa_data['$osa_Brig_sink_times'].min())
+			self.save_script_data(:$osa_Brig_best_sink_time, $osa_data['$osa_Brig_sink_times'].min())
+		end
+		self.save_script_data(:$osa_best_sink_time, $osa_data['$osa_Brig_best_sink_time'])
+		self.save_script_data(:$osa_average_sink_time, ($osa_data['$osa_Brig_sink_times'].sum/$osa_data['$osa_Brig_sink_times'].size.to_f))
+	end
+	if $osa_data['$osa_enemy_ship_type'] == "Carrack"
+		if $osa_data['$osa_Car_sink_times'].nil?
+			self.save_script_data(:$osa_Car_sink_times, Array.new)
+		end
+		self.save_script_data(:$osa_Car_sink_times, $osa_data['$osa_sinkingtime'], push: true)
+		self.save_script_data(:$osa_Car_sink_times, $osa_data['$osa_Car_sink_times'].last(50))
+		if ($osa_data['$osa_Car_best_sink_time'].nil?)
+			self.save_script_data(:$osa_Car_best_sink_time, 100)
+		end
+		if ($osa_data['$osa_Car_best_sink_time'] >= $osa_data['$osa_Car_sink_times'].min())
+			self.save_script_data(:$osa_Car_best_sink_time, $osa_data['$osa_Car_sink_times'].min())
+		end
+		self.save_script_data(:$osa_best_sink_time, $osa_data['$osa_Car_best_sink_time'])
+		self.save_script_data(:$osa_average_sink_time, ($osa_data['$osa_Car_sink_times'].sum/$osa_data['$osa_Car_sink_times'].size.to_f))
+	end
+	if $osa_data['$osa_enemy_ship_type'] == "Galleon"
+		if $osa_data['$osa_Gal_sink_times'].nil?
+			self.save_script_data(:$osa_Gal_sink_times, Array.new)
+		end
+		self.save_script_data(:$osa_Gal_sink_times, $osa_data['$osa_sinkingtime'], push: true)
+		self.save_script_data(:$osa_Gal_sink_times, $osa_data['$osa_Gal_sink_times'].last(50))
+		if ($osa_data['$osa_Gal_best_sink_time'].nil?)
+			self.save_script_data(:$osa_Gal_best_sink_time, 100)
+		end
+		if ($osa_data['$osa_Gal_best_sink_time'] >= $osa_data['$osa_Gal_sink_times'].min())
+			self.save_script_data(:$osa_Gal_best_sink_time, $osa_data['$osa_Gal_sink_times'].min())
+		end
+		self.save_script_data(:$osa_best_sink_time, $osa_data['$osa_Gal_best_sink_time'])
+		self.save_script_data(:$osa_average_sink_time, ($osa_data['$osa_Gal_sink_times'].sum/$osa_data['$osa_Gal_sink_times'].size.to_f))
+	end
+	if $osa_data['$osa_enemy_ship_type'] == "Frigate"
+		if $osa_data['$osa_Frig_sink_times'].nil?
+			self.save_script_data(:$osa_Frig_sink_times, Array.new)
+		end
+		self.save_script_data(:$osa_Frig_sink_times, $osa_data['$osa_sinkingtime'], push: true)
+		self.save_script_data(:$osa_Frig_sink_times, $osa_data['$osa_Frig_sink_times'].last(50))
+		if ($osa_data['$osa_Frig_best_sink_time'].nil?)
+			self.save_script_data(:$osa_Frig_best_sink_time, 100)
+		end
+		if ($osa_data['$osa_Frig_best_sink_time'] >= $osa_data['$osa_Frig_sink_times'].min())
+			self.save_script_data(:$osa_Frig_best_sink_time, $osa_data['$osa_Frig_sink_times'].min())
+		end
+		self.save_script_data(:$osa_best_sink_time, $osa_data['$osa_Frig_best_sink_time'])
+		self.save_script_data(:$osa_average_sink_time, ($osa_data['$osa_Frig_sink_times'].sum/$osa_data['$osa_Frig_sink_times'].size.to_f))
+	end
+	if $osa_data['$osa_enemy_ship_type'] == "Man O' War"
+		if $osa_data['$osa_Man_sink_times'].nil?
+			self.save_script_data(:$osa_Man_sink_times, Array.new)
+		end
+		self.save_script_data(:$osa_Man_sink_times, $osa_data['$osa_sinkingtime'], push: true)
+		self.save_script_data(:$osa_Man_sink_times, $osa_data['$osa_Man_sink_times'].last(50))
+		if ($osa_data['$osa_Man_best_sink_time'].nil?)
+			self.save_script_data(:$osa_Man_best_sink_time, 100)
+		end
+		if ($osa_data['$osa_Man_best_sink_time'] >= $osa_data['$osa_Man_sink_times'].min())
+			self.save_script_data(:$osa_Man_best_sink_time, $osa_data['$osa_Man_sink_times'].min())
+		end
+		self.save_script_data(:$osa_best_sink_time, $osa_data['$osa_Man_best_sink_time'])
+		self.save_script_data(:$osa_average_sink_time, ($osa_data['$osa_Man_sink_times'].sum/$osa_data['$osa_Man_sink_times'].size.to_f))
+	end
+end
+
+def commander_sunk_ship
+	commander_avg_sink_time
+	LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Encounter With #{$osa_data["$osa_enemyship"].split(/\b/).map(&:capitalize).join} | Time To Sink Vessel: #{$osa_data["$osa_sinkingtime"].as_time} | Average Time To Sink A #{$osa_data["$osa_enemy_ship_type"]}: #{($osa_data['$osa_average_sink_time']).as_time} | Best Time To Sink A #{$osa_data["$osa_enemy_ship_type"]}: #{$osa_data['$osa_best_sink_time'].as_time}")
+	if $osa_data["$osa_stowaways"]
+		fput "whisper ooc group Encounter With #{$osa_data["$osa_enemyship"].split(/\b/).map(&:capitalize).join} | Time To Sink Vessel: #{$osa_data["$osa_sinkingtime"].as_time} | Average Time To Sink A #{$osa_data["$osa_enemy_ship_type"]}: #{($osa_data['$osa_average_sink_time']).as_time} | Best Time To Sink A #{$osa_data["$osa_enemy_ship_type"]}: #{$osa_data['$osa_best_sink_time'].as_time}"
+	end
+	self.save_script_data(:$osa_cleanup, false, push: false)
+	self.save_script_data(:$osa_piratehunter, false, push: false)
+	wait_until { $osa_data["$osa_sunk_ship"] }
+	if running? "osacombat"
+		stop_script "osacombat"
+		wait_until {!running? "osacombat"}
+	end
+	pause 3
+	LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Turn To!")
+	if XMLData.injuries.any?{|key,value| value["wound"] > 1}
+		start_script("eherbs", ['--buy=off', '--mending=on', '--skipscars=on', '--yaba=on', '--potions=on'])
+		wait_until {!running? "eherbs"}
+	end
+	if XMLData.injuries.any?{|key,value| value["wound"] > 1}
+		echo "You still have some wounds, this may inhibate your ability to handle loot!"
+	end
+	check_for_crate
+	captains_quarters
+	commander_task_complete
+	GameObj.pcs.each{|pc|;fput "hold ##{pc.id}"}
+	self.save_script_data(:$osa_cleanup, true, push: false)
+	self.save_script_data(:$osa_piratehunter, true, push: false)
+	exit
+end
+
+def fire_launcher
+	waitrt?
+	result = dothistimeout "fire net-launcher", 3, /pretend to fire at an imaginary target|A clean miss!|A direct hit!|You need to PULL on the crank to retract the net first|...wait/
+		if result.to_s =~ /pretend to fire at an imaginary target/
+			nil
+		elsif result.to_s =~ /A clean miss!|You need to PULL on the crank to retract the net first/
+			waitrt?
+			reel_launcher
+			fire_launcher
+			return
+		elsif result.to_s =~ /A direct hit!/
+			waitrt?
+			reel_launcher
+			return
+		elsif result.to_s =~ /...wait/
+			waitrt?
+			fire_launcher
+			return
+		end
+end
+
+def reel_launcher
+	waitrt?
+	result = dothistimeout "pull net-launcher", 3, /crate gets closer!|crate comes plopping onto the deck|net-launcher emits a final clicking noise|You do not see a reason to pull the crank/
+		if result.to_s =~ /crate gets closer!/
+			waitrt?
+			reel_launcher
+			#return
+		elsif result.to_s =~ /crate comes plopping onto the deck|You do not see a reason to pull the crank/
+			waitrt?
+			if GameObj.loot.count {|item| item.name =~ /supply crate/} > 0
+				fput "take supply crate"
+				cargo_hold
+				multifput "put crate in wood", "put crate in balls"
+				pause 1
+				if (GameObj.left_hand.noun.to_s == "crate") or (GameObj.right_hand.noun.to_s == "crate")
+					fput "drop supply crate"
+				end
+				main_deck
+			end
+			if GameObj.loot.count {|item| item.name =~ /salvage crate/} > 0
+				multifput "take salvage crate", "stow salvage crate"
+			end
+			fire_launcher
+			#return
+		else
+			waitrt?
+			reel_launcher
+			#return
+		end
+end
+
+def check_for_crate
+	waitrt?
+	main_deck
+	result = Lich::Util.quiet_command("look ocean", /\[(.*)\]/, end_pattern = /(Open waters: (.*)|Obvious paths: (.*))/, include_end = false ,timeout = 3, silent = true)
+		if result.to_s =~ /crate floating near enough to your ship/
+			waitrt?
+			fire_launcher
+			#return
+		else
+			return
+		end
+end
+
+def commander_begin_it
+	if variable[1] =~ /start/
+		self.save_script_data(:$osa_straggler_boxes, Array.new)
+		helm
+		determine_enemy_type
+		determine_to_engage
+		if $osa_data["$osa_engage"]
+			if !$osa_data["$osa_enemy_type"] == "undead" && $osa_data["$osa_no_bless"]
+				$whisper_message = "If you need any weapon blesses, speak now then let me know when you're all set"
+				if $osa_data["$osa_crewsize"].count == 0
+					get_self_bless
+					commander_stowaways
+				else
+					begin_bless
+					commander_stowaways
+					pause 1
+				end
+			end	
+			commander_vessel_messaging
+			cleanup_on
+			if $osa_data["$osa_cannon_engage"]
+				LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Enemy Vessel Detected, #{$osa_data["$osa_enemyship"].split(/\b/).map(&:capitalize).join} Inbound. Sound General Quarters! Gunners Man Your Irons!")
+			else
+				LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Enemy Vessel Detected, #{$osa_data["$osa_enemyship"].split(/\b/).map(&:capitalize).join} Inbound. Sound General Quarters!")
+			end
+			@start_time = Time.now
+			if !running? "osacombat"
+				start_script "osacombat"
+				pause 3
+				wait_rt
+				pause 0.1
+			end
+			ship_map
+			helm
+			self.save_script_data(:$osa_helmsman_start_time, Time.now)
+			commander_check_role
+			enemy_counter
+		else
+			do_not_board
+		end
+	elsif (Script.current.vars[1] =~ /profile/i)
+	self.profile(Script.current.vars)
+	exit
+	elsif variable[1] =~ /broadcast/
+		commander_broadcast_location
+	elsif variable[1] =~ /end/
+		commander_end_routine
+	elsif variable[1] =~ /silvers/
+		commander_give_coins
+	elsif variable[1] =~ /version/
+	respond ""
+	respond "OSACommander Version\: (#{$osa_data["$osa_commanderversion"]})"
+	respond ""
+	exit
+	elsif variable[1] =~ /stop/
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Stop")
+		self.save_script_data(:$osa_cleanup, false, push: false)
+		self.save_script_data(:$osa_piratehunter, false, push: false)
+		self.save_script_data(:$osa_boarding, false, push: false)
+		self.save_script_data(:$osa_sunk_ship, false, push: false)
+			if running? "osacombat"
+				stop_script "osacombat"
+				wait_until {!running? "osacombat"}
+			end
+	elsif variable[1] =~ /spells/
+		commander_spell_up
+	elsif variable[1] =~ /spellup/
+		if variable[2]
+			LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Crew, Spell Up #{variable[2].capitalize}.")
+			if $osa_data["$osa_groupspellup"]
+				if !Feat.known?("Kroderine Soul")
+					echo "Spelling up, #{variable[2].capitalize}"
+					start_script("ewaggle", ['--start-at=181', '--stop-at=240', $pc])
+					need_mana
+				end
+			end
+		else
+			LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Mana Spellup")
+			if (Stats.prof != "Warrior") and (Stats.prof != "Rogue")
+				fput "mana spellup"
+			end
+		end
+	elsif variable[1] =~ /exit/
+		self.save_script_data(:$osa_logging, true, push: false)
+		if Room.current.location == "Ships"
+			main_deck
+			fput "push gangplank"
+			move "go gangplank"
+		end
+		fput "recite #{$osa_data["$osa_commander_ship_name"]}!;Attention To Quarters!"
+		pause 1.5
+		fput "snap attention"
+		pause 1.5
+		multifput "salute", "recite Post!"
+		pause 3
+		fput "exit"
+	elsif variable[1] =~ /repairs/
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Make Repairs!")
+	elsif variable[1] =~ /status/
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Status Report")
+		status_check
+	elsif variable[1] =~ /resource/
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Resource Report")
+		resource_check
+	elsif variable[1] =~ /gemstone/
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Gemstone Report")
+		@weekly_gemstone_count = Array.new
+		@weekly_gemstone_count.clear
+		@monthly_gemstone_count = Array.new
+		@monthly_gemstone_count.clear
+		@gemstone_count = Array.new
+		@gemstone_count.clear
+		$osa_data["$osa_crewsize"].count.times {
+		result = matchtimeout 600, /^\[Private\]-GSIV:(.*)\: \"Weekly Gemstone: (.*) \| Monthly Gemstones:  (.*) \| Weekly Searches: (.*)\"$/
+		if result.to_s =~ /^\[Private\]-GSIV:(.*)\: \"Weekly Gemstone: (.*) \| Monthly Gemstones:  (.*) \| Weekly Searches: (.*)\"$/
+			@weekly_gemstone_count.push($2.to_i)
+			@monthly_gemstone_count.push($3.to_i)
+			@gemstone_count.push($4.to_i)
+		end}
+		commander_gemstone_check
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Total Weekly Searches: #{($killtracker[:weekly_ascension_searches] + (@gemstone_count.sum))} | Total Gemstones Found This Week: #{($killtracker[:weekly_gemstones] + (@weekly_gemstone_count.sum))} | Total Gemstones Found This Month: #{($killtracker[:monthly_gemstones] + (@monthly_gemstone_count.sum))}")
+	elsif variable[1] =~ /bread/
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Let Us Break Bread Together!")
+	elsif variable[1] =~ /detection/
+		if variable[2] =~ /on/
+			ph_on
+		end
+		if variable[2] =~ /off/
+			ph_off
+		end
+	elsif variable[1] =~ /noscript/
+		if variable[2] =~ /on/
+			no_script_on
+		end
+		if variable[2] =~ /off/
+			no_script_off
+		end
+	elsif variable[1] =~ /poaching/
+		if variable[2] =~ /on/
+			anti_poaching_off
+		end
+		if variable[2] =~ /off/
+			anti_poaching_on
+		end
+	elsif variable[1] =~ /scripted/
+		if variable[2] =~ /on/
+			scripted_crew_on
+		end
+		if variable[2] =~ /off/
+			scripted_crew_off
+		end
+	elsif variable[1] =~ /cleanup/
+		if variable[2] =~ /on/
+			cleanup_on
+		elsif variable[2] =~ /off/
+			cleanup_off
+		else
+			cleanup_begin_routine
+		end
+	elsif variable[1] =~ /unkick/
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Crewman #{variable[2].capitalize}, Quarterdeck!")
+	elsif variable[1] =~ /kick/
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Lay Below Crewman #{variable[2].capitalize}!")
+	elsif variable[1] =~ /reset/
+		do_client ";e stop_script 'osacrew';wait_while { running?('osacrew') };start_script 'osacrew'"
+		self.save_script_data(:$osa_logging, true, push: false)
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Reset")
+		pause 2
+		self.save_script_data(:$osa_logging, false, push: false)
+	elsif variable[1] =~ /task/
+		if variable[2].nil?
+			LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Task Time!")
+			return
+		end
+		if !variable[2].include? "cou"
+			respond "
+					Please Select A Valid Task Option:
+						
+						Count:          Will Determine Who Hasn't Rogered Up
+						No Option:      Will Call For The Crew To Get A Task
+					"
+		end
+		if variable[2].include? "cou"
+			commander_roger_up
+			return
+		end
+	elsif variable[1] =~ /begin/
+		commander_start_up
+	elsif variable[1] =~ /testcon/
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Connection Test: #{variable[2].capitalize}")
+	elsif variable[1] =~ /summon/ && variable[2] =~ /force/
+		fput "group open"
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Crew, Report To: #{Room.current.id}")
+	elsif variable[1] =~ /summon/
+		fput "group open"
+		beginning_group = $osa_everyone_in_my_group
+		mygroup = beginning_group
+		if !(mygroup - checkpcs).empty? or mygroup.empty?
+			LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Crew, Report To: #{Room.current.id}")
+		else
+			respond ""
+			respond ""
+			respond "--- Everyone Present, Skipping Summon                   "
+			respond ""
+			respond ""
+		end
+	elsif variable[1] =~ /bless/
+		begin_bless
+	elsif variable[1] =~ /unpause/
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Unpause")
+		if running? "osacombat"
+			unpause_script "osacombat"
+		end
+	elsif variable[1] =~ /pause/
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Pause")
+		if running? "osacombat"
+			pause_script "osacombat"
+		end
+	elsif variable[1] =~ /muster/
+		if variable[2].nil?
+			self.save_script_data(:$osa_crewsize, Array.new)
+			LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Quarters! All Hands To Quarters For Muster, Instruction and Inspection!")
+			commander_take_muster
+			LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "All Present And Accounted For! We Have #{$osa_data["$osa_crewsize"].count} Crew Onboard For A Total Compliment of #{$osa_data["$osa_crewsize"].count + 1} Personnel!")
+			pause 3
+			return
+		end
+		if !variable[2].include? "cou"
+			respond "
+					Please Select A Valid Muster Option:
+						
+						Count:          Will Determine Who Present Is Not Of The Ships Company
+						No Option:      Will Call A Ships Muster
+					"
+		end
+		if variable[2].include? "cou"
+			commander_muster_up
+			return
+		end
+	elsif variable[1] =~ /crew/
+		commander_crew_menu
+	elsif variable[1] =~ /info/
+		if variable[2].downcase.include? "sloo"
+			self.save_script_data(:$osa_commander_ship_type, "sloop")
+			self.save_script_data(:$osa_commander_max_crew, 2)
+		elsif variable[2].downcase.include? "bri"
+		self.save_script_data(:$osa_commander_ship_type, "brigantine")
+			self.save_script_data(:$osa_commander_max_crew, 4)
+		elsif variable[2].downcase.include? "car"
+			self.save_script_data(:$osa_commander_ship_type, "carrack")
+			self.save_script_data(:$osa_commander_max_crew, 7)
+		elsif variable[2].downcase.include? "gal"
+			self.save_script_data(:$osa_commander_ship_type, "galleon")
+			self.save_script_data(:$osa_commander_max_crew, 11)
+		elsif variable[2].downcase.include? "fri"
+			self.save_script_data(:$osa_commander_ship_type, "frigate")
+			self.save_script_data(:$osa_commander_max_crew, 13)
+		elsif variable[2].downcase.include? "man"
+			self.save_script_data(:$osa_commander_ship_type, "man o' war")
+			self.save_script_data(:$osa_commander_max_crew, 19)
+		else
+			respond "
+						Please Select A Valid Ship Type From Your Fleet: Sloop, Brigantine, Carrack, Galleon, Frigate or Man O' War
+						"
+				return
+		end
+		@ship_type = variable[2]
+		commander_ship_info
+	elsif variable[1] =~ /helmsman/
+		self.save_script_data(:$osa_helmsman_start_time, Time.now)
+		commander_check_role
+		enemy_counter
+	elsif variable[1] =~ /setup/i
+		self.commandersetup()
+		exit
+	elsif variable[1] =~ /anti_stow/
+		self.save_script_data(:$osa_data["$osa_no_stow"], push: true)
+		if $osa_data["$osa_crewsize"].count != 0
+			commander_call_muster
+		end
+		self.save_script_data(:$osa_boarding, false, push: false)
+		self.save_script_data(:$osa_sunk_ship, false, push: false)
+		if $osa_data["$osa_crewsize"].count != 0
+			commander_get_underway
+		else
+			commander_solo_get_underway
+		end
+		ph_off
+		helm
+		wait_rt
+		fput "turn wheel port"
+		waitfor /The (.*) drifts steadily toward the (.*) port/
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Moored!")
+		waitrt?
+		fput "yell Moored!"
+		commander_broadcast_location
+		captains_quarters
+		self.save_script_data(:$osa_no_stow, false, push: false)
+	elsif variable[1] =~ /repairs/
+		begin_repairs
+	elsif variable[1] =~ /settings/
+		crew_display_settings
+	elsif variable[1] =~ /call/
+		(eval variable[2]).call
+	elsif variable[1] =~ /sell/
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Crew, Sell Your Loot!")
+	elsif variable[1] =~ /setup/
+		self.commandersetup()
+	elsif variable[1] =~ /return/
+		ph_off
+		helm
+		wait_rt
+		fput "turn wheel port"
+		waitfor /The (.*) drifts steadily toward the (.*) port/
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Moored!")
+		waitrt?
+		fput "yell Moored!"
+		commander_broadcast_location
+		captains_quarters
+	elsif variable[1] =~ /underway/
+		if $osa_data["$osa_crewsize"].count != 0
+			commander_call_muster
+		end
+		self.save_script_data(:$osa_boarding, false, push: false)
+		self.save_script_data(:$osa_sunk_ship, false, push: false)
+		if $osa_data["$osa_crewsize"].count != 0
+			commander_get_underway
+		else
+			commander_solo_get_underway
+		end
+	elsif variable[1] =~ /checkversion/
+		LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Current Version Are As Follows: Combat #{$osa_data["$osa_combatversion"]}, Crew #{$osa_data["$osa_crewversion"]} and Commander #{$osa_data["$osa_commanderversion"]}")
+	elsif variable[1] =~ /combat/
+		if variable[2].nil?
+			LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Steel Yourselves Crew!")
+			start_script "osacombat"
+		else
+			LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Steel Yourself, #{variable[2].capitalize}!")
+		end
+	elsif variable[1] =~ /loot/
+		if variable[2].nil?
+			self.save_script_data(:$osa_osalooter, true, push: false)
+		else
+			LNet.send_message(attr = { 'type' => 'channel', 'channel' => $osa_data["$osa_crew"] }, "Loot the Dead, #{variable[2].capitalize}!")
+		end
+	else
+		commander_help_display
+	end
+end
+
+# One helper to BUILD them all!
+def self.ui(parent, type, **o)
+	@OSA_COMMANDER_ENTRY ||= {}
+	$osa_data ||= {}
+	@_ui_sizegroups ||= Hash.new { |h, k| h[k] = {} }  # { group_sym => { col_int => Gtk::SizeGroup } }
+	get_key = ->(v) { v.nil? ? nil : v.to_s }
+	get_val = ->(key) { key && $osa_data.key?(key) ? $osa_data[key] : nil }
+	set_widget_width = lambda do |widget, width|
+		return widget unless widget && width
+		widget.set_size_request(width, -1)
+		widget
+	end
+	case type
+	when :row
+		row = Gtk::Box.new(:horizontal, o.fetch(:spacing, 12))
+		row.set_halign(o[:halign]) if o[:halign]
+		row.set_hexpand(o.fetch(:hexpand, true))
+		parent.pack_start(row, false, false, o.fetch(:pad, 0)) if parent
+		return row
+	when :vrow
+		col = Gtk::Box.new(:vertical, o.fetch(:spacing, 8))
+		col.set_border_width(o[:border] || 0)
+		parent.pack_start(col, false, false, o.fetch(:pad, 0)) if parent
+		return col
+	when :header
+		outer = Gtk::Box.new(:vertical, o.fetch(:spacing, 4))
+		label = Gtk::Label.new
+		label.set_xalign(0.0)
+		label.set_tooltip_text(o[:tip]) if o[:tip] && !o[:tip].to_s.empty?
+		label.use_markup = true
+		text = o.fetch(:text).to_s
+		safe =
+			if GLib.respond_to?(:markup_escape_text)
+				GLib.markup_escape_text(text)
+			else
+				text.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;")
+			end
+		label.label = "<b>#{safe}</b>"
+		sep = Gtk::Separator.new(:horizontal)
+		outer.pack_start(label, false, false, 0)
+		outer.pack_start(sep, false, false, 0)
+		parent.pack_start(outer, false, false, o.fetch(:pad, 6)) if parent
+		return outer
+	when :blank
+		spacer = Gtk::Box.new(:vertical, 0)
+		spacer.set_size_request(-1, o.fetch(:height, 8))
+		parent.pack_start(spacer, false, false, 0) if parent
+		return spacer
+	when :sep
+		s = Gtk::Box.new(:horizontal, 0)
+		s.set_size_request(o.fetch(:width, 10), -1)
+		parent.pack_start(s, false, false, 0) if parent
+		return s
+	when :label
+		lab = Gtk::Label.new(o.fetch(:text, ""))
+		lab.set_xalign(o.fetch(:xalign, 0.0))
+		lab.set_tooltip_text(o[:tip]) if o[:tip] && !o[:tip].to_s.empty?
+		set_widget_width.call(lab, o[:width])
+		parent.pack_start(lab, false, false, o.fetch(:pad, 0)) if parent
+		return lab
+	when :entry
+		key = get_key.call(o[:var])
+		box = Gtk::Box.new(:horizontal, o.fetch(:spacing, 6))
+		lab = Gtk::Label.new(o.fetch(:label))
+		lab.set_xalign(0.0)
+		lab.set_tooltip_text(o[:tip]) if o[:tip] && !o[:tip].to_s.empty?
+		set_widget_width.call(lab, o[:label_width]) if o[:label_width]
+		ent = Gtk::Entry.new
+		if o[:width_chars]
+			ent.width_chars = o[:width_chars]
+			ent.max_width_chars = o[:max_width_chars] || o[:width_chars]
+		else
+			set_widget_width.call(ent, o[:entry_width] || o[:width])
+		end
+		ent.hexpand = false
+		ent.halign = :start
+		raw = get_val.call(key)
+		ent.text = (raw.nil? || raw.to_s.empty?) ? o.fetch(:default, "").to_s : raw.to_s
+		@OSA_COMMANDER_ENTRY[key] = ent if key
+		box.pack_start(lab, false, false, 0)
+		box.pack_start(ent, false, false, 0)
+		set_widget_width.call(box, o[:box_width] || o[:width]) if (o[:box_width] || o[:width])
+		parent.pack_start(box, false, false, o.fetch(:pad, 0)) if parent
+		return box
+	when :check
+		key = get_key.call(o[:var])
+		cb = Gtk::CheckButton.new(o.fetch(:label))
+		cb.tooltip_text = o[:tip] if o[:tip] && !o[:tip].to_s.empty?
+		raw = get_val.call(key)
+		cb.active = raw.nil? ? !!o.fetch(:default, false) : !!raw
+		@OSA_COMMANDER_ENTRY[key] = cb if key
+		cb.set_halign(:start)
+		cb.set_hexpand(false)
+		widget = cb
+		if o[:cell_width]
+			wrapper = Gtk::Box.new(:horizontal, 0)
+			wrapper.set_size_request(o[:cell_width], -1)
+			wrapper.set_halign(:start)
+			wrapper.pack_start(cb, false, false, 0)
+			widget = wrapper
+		end
+		if o[:group] && o[:col]
+			g = o[:group].to_sym
+			c = o[:col].to_i
+			@_ui_sizegroups[g][c] ||= Gtk::SizeGroup.new(:horizontal)
+			@_ui_sizegroups[g][c].add_widget(widget)
+		end
+		parent.pack_start(widget, false, false, o.fetch(:pad, 0)) if parent
+		return widget
+	when :check_box
+		key = get_key.call(o[:var])
+		cb = Gtk::CheckButton.new
+		cb.tooltip_text = o[:tip] if o[:tip] && !o[:tip].to_s.empty?
+		raw = get_val.call(key)
+		cb.active = raw.nil? ? !!o.fetch(:default, false) : !!raw
+		@OSA_COMMANDER_ENTRY[key] = cb if key
+		cb.set_halign(:start)
+		cb.set_hexpand(false)
+		parent.pack_start(cb, false, false, o.fetch(:pad, 0)) if parent
+		return cb
+	when :spell
+		r = ui(parent, :row, spacing: o.fetch(:spacing, 10))
+		ui(r, :entry,
+			label: o[:spell_label],
+			tip: o[:spell_tip],
+			var: o[:spell_var],
+			width_chars: 4,
+			entry_width: o.fetch(:spell_width, 50))
+		ui(r, :entry,
+			label: "Min Stam:",
+			var: o[:stam_min_var],
+			width_chars: 4,
+			default: "0",
+			entry_width: o.fetch(:stam_width, 50))
+		ui(r, :entry,
+			label: "Min Mana:",
+			var: o[:mana_min_var],
+			width_chars: 4,
+			default: "0",
+			entry_width: o.fetch(:mana_width, 50))
+		ui(r, :entry,
+			label: "Min Enemy:",
+			var: o[:enemy_min_var],
+			width_chars: 4,
+			default: "0",
+			entry_width: o.fetch(:enemy_min_width, 50))
+		ui(r, :entry,
+			label: "Max Enemy:",
+			var: o[:enemy_max_var],
+			width_chars: 4,
+			default: "10",
+			entry_width: o.fetch(:enemy_max_width, 50))
+		ui(r, :check, label: "Warding", var: o[:ward_var])
+		ui(r, :check, label: "Channel", var: o[:chan_var])
+		ui(r, :check, label: "Evoke", var: o[:evoke_var])
+		ui(r, :check, label: "Open", var: o[:open_var])
+	when :attack
+		r = ui(parent, :row, spacing: o.fetch(:spacing, 10))
+		ui(r, :dropdown,
+			label: o.fetch(:attack_label, "Attack:"),
+			tip: o.fetch(:attack_tip, ""),
+			var: o.fetch(:attack_var),
+			options: o.fetch(:options),
+			default_index: o.fetch(:default_index, 0),
+			combo_width: o.fetch(:attack_width, 520))
+		ui(r, :entry,
+			label: o.fetch(:stam_label, "Min Stam:"),
+			tip: o.fetch(:stam_tip, ""),
+			var: o.fetch(:stam_min_var),
+			default: o.fetch(:stam_default, "0"),
+			width_chars: o.fetch(:stam_chars, 4),
+			entry_width: o.fetch(:stam_width, 50))
+		ui(r, :entry,
+			label: o.fetch(:mana_label, "Min Mana:"),
+			tip: o.fetch(:mana_tip, ""),
+			var: o.fetch(:mana_min_var),
+			default: o.fetch(:mana_default, "0"),
+			width_chars: o.fetch(:mana_chars, 4),
+			entry_width: o.fetch(:mana_width, 50))
+		ui(r, :entry,
+			label: o.fetch(:enemy_min_label, "Min Enemy:"),
+			tip: o.fetch(:enemy_min_tip, ""),
+			var: o.fetch(:enemy_min_var),
+			default: o.fetch(:enemy_min_default, "0"),
+			width_chars: o.fetch(:enemy_min_chars, 4),
+			entry_width: o.fetch(:enemy_min_width, 50))
+		ui(r, :entry,
+			label: o.fetch(:enemy_max_label, "Max Enemy:"),
+			tip: o.fetch(:enemy_max_tip, ""),
+			var: o.fetch(:enemy_max_var),
+			default: o.fetch(:enemy_max_default, "10"),
+			width_chars: o.fetch(:enemy_max_chars, 4),
+			entry_width: o.fetch(:enemy_max_width, 50))
+			return r
+	when :ability
+		r = ui(parent, :row, spacing: o.fetch(:spacing, 10))
+		label_w = o.fetch(:label_width, 175) # adjust once to taste
+		ui(r, :label, text: o.fetch(:label), tip: o[:tip].to_s, width: label_w, xalign: 0.0)
+		ui(r, :check_box,
+			var: o.fetch(:var),
+			tip: o[:tip].to_s,
+			default: o.fetch(:default, false))
+		ui(r, :sep, width: o.fetch(:sep_width, 12))
+			fields = o.fetch(:fields, [])
+			fields.each do |f|
+				ui(r, :entry,
+				label: f.fetch(:label),
+				tip:   f[:tip].to_s,
+				var:   f.fetch(:var),
+				default: f.fetch(:default, ""),
+				width_chars: f[:chars] || o[:chars] || 4,
+				max_width_chars: f[:max_chars] || f[:chars] || o[:chars] || 4,
+				entry_width: f[:entry_width] || o[:entry_width] || 90,
+				label_width: f[:label_width] || o[:label_width])
+			end
+		return r
+  when :dropdown
+		key = get_key.call(o[:var])
+		opts =
+			case o[:options]
+			when String then o[:options].split(/\s*,\s*/)
+			when Array  then o[:options]
+		else
+			raise ArgumentError, "dropdown options must be String or Array"
+		end
+		box = Gtk::Box.new(:horizontal, o.fetch(:spacing, 6))
+		lab = Gtk::Label.new(o.fetch(:label))
+		lab.set_xalign(0.0)
+		lab.set_tooltip_text(o[:tip]) if o[:tip] && !o[:tip].to_s.empty?
+		set_widget_width.call(lab, o[:label_width]) if o[:label_width]
+		combo = Gtk::ComboBoxText.new
+		opts.each { |x| combo.append_text(x.to_s) }
+			raw = get_val.call(key)
+			idx = if raw.nil? || raw.to_s.strip.empty?
+            o.fetch(:default_index, 0).to_i
+		else
+            raw.to_i
+		end
+		idx = 0 if idx < 0
+		idx = opts.length - 1 if idx >= opts.length
+		combo.set_active(idx)
+		set_widget_width.call(combo, o[:combo_width] || o[:width])
+		@OSA_COMMANDER_ENTRY[key] = combo if key
+		if o[:group] && o[:col]
+			g = o[:group].to_s
+			c = o[:col].to_i
+			@_ui_sizegroups[g][c] ||= Gtk::SizeGroup.new(:horizontal)
+			@_ui_sizegroups[g][c].add_widget(combo)
+		end
+		box.pack_start(lab, false, false, 0)
+		box.pack_start(combo, false, false, 0)
+		parent.pack_start(box, false, false, o.fetch(:pad, 0)) if parent
+			return box
+		else
+			raise ArgumentError, "unknown ui type: #{type.inspect}"
+		end
+end
+
+# ===== population =====
+def self.populate_general(rows)
+	add_checks = lambda do |defs, cols: 4, group: :general_checks, spacing: 18|
+	defs.each_slice(cols).with_index do |slice, _row_i|
+			r = ui(rows, :row, spacing: spacing)
+			slice.each_with_index do |d, col|
+				ui(r, :check,
+				label: d[:label],
+				tip: d[:tip].to_s,
+				var: d[:var],
+				default: d.fetch(:default, false),
+				group: group,
+				col: col)
+			end
+		end
+	end
+	
+	ui(rows, :header, text: "Enemy Types To Engage:", tip: "These are the sub-types of pirates that can be encountered. The script will engage only the sub-types you select. Those left unselected will be avoided by turning the ship back into port and then getting underway again.")
+	add_checks.call([
+    { label: "Pirates",  tip: "These are your base pirate sub-type. Pirates can have any race prefix and are re-skinned clones of bandits. They tend to have moderate treasure.", var: '$osa_enemy_pirate',  default: false },
+    { label: "Krolvin",  tip: 'These pirates will only show with the "Krolvin" prefix. They are re-skinned clones of grimswarm enemies and they tend to have large amounts of treasure and boxes.', var: '$osa_enemy_krolvin', default: false },
+    { label: "Ethereal", tip: 'These pirates will only show with the "Ethereal" prefix. They are non-coporeal undead and are re-skinned clones of Reim citizens. They tend to have little to no treasure.', var: '$osa_enemy_undead', default: false }], cols: 3, group: :enemy_types)
+	ui(rows, :blank, height: 8)
+	ui(rows, :header, text: "Ship Types To Board:", tip: "Ship encounters will always reflect the size of your vessel. An encounter ship size can be your size category +1 or lower. In a storm this can be your size category +2.")
+	add_checks.call([
+    { label: "Sloop",      tip: "This is a 5 room vessel with an enemy range of 15-20 enemies.", var: '$osa_board_sloop', default: false },
+    { label: "Brigantine", tip: "This is a 6 room vessel with an enemy range of 30-40 enemies.", var: '$osa_board_brigantine', default: false },
+    { label: "Carrack",    tip: "This is a 7 room vessel with an enemy range of 35-45 enemies.", var: '$osa_board_carrack', default: false },
+    { label: "Galleon",    tip: "This is a 7 room vessel with an enemy range of 50-60 enemies.", var: '$osa_board_galleon', default: false },
+    { label: "Frigate",    tip: "This is a 6 room vessel with an enemy range of 60-80 enemies.", var: '$osa_board_frigate', default: false },
+    { label: "Man O' War", tip: "This is a 9 room vessel with an enemy range of 90-120 enemies.", var: '$osa_board_man', default: false }], cols: 3)
+	ui(rows, :blank, height: 8)
+	ui(rows, :header, text: "Ship Types To Cannon:")
+	add_checks.call([
+    { label: "Sloop", tip: "", var: '$osa_fire_sloop', default: false },
+    { label: "Brigantine", tip: "", var: '$osa_fire_brigantine', default: false },
+    { label: "Carrack",    tip: "", var: '$osa_fire_carrack', default: false },
+
+    { label: "Galleon", tip: "", var: '$osa_fire_galleon', default: false },
+    { label: "Frigate", tip: "", var: '$osa_fire_frigate', default: false },
+    { label: "Man O' War", tip: "", var: '$osa_fire_man', default: false }], cols: 3)
+	ui(rows, :blank, height: 10)
+	ui(rows, :header, text: "General Settings")
+	ui(rows, :entry, label: "Security Officer:", tip: "This is a crew member who you are designating to be the ships locksmith.", var: '$osa_securityofficer', default: "", width_chars: 24 )
+	ui(rows, :entry, label: "Security Officer Room Number:", tip: "This is the designated room the Security Officer will reside in during lock picking. Please enter the room number numerically.", var: '$osa_security_officer_location', default: "", width_chars: 11 )
+	ui(rows, :entry, label: "Spellup Time Threshold", tip: "The script will determine the average time remaining on your spells and if less than the designated threshold, it will call for a spellup automatically at the end of an encounter.", var: '$osa_time_left_setting', default: "65", width_chars: 18 )
+	ui(rows, :entry, label: "Fossil Charm Adjective:", tip: "Please enter the adjective of your fossil charm if available.", var: '$osa_charm_adjective', default: "", width_chars: 18 )
+	ui(rows, :blank, height: 6)
+	add_checks.call([
+    { label: "Four Winds Access", tip: "Check this box if you are a premium account. Any premium transport will be handled via the script Go2 and it's settings.", var: '$osa_fwi', default: false },
+    { label: "Use Net-Launcher",  tip: "Checking this enables the script to utilize the net-launcher on your ship for added supply and salvage crates.", var: '$osa_netlauncher', default: false },
+    { label: "Use Mana Bread",    tip: "Checking this enables the Medical Officer to hand mana bread to the crew prior to performing a crew spellup session.", var: '$osa_use_bread', default: false },
+    { label: "Skip Blessing Routine",         tip: "Checking this will skip blessing routines before an undead vessel encounter.", var: '$osa_no_bless', default: false },
+    { label: "Use Security Officer For Boxes", tip: "Checking this will enable the use of your Security Officer for picking boxes.", var: '$osa_use_security_officer', default: false },
+    { label: "Use Non-Scripting Picker",       tip: "Checking this will use a non-scripted lock picker. You will simply drop your boxes into the Captain's quarters for them to pick.", var: '$osa_no_script_picking', default: false },
+    { label: "Use Fossil Charm",              tip: "Checking this will enable the use of a fossil charm for gathering coins from opened boxes.", var: '$osa_fossil_charm', default: false },
+    { label: "Keep Ship From Being Stowed",   tip: "Checking this will prevent the ship from being stowed automatically when your time limit is expired on the pier. This is a triggered response and could be construed as AFK scripting. Please use with caution.", var: '$osa_anti_stow', default: false },
+    { label: "Share Silvers With Crew",       tip: "Checking this will enable the script to calculate your earned silvers and share that amount with your crew at the end of an encounter", var: '$osa_share_silvers', default: false },
+    { label: "Accept outside crew",           tip: "Checking this will enable the script to enroll the help of other players who are using OSACrew.", var: '$osa_othersailors', default: false },
+    { label: "Accept non-scripted crew",      tip: "Checking this will enable the script to enroll the help of other players who are not using OSACrew by allowing pauses with manual confirmation before continuing.", var: '$osa_stowaways', default: false }], cols: 3)
+end
+
+def self.commandersetup
+	if @OSA_COMMANDER_WINDOW
+		begin
+		@OSA_COMMANDER_WINDOW.present
+		return
+		rescue
+		@OSA_COMMANDER_WINDOW = nil
+		end
+	end
+	GLib::Idle.add do
+		begin
+			build_commandersetup_window
+			rescue => e
+			puts "--- OsaCrew GUI error: #{e.class}: #{e.message}"
+			puts e.backtrace.join("\n")
+		end
+		false
+	end
+	nil
+end
+
+def self.save_settings!
+	file_path = File.join(DATA_DIR, XMLData.game, Char.name, "osa_vars.yaml")
+	File.open(file_path, "w") do |file|
+		file.flock(File::LOCK_EX)
+		file.write($osa_data.to_yaml)
+		file.flock(File::LOCK_UN)
+	end
+	respond "--- OSACommander: Settings saved to #{file_path}"
+end
+
+def self.build_commandersetup_window
+	@OSA_COMMANDER_WINDOW = Gtk::Window.new
+	@OSA_COMMANDER_WINDOW.set_default_size(1155, 900)
+	@OSA_COMMANDER_WINDOW.title = TITLE
+	@OSA_COMMANDER_WINDOW.set_border_width(10)
+	@OSA_COMMANDER_WINDOW.keep_above = true
+	@OSA_COMMANDER_WINDOW.signal_connect("destroy") do
+		@OSA_COMMANDER_WINDOW = nil
+	end
+	main_box = Gtk::Box.new(:vertical, 0)
+	main_box.set_border_width(5)
+	@OSA_COMMANDER_WINDOW.add(main_box)
+	notebook = Gtk::Notebook.new
+	notebook.set_show_border(true)
+	notebook.set_scrollable(true)
+	main_box.pack_start(notebook, true, true, 0)
+	@OSA_COMMANDER_ENTRY = {}
+	tab_names = ["General"]
+	tab_names.each.with_index(1) do |name, idx|
+		page_box = Gtk::Box.new(:vertical, 0)
+		scroller = Gtk::ScrolledWindow.new
+		scroller.set_policy(Gtk::POLICY_NEVER, Gtk::POLICY_AUTOMATIC)
+		scroller.hexpand = true
+		scroller.vexpand = true
+		rows = Gtk::Box.new(:vertical, 8)
+		rows.set_border_width(6)
+		scroller.add(rows)
+		page_box.pack_start(scroller, true, true, 0)
+		notebook.append_page(page_box, Gtk::Label.new(name))
+		instance_variable_set("@OSA_COMMANDER_ROWS#{idx}", rows)
+	end
+	populate_general(@OSA_COMMANDER_ROWS1)
+	button_row = Gtk::Box.new(:horizontal, 12)
+	button_row.set_halign(:end)
+	save_btn  = Gtk::Button.new(label: "Save")
+	close_btn = Gtk::Button.new(label: "Close")
+	save_btn.signal_connect("clicked") do
+		@OSA_COMMANDER_ENTRY.each do |var_name, widget|
+			if widget.is_a?(Gtk::CheckButton)
+				$osa_data[var_name] = widget.active?
+			elsif widget.is_a?(Gtk::Entry)
+				$osa_data[var_name] = widget.text
+			elsif widget.is_a?(Gtk::ComboBoxText)
+				$osa_data[var_name] = widget.active 
+			end
+		end
+		self.save_settings!
+	end
+	close_btn.signal_connect("clicked") do 
+		Gtk.queue do
+			@OSA_COMMANDER_WINDOW.hide
+			@OSA_COMMANDER_WINDOW.destroy
+		end
+	end
+	button_row.pack_start(save_btn, false, false, 0)
+	button_row.pack_start(close_btn, false, false, 0)
+	main_box.pack_start(button_row, false, false, 6)
+	@OSA_COMMANDER_WINDOW.show_all
+end
+
+def self.delete_script_data(key, value)
+	full_path = File.join(DATA_DIR, XMLData.game, Char.name, "osa_vars.yaml")
+	return unless File.exist?(full_path)
+	File.open(full_path, File::RDWR | File::CREAT) do |file|
+		file.flock(File::LOCK_EX)
+		raw_content = file.read
+		$osa_data = begin
+		YAML.safe_load(raw_content, permitted_classes: [Time, Symbol]) || {}
+			rescue StandardError
+			{}
+		end
+		k = key.to_s
+		target = $osa_data[k]
+		if target.is_a?(Array)
+			target.delete(value)
+		elsif target == value
+			$osa_data.delete(k)
+		end
+		file.rewind
+		YAML.dump($osa_data, file)
+		file.flush
+		file.truncate(file.pos)
+	end
+end
+
+def self.save_script_data(key, value, push: false, path: nil)
+	full_path = path || File.join(DATA_DIR, XMLData.game, Char.name, "osa_vars.yaml")
+	FileUtils.mkdir_p(File.dirname(full_path))
+	File.open(full_path, File::RDWR | File::CREAT, 0o644) do |file|
+		file.flock(File::LOCK_EX)
+		raw = file.read.to_s
+		data =
+			begin
+			if raw.strip.empty?
+				{}
+			else
+				YAML.safe_load(raw, permitted_classes: [Time, Symbol], aliases: true) || {}
+			end
+			rescue StandardError
+			{} # fallback if YAML is corrupt
+			end
+		data = {} unless data.is_a?(Hash)
+		data = data.transform_keys(&:to_s)
+		k = key.to_s
+		if push
+			data[k] = [] unless data[k].is_a?(Array)
+			data[k] << value
+		else
+			data[k] = value
+		end
+		file.rewind
+		YAML.dump(data, file)
+		file.flush
+		file.truncate(file.pos)
+		$osa_data = data
+	end
+end
+
+def self.load_osa_yaml
+	Settings.load
+	dir = File.join(DATA_DIR, XMLData.game, Char.name)
+	FileUtils.mkdir_p(dir) unless Dir.exist?(dir)
+	@osa_yaml_file = File.join(dir, "osa_vars.yaml")
+	data = {}
+	File.open(@osa_yaml_file, File::RDWR | File::CREAT, 0o644) do |file|
+		file.flock(File::LOCK_EX)
+		raw = file.read
+		if raw && !raw.strip.empty?
+			data = YAML.safe_load(raw, permitted_classes: [Time, Symbol], aliases: true) || {}
+		else
+			data = {}
+			file.rewind
+			file.write(YAML.dump(data))
+			file.flush
+			file.truncate(file.pos)
+		end
+	end
+	data = data.transform_keys(&:to_s)
+	$osa_data = data
+	Settings[Char.name]["osa_vars_yaml_file"] = @osa_yaml_file
+	Settings.save
+	@osa_yaml_file
+end
+
+self.save_script_data(:$osa_commanderversion, "4.0.7 (April 21, 2026)", push: false)
+TITLE = "OSACommander: v. (#{$osa_data["$osa_commanderversion"]})"
+require "yaml"
+require "gtk3"
+require "fileutils"
+toggle_upstream
+self.load_osa_yaml
+
+if $osa_data["$osa_crew"].empty?
+	respond "*********** Your Crew Channel Is Not Set, Please Set Your Crew Channel Before Proceeding (If You Do Not Have One Set, Use Your Character\'s First Name) ************"
+	exit
+end
+if $osa_data["$osa_commander"].empty?
+	respond "*********** Your Commander Is Not Set, Please Set Your Crew Channel Before Proceeding (If You Do Not Have One, Use Your Character\'s First Name) ************"
+	exit
+end
+before_dying {@warning = false}
+@anchor_aweigh = false
+@commander_lowered_sail = false
+@warning = false
+@done_with_sec_off = false
+Room[33889].wayto["3668"] = StringProc.new("Map[7].wayto['3668'].call;")
+Room[33889].timeto["3668"] = StringProc.new("Map[7].timeto['3668'].call;")
+Room[33889].tags.push("meta:fwi:teleport")
+Room[33889].location = nil
+Room[3669].wayto["33889"] = StringProc.new("Map[7].wayto['3668'].call;")
+Room[3669].timeto["33889"] = StringProc.new("Map[7].timeto['3668'].call;")
+self.save_script_data(:$osa_cleanup_type, nil)
+mana_share
+commander_begin_it

@@ -1,0 +1,105 @@
+# mysttest.lic
+
+target = script.vars[0]
+
+if target.nil?
+  echo "Usage: ;mysttest <target>"
+  exit
+end
+
+# --- EMOTES (uses ACT with pronouns) ---
+emotes = [
+
+"act ::#{target} closes her eyes as she draws the last of # pain into herself, a faint tremor passing through her before stillness returns.",
+"act ::#{target} exhales slowly, her gaze lingering on @ as the borrowed agony settles beneath her skin.",
+"act ::#{target} steadies herself with one hand pressed to her chest, as though carrying something taken from %.",
+"act ::#{target} inclines her head toward @, the faintest shiver passing through her as # suffering becomes her own.",
+"act ::#{target} watches @ quietly, breathing through the pain she has taken from %.",
+"act ::#{target} lowers her gaze, a quiet shudder passing through her as the last traces of # pain settle within.",
+"act ::#{target} draws in a slow breath, her posture tightening briefly as what once burdened @ becomes her own.",
+"act ::#{target} stills completely, as though listening to something only she can hear, the echo of # pain lingering.",
+"act ::#{target} presses her fingers lightly to her arm, steadying herself as the remnants of # suffering fade into her.",
+"act ::#{target} tilts her head slightly, a faint tremor passing through her as she absorbs what once tormented @.",
+"act ::#{target} breathes out softly, her expression easing as # pain settles into a quiet stillness within her.",
+"act ::#{target} stands motionless for a moment, the weight of # suffering visibly passing into her before she steadies.",
+
+# --- ENJOYMENT-FLAVORED EMOTES ---
+"act ::#{target} draws in a slow, steady breath, a faint shiver passing through her as the sensation settles.",
+"act ::#{target} closes her eyes for a moment longer than necessary, as though lingering in the sensation.",
+"act ::#{target} tilts her head slightly, a subtle tremor passing through her before she steadies.",
+"act ::#{target} exhales softly, her posture easing as she absorbs what once burdened @.",
+"act ::#{target} remains still for a moment, as though savoring the last traces of # pain.",
+"act ::#{target} presses her lips together briefly, a faint shudder passing through her before she relaxes.",
+"act ::#{target} breathes in slowly, as though drawing the sensation deeper into herself.",
+"act ::#{target} lowers her gaze, a quiet, measured calm settling over her features.",
+"act ::#{target} steadies herself, though a faint tremor lingers beneath the surface.",
+"act ::#{target} lingers in stillness for a heartbeat longer than expected before moving again."
+
+]
+
+# --- SAY LINES ---
+lines = [
+
+# --- ORIGINAL / DEVOTIONAL / CALM ---
+"say ::#{target} :reverent Do not fear it. I will carry what you cannot.",
+"say ::#{target} :serene It has passed from you.",
+"say ::#{target} :solemn Your suffering is not wasted.",
+"say ::#{target} :hushed I have it now.",
+"say ::#{target} :serene You may breathe again.",
+"say ::#{target} :reverent What burdened you no longer does.",
+"say ::#{target} :solemn It will trouble you no more.",
+"say ::#{target} :meditative Pain speaks clearly when it leaves the flesh.",
+"say ::#{target} :reverent Mularos receives what was yours.",
+"say ::#{target} :serene Rest now. It has found another vessel.",
+"say ::#{target} :hushed It lingers... but not with you.",
+"say ::#{target} :solemn The burden is shifted.",
+"say ::#{target} :meditative There is clarity in its passing.",
+"say ::#{target} :reverent It is given, and I accept it.",
+"say ::#{target} :serene You are free of it now.",
+"say ::#{target} :introspective Some pain resists leaving... but it yields.",
+"say ::#{target} :solemn Nothing endured is meaningless.",
+"say ::#{target} :hushed It settles within me.",
+"say ::#{target} :meditative It reveals more than it destroys.",
+"say ::#{target} :reverent This is the will of Mularos.",
+
+# --- ENJOYMENT / ACCEPTANCE VARIETY ---
+"say ::#{target} :breathless That was... vivid.",
+"say ::#{target} :quiet It lingers. I prefer it that way.",
+"say ::#{target} :faint There is something... almost pleasant in its edge.",
+"say ::#{target} :meditative It sharpens the mind, does it not?",
+"say ::#{target} :soft I can still feel it.",
+"say ::#{target} :introspective Not all pain wishes to fade.",
+"say ::#{target} :calm It settles... deeper than most.",
+"say ::#{target} :musing There is a certain clarity to it.",
+"say ::#{target} :breathless It fades too quickly.",
+"say ::#{target} :serene I will hold onto this a while longer.",
+"say ::#{target} :quiet It is... not unwelcome.",
+"say ::#{target} :measured I understand this kind of pain.",
+"say ::#{target} :introspective Some sensations are worth remembering.",
+"say ::#{target} :soft It leaves a trace behind.",
+"say ::#{target} :musing There is structure to it... if you pay attention.",
+"say ::#{target} :calm I have known worse. I have known less.",
+"say ::#{target} :breathless It almost feels... complete.",
+"say ::#{target} :quiet It fits, somehow.",
+"say ::#{target} :introspective Pain rarely lies.",
+"say ::#{target} :serene I think I prefer it this way."
+
+]
+
+# --- RANDOMIZE ORDER ---
+if rand < 0.5
+  first = emotes.sample
+  second = lines.sample
+else
+  first = lines.sample
+  second = emotes.sample
+end
+
+# --- EXECUTE FIRST ---
+fput first
+
+# --- RANDOM DELAY (5–10 seconds) ---
+sleep(rand(3..7))
+
+# --- EXECUTE SECOND ---
+fput second

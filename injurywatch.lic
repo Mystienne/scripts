@@ -1,0 +1,140 @@
+# injurywatch.lic
+# Dockable Injury Watch for StormFront/Wrayth.
+# Appraises each person once when they enter the room.
+# Removes them when they leave.
+# Re-appraises them if they leave and come back.
+
+no_kill_all
+no_pause_all
+hide_me
+silence_me
+
+unless ['stormfront', 'wrayth'].include?($frontend)
+  echo "InjuryWatch dock mode only works in StormFront/Wrayth."
+  exit
+end
+
+CHECK_EVERY = 1.0
+APPRAISE_DELAY = 0.35
+MAX_ROWS = 14
+
+INJURY_WORDS = /wound|wounds|injur|injuries|bleed|bleeding|scar|scars|missing|mangled|crushed|broken|fractured|severed|rank|minor|moderate|serious|severe|dead|unconscious|stunned/i
+HEALTHY_WORDS = /no apparent injuries|perfect health|appears? to be in good shape|is in good shape|healthy/i
+
+def iw_xml(text)
+  text.to_s.gsub('&', '&amp;')
+           .gsub('<', '&lt;')
+           .gsub('>', '&gt;')
+           .gsub("'", '&apos;')
+           .gsub('"', '&quot;')
+end
+
+def iw_compact_appraise(text)
+  clean = text.to_s
+              .gsub(/<[^>]+>/, ' ')
+              .gsub(/\s+/, ' ')
+              .strip
+
+  return nil if clean.empty?
+  return nil if clean =~ HEALTHY_WORDS && clean !~ INJURY_WORDS
+  return nil unless clean =~ INJURY_WORDS
+
+  parts = clean.scan(/(?:left|right)?\s?(?:eye|arm|hand|leg|foot)|head|neck|chest|abdomen|back|nerves|blood|wound|scar|bleeding|minor|moderate|serious|severe|rank \d/i)
+  parts = parts.map(&:strip).reject(&:empty?).uniq
+
+  parts.empty? ? clean[0, 180] : parts.join(', ')
+end
+
+def iw_quiet_appraise(pc)
+  raw = Lich::Util.quiet_command_xml(
+    "appraise ##{pc.id}",
+    /<output class="mono"\/>/,
+    /<prompt time=/
+  )
+
+  sleep APPRAISE_DELAY
+
+  raw = raw.join(' ') if raw.is_a?(Array)
+  iw_compact_appraise(raw)
+rescue => e
+  "APPRAISE ERROR: #{e.message}"
+end
+
+def iw_current_people
+  GameObj.pcs.each_with_object({}) do |pc, hash|
+    name = pc.name.to_s.strip
+    id = pc.id.to_s.strip
+    next if name.empty? || id.empty?
+
+    hash[id] = name
+  end
+end
+
+def iw_build_dialog(injured)
+  rows = injured.values.sort.first(MAX_ROWS)
+  title = rows.empty? ? "Injury Watch: clear" : "Injury Watch: #{rows.length} injured"
+
+  lines = []
+  lines << "<closeDialog id='InjuryWatch'/>"
+  lines << "<openDialog type='dynamic' id='InjuryWatch' title='Injury Watch' target='InjuryWatch' location='main' height='260' width='420' resident='true'>"
+  lines << "<dialogData id='InjuryWatch' clear='t'>"
+  lines << "<label id='iwtitle' value='#{iw_xml(title)}' justify='4' top='5' left='5' height='22' width='390'/>"
+
+  if rows.empty?
+    lines << "<label id='iwrow0' value='No appraised injuries detected.' justify='4' top='32' left='5' height='20' width='390'/>"
+  else
+    rows.each_with_index do |row, i|
+      lines << "<label id='iwrow#{i}' value='#{iw_xml(row)}' justify='4' top='#{32 + (i * 16)}' left='5' height='18' width='400'/>"
+    end
+  end
+
+  lines << "</dialogData>"
+  lines << "</openDialog>"
+  lines.join
+end
+
+before_dying do
+  puts "<closeDialog id='InjuryWatch'/>"
+end
+
+checked = {}
+injured = {}
+last_people = {}
+
+puts iw_build_dialog(injured)
+
+loop do
+  current_people = iw_current_people
+
+  # Remove anyone who left the room.
+  gone_ids = checked.keys - current_people.keys
+  gone_ids.each do |id|
+    checked.delete(id)
+    injured.delete(id)
+  end
+
+  # Appraise only new arrivals.
+  new_ids = current_people.keys - checked.keys
+  new_ids.each do |id|
+    checked[id] = true
+    name = current_people[id]
+
+    pc = GameObj.pcs.find { |p| p.id.to_s == id }
+    next unless pc
+
+    result = iw_quiet_appraise(pc)
+
+    if result && result !~ /^APPRAISE ERROR/
+      injured[id] = "#{name}: #{result}"
+    elsif result
+      injured[id] = "#{name}: #{result}"
+    end
+  end
+
+  if current_people != last_people || !new_ids.empty? || !gone_ids.empty?
+    puts iw_build_dialog(injured)
+    last_people = current_people.dup
+  end
+
+  sleep CHECK_EVERY
+end

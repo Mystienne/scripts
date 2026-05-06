@@ -1,0 +1,788 @@
+# encoding: utf-8
+before_dying { 
+  # 1. Save variables (safe because we aren't polling the UI object)
+  save_settings
+  
+  # 2. Platform-specific audio cleanup
+  stop_audio 
+
+  # 3. Safe Window Close
+  # On Mac, if the user clicked X, the window is already gone.
+  # We only need to call destroy if the script was killed via ;kill
+  if $minimap_win
+    Gtk.queue do
+      begin
+        if !$minimap_win.destroyed?
+          $minimap_win.destroy 
+        end
+      rescue
+        # Silently ignore if the object is already gone to prevent client crash
+      end
+    end
+  end
+}
+
+def stop_audio
+  if Gem.win_platform?
+    # Original Windows logic
+    if $current_audio_pid
+      system("taskkill /f /t /pid #{$current_audio_pid} > nul 2>&1")
+    end
+    system("taskkill /f /im powershell.exe /fi \"WINDOWTITLE eq Hidden\" > nul 2>&1")
+  else
+    # Mac/Linux logic
+    if $current_audio_pid
+      Process.kill('TERM', $current_audio_pid) rescue nil
+    end
+    # Kill common players just in case
+    system("pkill -f afplay > /dev/null 2>&1")
+    system("pkill -f mpg123 > /dev/null 2>&1")
+  end
+  $current_audio_pid = nil
+end
+
+=begin
+	   Nautical-Charts Version: 1.2.0 (May 3, 2026)
+	
+	   Usage: 
+	
+	    ;nautical-charts update              Will Update All Neccesary Files.
+	    Shift + Left-Click                   Will Run Sail2.lic To Travel To Room Clicked On.
+	    Left-Click Anchor Icon               Will Re-Center You On Your Ship Location.
+	    Right-Click                          Will Show Map Options Menu.
+	    
+	    Notes:                               Map Backgrounds And Ship Icons Can Be Customized.
+	                                         Be Sure To Match Resolution Of Map File.
+	                                         Icons Are Formatted As 40x40 Pixels.
+
+	   This is the OSA Map.
+	   It Will Show You Your Current Location When Sailing In OSA.
+	   This Map Will Use UID's To Track Ship Location. 
+	   You Must Use WATCH OCEAN To See Continued Tracking.
+	   Otherwise LOOK OCEAN Can Update Location On Per Use Basis.
+	   
+	   Enjoy!
+	   ~Peggyanne 
+	   
+	   PS: feel free to send me any bugs via discord Bait#4376 and I'll try my best to fix them.
+	   
+	   Change Log:
+                    March 4, 2026 - Initial Release.
+                    March 6, 2026 - Changed Map File Folder Locations And Added Repo Info.
+                   March 14, 2026 - Added Update Option To Script To Remove Nautical-Charts-Update Dependancy.
+                      May 1, 2026 - Added Port Image Ranges and Port Images Display.
+                      May 3, 2026 - Added Selectable Ship Icons, Window Placement/Size Memory, Port Images and Sounds (With Toggle For On/Off).
+=end 
+
+i_stand_alone
+clear
+
+script.want_downstream_xml = true
+
+unless HAVE_GTK
+	respond 'error: ruby-gtk bindings are not installed or failed to load'
+	exit
+end
+
+begin
+	require 'gtk3'
+	require 'json'
+	require 'set'
+	require 'timeout'
+	require 'open-uri'
+	require 'fileutils'
+rescue LoadError => e
+	respond "error: #{e}"
+	exit
+end
+
+# ---------- CONFIG ----------
+JSON_PATH = File.join(MAP_DIR, 'OSAMaps', 'Database', 'oceandb.json')
+PNG_DIR   = File.join(MAP_DIR, 'OSAMaps', 'Maps')
+BG_DIR    = File.join(MAP_DIR, 'OSAMaps', 'Backgrounds')
+ICON_DIR  = File.join(MAP_DIR, 'OSAMaps', 'Icons')
+
+# --- AUDIO CONFIG ---
+SAILING_SOUND = File.join(DATA_DIR, 'Sounds', 'ocean_waves.mp3')
+PORT_SOUND    = File.join(DATA_DIR, 'Sounds', 'seagulls.mp3')
+$current_audio_pid = nil
+$last_audio_state = nil
+
+# --- SCALING CONFIG ---
+PORT_SCALE = 0.25  
+SEA_SCALE  = 0.50  
+$scale = SEA_SCALE 
+
+# ----------------------
+SHIP_BASE_PX = 40
+CLICK_THRESHOLD = 15 
+
+# --- PORT CONFIGURATION ---
+PORT_BG_DIR = File.join(MAP_DIR, 'OSAMaps', 'Ports')
+FileUtils.mkdir_p(PORT_BG_DIR) unless Dir.exist?(PORT_BG_DIR)
+
+PORT_RANGES = {
+  (7122001..7122025) => "wehnimers-landing-port.png",
+  (7124001..7124025) => "solhaven-port.png",
+  (7125001..7125025) => "rivers-rest-port.png",
+  (7133002..7133026) => "icemule-port.png",
+  (7140101..7140130) => "briskers-cove-port.png",
+  (7123001..7123025) => "teras-isle-port.png",
+  (7118240..7118264) => "krakens-fall-port.png",
+  (7150106..7150114) => "talon-isle-port.png",
+  (7142001..7142025) => "sleeping-drake-harbor-port.png",
+  (4426101..4426125) => "glaoveln-port.png",
+  (14150001..14150025) => "nielira-harbor-port.png",
+  (7136002..7136026) => "ta-vaalor-port.png"
+}
+
+# ---------- UPDATE CONFIG ----------
+MAP_GIT_USER  = 'jmbreitfeld'
+MAP_GIT_REPO  = 'OSAMaps'
+MAP_GIT_PATH  = '' 
+LOCAL_MAP_DIR = File.join(MAP_DIR, 'OSAMaps', 'Maps')
+
+BG_GIT_USER  = 'jmbreitfeld'
+BG_GIT_REPO  = 'OSA-Backgrounds'
+BG_GIT_PATH  = ''
+LOCAL_BG_DIR = File.join(MAP_DIR, 'OSAMaps', 'Backgrounds')
+
+JSON_GIT_USER  = 'jmbreitfeld'
+JSON_GIT_REPO  = 'OSA-Ocean-Database'
+JSON_GIT_PATH  = ''
+LOCAL_JSON_DIR = File.join(MAP_DIR, 'OSAMaps', 'Database')
+
+ICONS_GIT_USER  = 'jmbreitfeld'
+ICONS_GIT_REPO  = 'OSA-Ship-Icons'
+ICONS_GIT_PATH  = ''
+LOCAL_ICONS_DIR = File.join(MAP_DIR, 'OSAMaps', 'Icons')
+
+PORTS_GIT_USER  = 'jmbreitfeld'
+PORTS_GIT_REPO  = 'OSA-Ports'
+PORTS_GIT_PATH  = ''
+LOCAL_PORTS_DIR = File.join(MAP_DIR, 'OSAMaps', 'Ports')
+
+SOUNDS_GIT_USER  = 'jmbreitfeld'
+SOUNDS_GIT_REPO  = 'OSA-Ports'
+SOUNDS_GIT_PATH  = ''
+LOCAL_SOUNDS_DIR = File.join(DATA_DIR, 'Sounds')
+# --- PERSISTENT SETTINGS ---
+UserVars.sea_charts ||= {}
+$show_background = UserVars.sea_charts[:show_bg].nil? ? true : UserVars.sea_charts[:show_bg]
+$theme_mode      = (UserVars.sea_charts[:theme] || 'dark').to_sym 
+$keep_on_top     = UserVars.sea_charts[:keep_on_top].nil? ? false : UserVars.sea_charts[:keep_on_top]
+$ship_icon_file  = UserVars.sea_charts[:ship_icon] || 'default_icon.png'
+$enable_sounds   = UserVars.sea_charts[:enable_sounds].nil? ? true : UserVars.sea_charts[:enable_sounds]
+# Load saved dimensions (default to 500x500 if none exist)
+$win_w = UserVars.sea_charts[:win_w] || 500
+$win_h = UserVars.sea_charts[:win_h] || 500
+$win_x = UserVars.sea_charts[:win_x] || 100
+$win_y = UserVars.sea_charts[:win_y] || 100
+
+def save_settings
+  UserVars.sea_charts[:show_bg]     = $show_background
+  UserVars.sea_charts[:theme]       = $theme_mode.to_s
+  UserVars.sea_charts[:keep_on_top] = $keep_on_top
+  UserVars.sea_charts[:ship_icon]   = $ship_icon_file
+  UserVars.sea_charts[:enable_sounds] = $enable_sounds
+  UserVars.sea_charts[:win_x] = $win_x
+  UserVars.sea_charts[:win_y] = $win_y
+  UserVars.sea_charts[:win_w] = $win_w
+  UserVars.sea_charts[:win_h] = $win_h
+end
+
+# ---------- HELPER METHODS ----------
+
+def sync_echo(msg); respond "[MapSync: #{msg}]" rescue puts msg; end
+
+def download_folder(user, repo, api_path, local_dir)
+  FileUtils.mkdir_p(local_dir) unless Dir.exist?(local_dir)
+  api_url = "https://api.github.com/repos/#{user}/#{repo}/contents/#{api_path}"
+  begin
+    response = URI.open(api_url, "User-Agent" => "Lich-Map-Syncer").read
+    data = JSON.parse(response)
+    unless data.is_a?(Array)
+      sync_echo("Error: #{api_path} in #{repo} is not a folder.")
+      return 0
+    end
+    count = 0
+    data.each do |file|
+      next unless file['type'] == 'file'
+      file_name    = file['name']
+      remote_size  = file['size'].to_i
+      download_url = file['download_url']
+      local_path   = File.join(local_dir, file_name)
+      if !File.exist?(local_path) || File.size(local_path) != remote_size
+        sync_echo("Downloading: #{file_name} from #{repo}...")
+        URI.open(download_url) do |remote|
+          File.open(local_path, "wb") { |local| local.write(remote.read) }
+        end
+        count += 1
+      end
+    end
+    count
+  rescue => e
+    sync_echo("Error syncing #{repo}/#{api_path}: #{e.message}")
+    0
+  end
+end
+
+def nautical_sync_all
+  sync_echo("Connecting to OSA Repository...")
+  png_updates = download_folder(MAP_GIT_USER, MAP_GIT_REPO, MAP_GIT_PATH, LOCAL_MAP_DIR)
+  bg_updates  = download_folder(BG_GIT_USER, BG_GIT_REPO, BG_GIT_PATH, LOCAL_BG_DIR)
+  json_updates = download_folder(JSON_GIT_USER, JSON_GIT_REPO, JSON_GIT_PATH, LOCAL_JSON_DIR)
+  icons_updates = download_folder(ICONS_GIT_USER, ICONS_GIT_REPO, ICONS_GIT_PATH, LOCAL_ICONS_DIR)
+  ports_updates = download_folder(PORTS_GIT_USER, PORTS_GIT_REPO, PORTS_GIT_PATH, LOCAL_PORTS_DIR)
+  sounds_updates = download_folder(SOUNDS_GIT_USER, SOUNDS_GIT_REPO, SOUNDS_GIT_PATH, LOCAL_SOUNDS_DIR)
+  total = png_updates + json_updates + icons_updates + bg_updates + sounds_updates + ports_updates
+  if total > 0
+    sync_echo("Success! Updated #{total} files from all repositories.")
+  else
+    sync_echo("All files are up to date.")
+  end
+end
+
+def play_audio_loop(file_path)
+  stop_audio
+  return unless $enable_sounds && File.exist?(file_path)
+
+  if Gem.win_platform?
+    # --- Windows (PowerShell) ---
+    ps_cmd = "Add-Type -AssemblyName PresentationCore; $player = New-Object System.Windows.Media.MediaPlayer; $player.Open('#{file_path.gsub('/', '\\')}'); $player.Volume = 1.0; $player.Play(); while($true) { if ($player.Position -ge $player.NaturalDuration.TimeSpan) { $player.Position = [TimeSpan]::Zero; $player.Play() }; Start-Sleep -s 1; }"
+    command = "powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command \"#{ps_cmd}\""
+    $current_audio_pid = spawn(command)
+  elsif RUBY_PLATFORM =~ /darwin/
+    # --- macOS (afplay) ---
+    # We use a shell loop to repeat the sound
+    command = "while true; do afplay \"#{file_path}\"; done"
+    $current_audio_pid = spawn(command)
+  else
+    # --- Linux (mpg123) ---
+    # --loop 0 means loop infinitely
+    command = "mpg123 --loop 0 \"#{file_path}\" > /dev/null 2>&1"
+    $current_audio_pid = spawn(command)
+  end
+
+  Process.detach($current_audio_pid) if $current_audio_pid
+end
+
+def mm_echo(msg); respond "[nautical-charts: #{msg}]" rescue puts msg; end
+
+def find_room(data, rid_int)
+	rid = rid_int.to_s
+	data.each { |_top, bucket|
+		return bucket[rid] if bucket.is_a?(Hash) && bucket.key?(rid)
+	}
+	nil
+end
+
+def clamp(v, lo, hi); [[v, lo].max, hi].min; end
+
+def scaled_pixbuf(pixbuf, scale)
+	w = [(pixbuf.width * scale).round, 1].max
+	h = [(pixbuf.height * scale).round, 1].max
+	pixbuf.scale_simple(w, h, GdkPixbuf::InterpType::BILINEAR)
+end
+
+# ----- Global state -----
+$minimap_win = nil
+$minimap_alive = true
+$scale = SEA_SCALE
+$data = nil
+$ship_pixbuf_orig = nil
+$current_room_id = nil
+$current_map_file = nil
+$current_cx = nil
+$current_cy = nil
+$map_pixbuf_orig = nil
+$bg_pixbuf_orig = nil      
+$map_image = nil
+$bg_image = nil            
+$ship_image = nil
+$layout = nil
+$scroller = nil
+$status = nil
+$roomflagon = nil
+$ocean_watch_started = false
+
+def update_theme
+	Gtk.queue do
+		next unless $minimap_win && !$minimap_win.destroyed?
+		color = if $theme_mode == :light
+					Gdk::RGBA.new(1.0, 1.0, 1.0, 1.0)
+				else
+					Gdk::RGBA.new(0.1, 0.1, 0.1, 1.0)
+				end
+		$layout.override_background_color(:normal, color) if $layout
+		$scroller.override_background_color(:normal, color) if $scroller
+		if $scroller && $scroller.child.respond_to?(:override_background_color)
+			$scroller.child.override_background_color(:normal, color)
+		end
+	end
+end
+
+def flag_settings
+	flagset = Lich::Util.quiet_command("flag", /You may also access these settings through/, end_pattern = /war in towns with active justice./, include_end = true ,timeout = 3, silent = true)
+		if flagset.to_s =~ /ShowRoomID         OFF/
+			Lich::Util.quiet_command("flag showroomid on", /You will now display the room ID./, end_pattern = /You will now display the room ID./, include_end = true ,timeout = 3, silent = true)
+			$roomflagon = true
+		end
+		if flagset.to_s =~ /ShowRoomID           ON/
+			$roomflagon = false
+		end
+end
+
+def ensure_ocean_watch
+  return if $ocean_watch_started
+	result = dothistimeout "watch ocean", 3, /You begin to watch the ocean waters surrounding the ship|You are already watching the ocean|I could not find what you were referring to/
+		if result.to_s =~ /You begin to watch the ocean waters surrounding the ship/
+			waitrt?
+		elsif result.to_s =~ /You are already watching the ocean|I could not find what you were referring to/
+			waitrt?
+			fput "look ocean"
+		end
+  waitrt?
+  $ocean_watch_started = true
+end
+
+def update_images
+	Gtk.queue do
+		# 1. Component Health Check
+		# Prevents crashes if the window was closed or the image failed to load
+		next unless $minimap_win && !$minimap_win.destroyed?
+		next if $map_pixbuf_orig.nil?
+
+		# 2. Safe Scaling Calculation
+		# We calculate dimensions first to ensure we never pass 0 or negative numbers to the C-library
+		target_w = ($map_pixbuf_orig.width * $scale).round
+		target_h = ($map_pixbuf_orig.height * $scale).round
+		
+		next if target_w <= 0 || target_h <= 0
+
+		# 3. Render Scaled Map
+		# Bilinear interpolation provides a good balance between speed and quality for Mac/Windows
+		map_scaled = $map_pixbuf_orig.scale_simple(target_w, target_h, GdkPixbuf::InterpType::BILINEAR)
+		$map_image.set_from_pixbuf(map_scaled)
+
+		# 4. Update Layout Boundaries (The "Scrollable Area")
+		# This is what forces the scrollbars to appear instead of resizing the window
+		$layout.set_size(map_scaled.width, map_scaled.height)
+
+		# 5. Handle Background (Optional Layer)
+		if $show_background && $bg_pixbuf_orig
+			bg_w = ($bg_pixbuf_orig.width * $scale).round
+			bg_h = ($bg_pixbuf_orig.height * $scale).round
+			if bg_w > 0 && bg_h > 0
+				bg_scaled = $bg_pixbuf_orig.scale_simple(bg_w, bg_h, GdkPixbuf::InterpType::BILINEAR)
+				$bg_image.set_from_pixbuf(bg_scaled)
+				$bg_image.show
+			end
+		else
+			$bg_image.hide
+		end
+
+		# 6. Handle Ship Icon Scaling
+		# Ship size stays proportional to your zoom level (default 40px at 100%)
+		ship_size = (40 * $scale).round
+		if $ship_pixbuf_orig && ship_size > 0
+			ship_scaled = $ship_pixbuf_orig.scale_simple(ship_size, ship_size, GdkPixbuf::InterpType::BILINEAR)
+			$ship_image.set_from_pixbuf(ship_scaled)
+		end
+
+		# 7. Position the Ship
+		# Only draws if coordinates exist (they are cleared when manually switching maps)
+		if $current_cx && $current_cy
+			sx = ($current_cx * $scale).round - (ship_size / 2)
+			sy = ($current_cy * $scale).round - (ship_size / 2)
+			$layout.move($ship_image, sx, sy)
+			$ship_image.show
+		else
+			$ship_image.hide
+		end
+		
+		# 8. Status Bar Update
+		$status.text = "Map: #{$current_map_file} | Room: #{$current_room_id} | Scale: #{($scale*100).to_i}%"
+	end
+end
+
+def center_view_on(x, y)
+	return if $scroller.nil?
+	Gtk.queue do
+		next unless $minimap_win && !$minimap_win.destroyed?
+		hadj, vadj = $scroller.hadjustment, $scroller.vadjustment
+		next if hadj.nil? || vadj.nil?
+		hadj.value = clamp(x - (hadj.page_size / 2.0), 0, [hadj.upper - hadj.page_size, 0].max)
+		vadj.value = clamp(y - (vadj.page_size / 2.0), 0, [hadj.upper - hadj.page_size, 0].max)
+	end
+end
+
+def find_room_at_coords(map_file, click_x, click_y)
+	orig_x, orig_y = click_x / $scale, click_y / $scale
+	$data.each do |_top_id, bucket|
+		next unless bucket.is_a?(Hash)
+		bucket.each do |rid, room_info|
+			if (room_info['map'] == map_file || room_info['map_file'] == map_file)
+				dist = Math.sqrt((room_info['cx'].to_f - orig_x)**2 + (room_info['cy'].to_f - orig_y)**2)
+				return rid if dist <= CLICK_THRESHOLD
+			end
+		end
+	end
+	nil
+end
+
+def show_context_menu(event)
+  Gtk.queue do
+    next unless $minimap_win && !$minimap_win.destroyed?
+    menu = Gtk::Menu.new
+
+    # 1. Window Theme
+    theme_item = Gtk::MenuItem.new(label: "Window Theme")
+    theme_menu = Gtk::Menu.new
+    theme_item.submenu = theme_menu
+    t_group = nil
+    [:dark, :light].each do |mode|
+      item = Gtk::RadioMenuItem.new(t_group, "#{mode.to_s.capitalize} Mode")
+      t_group = item
+      item.active = ($theme_mode == mode)
+      item.signal_connect("activate") do 
+        if item.active?
+          $theme_mode = mode
+          save_settings; update_theme; update_images
+        end
+      end
+      theme_menu.append(item)
+    end
+    menu.append(theme_item)
+
+    # 2. Ship Icon
+    icon_item = Gtk::MenuItem.new(label: "Ship Icon")
+    icon_menu = Gtk::Menu.new
+    icon_item.submenu = icon_menu
+    i_group = nil
+    icons = {
+      "Default" => "default_icon.png", "Red Dot" => "red_dot_icon.png",
+      "Sloop" => "sloop_icon.png", "Brigantine" => "brigantine_icon.png", 
+      "Carrack" => "carrack_icon.png", "Galleon" => "galleon_icon.png", 
+      "Frigate" => "frigate_icon.png", "Man O' War" => "man_of_war_icon.png"
+    }
+    icons.each do |label, filename|
+      item = Gtk::RadioMenuItem.new(i_group, label)
+      i_group = item
+      item.active = ($ship_icon_file == filename)
+      item.signal_connect("activate") do
+        if item.active?
+          $ship_icon_file = filename
+          save_settings
+          icon_path = File.join(ICON_DIR, $ship_icon_file)
+          $ship_pixbuf_orig = GdkPixbuf::Pixbuf.new(file: icon_path) rescue GdkPixbuf::Pixbuf.new(file: File.join(ICON_DIR, 'default_icon.png'))
+          update_images
+        end
+      end
+      icon_menu.append(item)
+    end
+    menu.append(icon_item)
+
+# 3. Select Map (with Radio Button functionality)
+		map_item = Gtk::MenuItem.new(label: "Select Map")
+		map_menu = Gtk::Menu.new
+		map_item.submenu = map_menu
+		
+		if Dir.exist?(PNG_DIR)
+			# t_group maintains the radio button "mutual exclusivity"
+			m_group = nil 
+			
+			Dir.children(PNG_DIR).select { |f| 
+				f.downcase.end_with?('.png') && !f.include?('_background') 
+			}.sort.each do |file|
+				# Create the radio menu item and add it to the group
+				item = Gtk::RadioMenuItem.new(m_group, file)
+				m_group = item
+				
+				# Set it as 'active' if it's the current map
+				item.active = ($current_map_file == file)
+				
+				item.signal_connect("activate") do
+					if item.active? # Only trigger when turned ON
+						Gtk.queue do
+							$current_map_file = file
+							$current_cx = nil
+							$current_cy = nil
+							# Pass 'true' for manual override to reset scale to .50
+							load_map_assets(file, true) 
+							update_images
+						end
+					end
+				end
+				map_menu.append(item)
+			end
+		end
+		menu.append(map_item)
+
+    # 4. Scale
+    scale_item = Gtk::MenuItem.new(label: "Scale")
+    scale_menu = Gtk::Menu.new
+    s_group = nil
+    [0.5, 0.75, 1.0, 1.5, 2.0].each do |s|
+      item = Gtk::RadioMenuItem.new(s_group, "#{(s*100).to_i}%")
+      s_group = item
+      item.active = ($scale == s)
+      item.signal_connect("activate") do 
+        if item.active?
+          $scale = s; update_images
+        end
+      end
+      scale_menu.append(item)
+    end
+    scale_item.submenu = scale_menu
+    menu.append(scale_item)
+
+    menu.append(Gtk::SeparatorMenuItem.new)
+
+    # 5. Show Background
+    bg_toggle = Gtk::CheckMenuItem.new(label: "Show Background")
+    bg_toggle.active = $show_background
+    bg_toggle.signal_connect("toggled") { |w| $show_background = w.active?; save_settings; update_images }
+    menu.append(bg_toggle)
+
+    # 6. Keep window on top
+    top_item = Gtk::CheckMenuItem.new(label: "Keep window on top")
+    top_item.active = !!$keep_on_top
+    top_item.signal_connect("toggled") { |w|
+      $keep_on_top = w.active?
+      save_settings 
+      Gtk.queue { $minimap_win.set_keep_above($keep_on_top) if $minimap_win }
+    }
+    menu.append(top_item)
+
+    # 7. Enable Sounds Toggle
+    sound_toggle = Gtk::CheckMenuItem.new(label: "Enable Sounds")
+    sound_toggle.active = $enable_sounds
+    sound_toggle.signal_connect("toggled") do |w|
+      $enable_sounds = w.active?
+      save_settings
+      if $enable_sounds
+        is_port = PORT_RANGES.any? { |range, _| range.include?($current_room_id.to_i) }
+        play_audio_loop(is_port ? PORT_SOUND : SAILING_SOUND)
+      else
+        stop_audio
+      end
+    end
+    menu.append(sound_toggle)
+
+    # Required to actually display the menu
+    menu.show_all
+    menu.popup_at_pointer(event)
+  end
+end
+
+def load_map_assets(map_file, manual = false)
+  Gtk.queue { $ship_image.hide if $ship_image }
+  
+  port_img = nil
+  unless manual
+    PORT_RANGES.each { |range, filename| (port_img = filename; break) if range.include?($current_room_id.to_i) }
+  end
+
+  if port_img && File.exist?(File.join(PORT_BG_DIR, port_img))
+    $map_pixbuf_orig = GdkPixbuf::Pixbuf.new(file: File.join(PORT_BG_DIR, port_img))
+    $bg_pixbuf_orig = nil
+    $current_map_file = port_img
+    # Keep ports at their optimized .25 scale
+    $scale = 0.25 
+  elsif map_file
+    map_path = File.join(PNG_DIR, map_file)
+    if File.exist?(map_path)
+      $map_pixbuf_orig = GdkPixbuf::Pixbuf.new(file: map_path)
+      
+      bg_filename = map_file.gsub(/\.png$/i, '_background.png')
+      bg_path = File.join(BG_DIR, bg_filename)
+      $bg_pixbuf_orig = File.exist?(bg_path) ? GdkPixbuf::Pixbuf.new(file: bg_path) : nil
+      
+      $current_map_file = map_file
+      
+      # FIX: If we are manually selecting a map (or it's a standard map),
+      # force the scale back to 0.50 if it was stuck at port-scale (0.25)
+      $scale = 0.50 if $scale == 0.25 || manual
+    end
+  end
+end
+
+def load_room!(room_id, force: false)
+    $current_room_id = room_id.to_i 
+    room = find_room($data, room_id)
+    is_port = PORT_RANGES.any? { |range, _| range.include?($current_room_id) }
+    return false if room.nil? && !is_port
+    
+    map_file = room ? (room["map"] || room["map_file"]) : nil
+    cx, cy = room ? [room["cx"], room["cy"]] : [nil, nil]
+    was_port = PORT_RANGES.values.include?($current_map_file)
+
+    if is_port
+        $scale = PORT_SCALE
+    else
+        $scale = SEA_SCALE
+    end
+
+    if (is_port != was_port) || ($current_map_file != map_file && !is_port) || force
+        load_map_assets(map_file)
+    end
+
+    if is_port
+        $current_cx = $current_cy = nil
+    else
+        $current_cx, $current_cy = cx, cy
+    end
+
+	if is_port
+        if $last_audio_state != :port
+            play_audio_loop(PORT_SOUND)
+            $last_audio_state = :port
+        end
+    else
+        if $last_audio_state != :sailing
+            play_audio_loop(SAILING_SOUND)
+            $last_audio_state = :sailing
+        end
+    end
+	update_images
+    return true
+end
+
+
+# --- STARTUP AND MAIN EXECUTION ---
+
+if script.vars[1] == 'update'
+	nautical_sync_all
+	exit
+end
+
+flag_settings
+ensure_ocean_watch
+play_audio_loop(SAILING_SOUND)
+
+begin
+  $data = JSON.parse(File.read(JSON_PATH))
+  
+icon_full_path = File.join(ICON_DIR, $ship_icon_file)
+if File.exist?(icon_full_path)
+  $ship_pixbuf_orig = GdkPixbuf::Pixbuf.new(file: icon_full_path)
+else
+  # Change this fallback to match your existing file
+  $ship_pixbuf_orig = GdkPixbuf::Pixbuf.new(file: File.join(ICON_DIR, 'default_icon.png'))
+end
+	GLib::Idle.add do
+		$minimap_win = Gtk::Window.new("Nautical-Charts")
+		
+		# 1. Apply Saved Position and Size
+		# We use the variables loaded from UserVars at the start of the script
+		$minimap_win.move($win_x, $win_y)
+		$minimap_win.set_default_size($win_w, $win_h)
+		
+		$minimap_win.set_keep_above($keep_on_top) 
+
+		# 2. Real-Time Tracking Listener
+		# This captures every move or resize and updates our variables immediately
+		$minimap_win.signal_connect('configure-event') do
+			unless $minimap_win.destroyed?
+				# Update global variables with current window state
+				$win_x, $win_y = $minimap_win.position
+				$win_w, $win_h = $minimap_win.size
+				
+				# Push directly to UserVars for safety in case of a crash or ;kill
+				UserVars.sea_charts[:win_x] = $win_x
+				UserVars.sea_charts[:win_y] = $win_y
+				UserVars.sea_charts[:win_w] = $win_w
+				UserVars.sea_charts[:win_h] = $win_h
+			end
+			false # Allow the event to continue to other GTK handlers
+		end
+
+		# 3. GUI Construction
+		main_vbox = Gtk::Box.new(:vertical, 0)
+		$minimap_win.add(main_vbox)
+
+		$status = Gtk::Label.new("Waiting for movement...")
+		main_vbox.pack_start($status, expand: false, fill: true, padding: 2)
+
+		overlay = Gtk::Overlay.new
+		main_vbox.pack_start(overlay, expand: true, fill: true, padding: 0)
+
+		# 4. Scroller Setup with Policy Fix
+		$scroller = Gtk::ScrolledWindow.new
+		$scroller.set_policy(:automatic, :automatic) 
+		overlay.add($scroller)
+
+		$layout = Gtk::Layout.new
+		$bg_image = Gtk::Image.new   
+		$map_image = Gtk::Image.new  
+		$ship_image = Gtk::Image.new 
+
+		$layout.put($bg_image, 0, 0)
+		$layout.put($map_image, 0, 0)
+		$layout.put($ship_image, 0, 0)
+
+		# 5. Input Events
+		$layout.add_events([:button_press_mask])
+		$layout.signal_connect('button-press-event') do |_w, event|
+			if event.button == 1 && event.state.shift_mask?
+				if $current_map_file
+					clicked_rid = find_room_at_coords($current_map_file, event.x, event.y)
+					if clicked_rid
+						mm_echo "Setting course for room: #{clicked_rid}..."
+						start_script 'sail2', [ clicked_rid.to_s ]
+					end
+				end
+				true
+			elsif event.button == 3
+				show_context_menu(event)
+				true
+			elsif event.button == 1
+				if $current_map_file
+					clicked_rid = find_room_at_coords($current_map_file, event.x, event.y)
+					mm_echo "Room ID: #{clicked_rid}" if clicked_rid
+				end
+				false
+			end
+		end
+
+		$scroller.add($layout)
+
+		# 6. Anchor Button
+		center_btn = Gtk::Button.new(label: " Center ")
+		center_btn.set_tooltip_text("Center on Ship")
+		center_btn.set_halign(:end)
+		center_btn.set_valign(:end)
+		center_btn.set_margin_right(10)
+		center_btn.set_margin_bottom(10)
+		center_btn.signal_connect("clicked") {
+			if $current_room_id
+				load_room!($current_room_id, force: true)
+			end
+		}
+		overlay.add_overlay(center_btn)
+
+		update_theme
+		
+		# 7. Destruction Hook
+		$minimap_win.signal_connect('destroy') { $minimap_alive = false }
+		$minimap_win.show_all
+		false
+	end
+
+	last_seen_id = nil
+	ensure_ocean_watch
+	while $minimap_alive
+		line = get?
+		if line && line =~ /style id="roomName" \/>.*?\((\d+)\)/
+			rid = $1.to_i
+			if rid != last_seen_id
+				last_seen_id = rid
+				if load_room!(rid)
+					update_images
+				end
+			end
+		end
+		sleep 0.1
+	end
+end

@@ -1,0 +1,23 @@
+# autoeloot.lic (object-based version)
+
+COOLDOWN_SECONDS = 2.0
+$last_fire ||= Time.at(0)
+
+def dead_npcs_present?
+  GameObj.npcs.any? { |npc| npc.dead? }
+end
+
+loop do
+  begin
+    if dead_npcs_present?
+      if Time.now - $last_fire > COOLDOWN_SECONDS
+        $last_fire = Time.now
+        fput ";eloot"
+      end
+    end
+  rescue => e
+    echo "*** autoeloot error: #{e}"
+  end
+
+  sleep 1
+end

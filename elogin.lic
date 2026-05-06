@@ -1,0 +1,530 @@
+=begin
+    elogin.lic: A script for logging into other characters from within lich.
+
+    Useful for switching characters or logging into characters on other accounts.
+
+  Usage:
+    ;elogin help                                        # Show usage
+    ;elogin list                                        # List saved characters
+    ;elogin set realm <prime|platinum|shattered|test>   # Set game realm
+    ;elogin <char> [script1,script2]                    # Login with optional scripts
+    ;elogin <char> --custom-launch=warlock              # Login with custom launcher
+    ;elogin add <char> <user_id> <password>             # Add character entry
+    ;elogin delete <char> <game_code>                   # Delete character entry
+    ;elogin modify <char> <account> <password>          # Modify character entry
+
+             author: elanthia-online
+       contributors: Phalen33, Lucullan
+               game: Gemstone
+               tags: login
+           required: Lich >= 5.15.0
+            version: 2.0.4
+
+  2.0.4 (2026-03-31)
+    - Correctly spawn login to support GTK dark_mode theme settings
+  2.0.3 (2026-02-26)
+    - Update to new API calls for Lich 5.15
+  2.0.2 (2026-02-26)
+    - Resolve error when the only Lich entry was for a custom launch. Will default to whichever the first saved character entry is when no frontend is given.
+  2.0.1 (2026-01-17)
+    - Adds support for custom launch commands
+  2.0.0 (2026-01-13)
+    - Adds support for Lich 5.13 and beyond
+  1.2.3 (2024-12-02)
+    - Wrap RUBY & LICH location path in quotes incase of spaces in path
+  1.2.2 (2024-11-24)
+    - Remove references to ;trust script, deprecated
+  1.2.1 (2024-10-10)
+    - Anchor regex comparisons and convert to_s
+  1.2.0 (2024-07-22)
+    - Add support for GSTest instance
+  1.1.3 (2023-11-15)
+    - Change ruby process launching from using system() to Process.spawn()
+  1.1.2 (2023-03-28)
+    - Change from using SAL login method to native character saved entry CLI login method
+  1.1.1 (2023-01-23)
+    - Update for Ruby v3 compatibility
+  1.1.0 (2022-02-01)
+    - Fix for Wrayth login method
+    - Add Lich version check
+  1.0.0 (2015-09-19)
+    - Initial release
+=end
+
+LICH_GEM_REQUIRES = '5.15.0'
+
+if Gem::Version.new(LICH_VERSION) < Gem::Version.new(LICH_GEM_REQUIRES)
+  echo "elogin.lic requires Lich v#{LICH_GEM_REQUIRES}+."
+  exit
+end
+
+# ============================================================================
+# HELPER METHODS
+# ============================================================================
+
+def debug_log(message)
+  return unless Lich.debug_messaging
+  Lich::Messaging.msg('debug', "#{message}")
+end
+
+def handle_error(message, should_exit: true)
+  echo message
+  Lich.log "elogin error: #{message}" if defined?(Lich)
+  exit if should_exit
+end
+
+def log_operation(message)
+  Lich.log "elogin: #{message}" if defined?(Lich)
+end
+
+# Loads saved login entries from entry.yaml and converts to legacy entry hashes.
+# Lich 5.15+ uses YAML-backed saved entries only.
+def load_entry_data
+  load_yaml_entries
+end
+
+def load_yaml_entries
+  yaml_path = Lich::Common::Authentication::EntryStore.yaml_file_path(DATA_DIR)
+  debug_log("Looking for YAML file at: #{yaml_path}")
+  debug_log("YAML file exists: #{File.exist?(yaml_path)}")
+
+  handle_error("Error: no saved entries YAML file found at #{yaml_path}") unless File.exist?(yaml_path)
+
+  begin
+    raw_yaml = YAML.load_file(yaml_path)
+    debug_log("Raw YAML loaded: #{raw_yaml.class} with keys: #{raw_yaml.keys if raw_yaml.respond_to?(:keys)}")
+    debug_log("Raw YAML accounts: #{raw_yaml['accounts'].count} records.")
+
+    legacy_format = Lich::Common::Authentication::EntryStore.convert_yaml_to_legacy_format(raw_yaml)
+    debug_log("Legacy format result: #{legacy_format.class} with #{legacy_format.length} entries")
+
+    legacy_format
+  rescue => e
+    debug_log("Error in YAML loading: #{e.class} - #{e.message}")
+    handle_error("Error loading entry.yaml: #{e.class} - #{e.message}")
+  end
+end
+
+# Persists entry hashes through EntryStore which handles legacy-format conversion.
+def save_entry_data(entry_data)
+  # Debug: Show what we're trying to save
+  debug_log("About to save #{entry_data.length} entries")
+  entry_data.each_with_index do |entry, i|
+    debug_log("Entry #{i}: #{entry[:char_name]} (#{entry[:game_code]})")
+  end
+
+  success = Lich::Common::Authentication::EntryStore.save_entries(DATA_DIR, entry_data)
+  debug_log("Save result: #{success}")
+  handle_error("Error: Failed to save to entry.yaml") unless success
+end
+
+# Resolves login_helpers source paths for Lich 5.15+ layout.
+def resolve_login_helpers_paths(mode = 'production')
+  case mode
+  when "production"
+    remote_repo = "https://raw.githubusercontent.com/elanthia-online/lich-5/main/lib"
+  when "beta"
+    remote_repo = "https://raw.githubusercontent.com/elanthia-online/lich-5/staging/lib"
+  else
+    handle_error("Unknown mode: #{mode.inspect}")
+  end
+
+  local_path = File.join(LIB_DIR, 'common', 'authentication', 'login_helpers.rb')
+  require_path = File.join(LIB_DIR, 'common', 'authentication', 'login_helpers')
+
+  remote_url = "#{remote_repo}/common/authentication/login_helpers.rb"
+  { local_path: local_path, require_path: require_path, remote_url: remote_url }
+end
+
+def ensure_login_helpers_loaded(mode = 'production')
+  paths = resolve_login_helpers_paths(mode)
+
+  unless File.exist?(paths[:local_path])
+    if paths[:remote_url]
+      begin
+        require 'net/http'
+        require 'uri'
+
+        uri = URI(paths[:remote_url])
+        response = Net::HTTP.get_response(uri)
+
+        if response.code == '200'
+          content = response.body
+          FileUtils.mkdir_p(File.dirname(paths[:local_path]))
+          File.write(paths[:local_path], content)
+        else
+          handle_error("Failed to download login_helpers.rb: HTTP #{response.code}")
+        end
+      rescue => e
+        handle_error("Failed to download login_helpers.rb from #{paths[:remote_url]}: #{e.message}")
+      end
+    else
+      handle_error("No valid source found to populate login_helpers.rb")
+    end
+  end
+
+  require paths[:require_path]
+end
+
+def add_login_entry(entry_data, char_name:, user_id:, password:, game_code: nil, game_name: 'GemStone IV', frontend: $frontend, custom_launch: nil, custom_launch_dir: nil)
+  handle_error("Fatal: entry_data was not loaded correctly. Got #{entry_data.class} instead of Array.") unless entry_data.is_a?(Array)
+
+  # Debug: Show what we loaded
+  debug_log("Loaded #{entry_data.length} existing entries")
+  entry_data.each_with_index do |entry, i|
+    debug_log("Existing Entry #{i}: #{entry[:char_name]} (#{entry[:game_code]})")
+  end
+
+  game_code ||= case CharSettings['realm']
+                when 'platinum' then 'GSX'
+                when 'shattered' then 'GSF'
+                when 'test' then 'GST'
+                else 'GS3'
+                end
+
+  existing = entry_data.find { |d| d[:char_name].casecmp?(char_name) && d[:game_code] == game_code }
+  if existing
+    handle_error("Error: Add failed. Character already exists for #{char_name} (#{game_code}). Use `modify` to update or `delete` to remove existing entry.")
+  end
+
+  # Use exact structure from original legacy code
+  h = {
+    :char_name         => char_name,
+    :game_code         => game_code,
+    :game_name         => game_name,
+    :user_id           => user_id.downcase,
+    :password          => password,
+    :frontend          => frontend,
+    :custom_launch     => custom_launch,
+    :custom_launch_dir => custom_launch_dir
+  }
+  entry_data.push(h)
+
+  debug_log("After adding new entry, total entries: #{entry_data.length}")
+
+  save_entry_data(entry_data)
+  log_operation("Added login entry for #{char_name} (#{game_code}) with account #{user_id}")
+  echo "Successfully added login entry for #{char_name} (#{game_code})."
+end
+
+def modify_login_entry(entry_data, char_name:, user_id:, password:)
+  handle_error("Fatal: entry_data was not loaded correctly. Got #{entry_data.class} instead of Array.") unless entry_data.is_a?(Array)
+
+  # Find existing entry by character name AND account (user_id)
+  existing = entry_data.find { |d| d[:char_name].casecmp?(char_name) && d[:user_id].casecmp?(user_id) }
+
+  unless existing
+    echo "Modify failed. No entry found for character: #{char_name} with account: #{user_id}"
+    echo "Existing characters:"
+    entry_data.each { |entry| echo "  #{entry[:char_name]} (#{entry[:game_code]}) - #{entry[:user_id]}" }
+    handle_error("Character/account combination not found.")
+  end
+
+  debug_log("Found existing entry: #{existing}")
+
+  # Remove the old entry
+  entry_data.reject! { |d| d[:char_name].casecmp?(char_name) && d[:user_id].casecmp?(user_id) }
+
+  # Create new entry with updated password but preserve other fields
+  h = {
+    :char_name         => existing[:char_name],
+    :game_code         => existing[:game_code],
+    :game_name         => existing[:game_name],
+    :user_id           => user_id.downcase,
+    :password          => password,
+    :frontend          => existing[:frontend],
+    :custom_launch     => existing[:custom_launch],
+    :custom_launch_dir => existing[:custom_launch_dir]
+  }
+  entry_data.push(h)
+
+  save_entry_data(entry_data)
+  log_operation("Modified login entry for #{char_name} with account #{user_id}")
+  echo "Successfully modified login entry for #{char_name} with account #{user_id}."
+end
+
+def list_login_entries(entry_data)
+  handle_error("Fatal: entry_data was not loaded correctly. Got #{entry_data.class} instead of Array.") unless entry_data.is_a?(Array)
+
+  if entry_data.empty?
+    echo "No saved character entries found."
+    return
+  end
+
+  saved_entries = Terminal::Table.new(:headings => ['Account', 'Character', 'Instance', 'Frontend'])
+  entry_data.each_with_index do |entry, _i|
+    account = entry[:user_id].to_s
+    character = entry[:char_name].to_s
+    instance = entry[:game_code].to_s
+    frontend = entry[:frontend].to_s
+    saved_entries.add_row([account, character, instance, frontend])
+  end
+  respond saved_entries
+  echo "Total: #{entry_data.length} entries"
+end
+
+def delete_login_entry(entry_data, char_name:, game_code:, frontend: nil)
+  matching_entries = entry_data.select do |entry|
+    entry[:char_name].casecmp?(char_name) && entry[:game_code].to_s.casecmp?(game_code.to_s)
+  end
+
+  if matching_entries.empty?
+    handle_error("Delete failed. No matching entry found for #{char_name} (#{game_code}).", should_exit: false)
+    return false
+  end
+
+  if matching_entries.size > 1 && (frontend.nil? || frontend == :__unset)
+    handle_error("Delete failed. Multiple entries exist for #{char_name} (#{game_code}). Specify frontend to delete a precise record.", should_exit: false)
+    return false
+  end
+
+  entry_data.reject! do |entry|
+    entry[:char_name].casecmp?(char_name) &&
+      entry[:game_code].to_s.casecmp?(game_code.to_s) &&
+      (frontend.nil? || frontend == :__unset || entry[:frontend].to_s.casecmp?(frontend.to_s))
+  end
+
+  save_entry_data(entry_data)
+  log_operation("Deleted login entry for #{char_name} (#{game_code})")
+  echo "Deleted entry and saved YAML."
+  true
+end
+
+def show_usage
+  echo "Usage:"
+  echo "  ;elogin set realm <prime|platinum|shattered|test>"
+  echo "  ;elogin <char> --custom-launch=<launcher>         # e.g., --custom-launch=warlock"
+  echo "  ;elogin <char> [script1,script2,...]"
+  echo "  ;elogin add <char> <user_id> <password>"
+  echo "  ;elogin modify <char> <user_id> <password>"
+  echo "  ;elogin delete <char> <game_code>"
+  echo "  ;elogin list"
+end
+
+def parse_arguments(args)
+  # Clean redundant arguments from Lich command processing
+  args.shift if args.size >= 2 && args[0].is_a?(String) && args[1].is_a?(String) && args[0] == args[1..].join(' ')
+
+  return { command: :help } if args.empty? || args[0] =~ /^help$/i
+
+  case args[0].to_s.downcase
+  when 'set'
+    if args[1] =~ /^realm$/i && args[2]
+      { command: :set_realm, realm: args[2].to_s.downcase }
+    else
+      { command: :help }
+    end
+  when 'add'
+    if args.length >= 4
+      { command: :add_entry, char_name: args[1].capitalize, user_id: args[2].downcase, password: args[3] }
+    else
+      { command: :help }
+    end
+  when 'modify'
+    if args.length >= 4
+      { command: :modify_entry, char_name: args[1].capitalize, user_id: args[2].downcase, password: args[3] }
+    else
+      { command: :help }
+    end
+  when 'list'
+    { command: :list_entries }
+  when 'delete'
+    if args.length >= 3
+      { command: :delete_entry, char_name: args[1], game_code: args[2] }
+    else
+      { command: :help }
+    end
+  else
+    # Login command - extract character name, instance flag, and scripts
+    char_name = args[0]&.capitalize
+
+    # Extract custom-launch filter (--custom-launch=VALUE)
+    custom_launch_filter = nil
+    args.each do |arg|
+      if arg =~ /^--custom-launch=(.+)$/i
+        custom_launch_filter = $1
+        break
+      end
+    end
+
+    # Extract frontend flag (--stormfront, --wizard, --avalon)
+    frontend_flag = nil
+    args.each do |arg|
+      if arg =~ /^--(stormfront|wizard|avalon)$/i
+        frontend_flag = $1.downcase
+        break
+      end
+    end
+
+    # Extract instance flag (--GST, --DR, --GSF, etc.)
+    instance_flag = :__unset
+    args.each do |arg|
+      if arg.start_with?('--')
+        flag = arg.sub('--', '').upcase
+        if Lich::Common::Authentication::LoginHelpers::VALID_GAME_CODES.include?(flag)
+          instance_flag = flag
+          break
+        end
+      end
+    end
+
+    # Remove instance flag from args and extract scripts
+    # Also remove frontend flag and custom-launch from consideration
+    args_without_flags = args.reject do |arg|
+      arg == "--#{instance_flag}" ||
+        arg =~ /^--(stormfront|wizard|avalon)$/i ||
+        arg =~ /^--custom-launch=/i
+    end
+    scripts = args_without_flags[1]&.split(',')&.map(&:strip) || []
+
+    { command: :login, char_name: char_name, instance_flag: instance_flag, scripts: scripts, custom_launch: custom_launch_filter, frontend: frontend_flag }
+  end
+end
+
+# ============================================================================
+# MAIN EXECUTION
+# ============================================================================
+
+# Setup environment
+ensure_login_helpers_loaded(ENV['LICH_MODE'] || 'production')
+
+# Lich 5.15+ uses EntryStore YAML backend.
+require File.join(LIB_DIR, 'common', 'authentication', 'entry_store')
+
+# Parse arguments
+parsed = parse_arguments(Script.current.vars.dup)
+
+# Execute command
+case parsed[:command]
+when :help
+  show_usage
+
+when :set_realm
+  valid_realms = %w[prime platinum shattered test]
+  unless valid_realms.include?(parsed[:realm])
+    handle_error("Invalid realm. Use: prime, platinum, shattered, or test.")
+  end
+
+  CharSettings['realm'] = parsed[:realm]
+  log_operation("Set realm to #{parsed[:realm]}")
+  echo "Realm set to #{parsed[:realm]}."
+
+when :add_entry
+  entry_data = load_entry_data
+  add_login_entry(entry_data,
+                  char_name: parsed[:char_name],
+                  user_id: parsed[:user_id],
+                  password: parsed[:password])
+
+when :modify_entry
+  entry_data = load_entry_data
+  modify_login_entry(entry_data,
+                     char_name: parsed[:char_name],
+                     user_id: parsed[:user_id],
+                     password: parsed[:password])
+
+when :list_entries
+  entry_data = load_entry_data
+  list_login_entries(entry_data)
+
+when :delete_entry
+  entry_data = load_entry_data
+  delete_login_entry(entry_data,
+                     char_name: parsed[:char_name],
+                     game_code: parsed[:game_code])
+
+when :login
+  # Validate realm is set
+  realm = CharSettings['realm']
+  handle_error("No realm set. Use ;elogin set realm <prime|platinum|shattered|test>") unless realm
+
+  # Load entry data
+  entry_data = load_entry_data
+
+  # Determine game code
+  game_code = if parsed[:instance_flag] == :__unset
+                Lich::Common::Authentication::LoginHelpers.realm_to_game_code(realm)
+              else
+                parsed[:instance_flag]
+              end
+
+  # Find character
+  char_records = Lich::Common::Authentication::LoginHelpers.find_character_by_name_and_game(
+    entry_data, parsed[:char_name], game_code
+  )
+
+  char_entry = Lich::Common::Authentication::LoginHelpers.select_best_fit(
+    char_data_sets: char_records,
+    requested_character: parsed[:char_name],
+    requested_instance: game_code.to_s
+  )
+
+  handle_error("No matching entry found for #{parsed[:char_name]} in realm #{realm}.") unless char_entry
+
+  # Determine instance override
+  realm_game_code = Lich::Common::Authentication::LoginHelpers.realm_to_game_code(realm)
+  # Determine instance override: CLI arg takes precedence
+  instance_override = if parsed[:instance_flag] != :__unset
+                        parsed[:instance_flag]
+                      elsif char_entry[:game_code] == realm_game_code
+                        char_entry[:game_code]
+                      else
+                        char_entry[:_requested_game_code]
+                      end
+
+  # Determine effective custom launch (stored value becomes default)
+  effective_custom_launch = parsed[:custom_launch]
+  if effective_custom_launch.nil? && char_entry[:custom_launch] && !char_entry[:custom_launch].to_s.empty?
+    effective_custom_launch = char_entry[:custom_launch]
+  end
+
+  # If using custom launch, do NOT force a frontend
+  frontend_override =
+    if effective_custom_launch
+      parsed[:frontend] || :__unset
+    else
+      parsed[:frontend] || char_entry[:frontend]
+    end
+
+  ruby_path =
+    if OS.windows?
+      ruby_dir = File.dirname(RbConfig.ruby)
+      ruby_executable = File.basename(RbConfig.ruby)
+      rubyw_executable = ruby_executable.sub(/^ruby(?=\.|$)/, 'rubyw')
+      File.join(ruby_dir, rubyw_executable)
+    else
+      RbConfig.ruby
+    end
+  lich_path = File.join(LICH_DIR, 'lich.rbw')
+
+  spawn_cmd = [
+    ruby_path,
+    lich_path,
+    '--login', char_entry[:char_name]
+  ]
+
+  if instance_override
+    flag = Lich::Common::Authentication::LoginHelpers.format_launch_flag(instance_override)
+    spawn_cmd << flag if flag
+  end
+
+  spawn_cmd << "--#{frontend_override}" if frontend_override && frontend_override != :__unset
+  spawn_cmd << "--custom-launch=#{effective_custom_launch}" if effective_custom_launch
+  spawn_cmd << "--start-scripts=#{parsed[:scripts].join(',')}" if parsed[:scripts].any?
+
+  if Lich.respond_to?(:track_dark_mode)
+    spawn_cmd << "--dark-mode=#{Lich.track_dark_mode}"
+  end
+
+  Lich::Messaging.msg('info', "Spawning login: #{spawn_cmd}")
+  debug_log("Spawning login: #{spawn_cmd.inspect}")
+
+  begin
+    pid = Process.spawn(*spawn_cmd)
+    Process.detach(pid)
+  rescue Errno::ENOENT => e
+    handle_error("Executable not found: #{e.message}", should_exit: false)
+  rescue StandardError => e
+    handle_error("Failed to launch login session: #{e.class} - #{e.message}", should_exit: false)
+  end
+end
