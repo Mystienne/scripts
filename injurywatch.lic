@@ -36,9 +36,6 @@ module InjuryWatch
         .gsub('"', '&quot;')
   end
 
-  # ---------------------------------------------------------------------------
-  # Appraise by noun — ecure's exact line patterns
-  # ---------------------------------------------------------------------------
   def self.appraise(pc_noun)
     wound_text = nil
     scar_text  = nil
@@ -75,12 +72,10 @@ module InjuryWatch
     "?"
   end
 
-  # ---------------------------------------------------------------------------
-  # Return { id => { noun: } } for every PC in the room
-  # noun is used for both display and appraise command
-  # ---------------------------------------------------------------------------
   def self.current_people
-    GameObj.pcs.each_with_object({}) do |pc, hash|
+    pcs = GameObj.pcs
+    return {} if pcs.nil?
+    pcs.each_with_object({}) do |pc, hash|
       noun = pc.noun.to_s.strip
       id   = pc.id.to_s.strip
       next if noun.empty? || id.empty?
@@ -88,9 +83,6 @@ module InjuryWatch
     end
   end
 
-  # ---------------------------------------------------------------------------
-  # Build dialog XML
-  # ---------------------------------------------------------------------------
   def self.build_dialog(people_status)
     rows       = people_status.values.sort_by { |p| p[:noun] }
     row_height = 18
@@ -118,14 +110,43 @@ module InjuryWatch
     xml
   end
 
-  # ---------------------------------------------------------------------------
-  # Main
-  # ---------------------------------------------------------------------------
   def self.main
-    before_dying { puts("<closeDialog id='InjuryWatch'/>") }
+    before_dying do
+      puts("<closeDialog id='InjuryWatch'/>")
+      DownstreamHook.remove("iw_manual_appraise")
+    end
 
     checked       = {}
     people_status = {}
+
+    # Watch for manual appraisals and parse the result directly — no extra commands sent
+    DownstreamHook.add("iw_manual_appraise", proc { |line|
+      plain = line.gsub(/<[^>]+>/, ' ').gsub(/\s+/, ' ').strip
+
+      if line =~ /You take a quick appraisal of <a exist="-\d+" noun=".*?">(\w+)<\/a> and find that <a exist="-\d+" noun=".*?">(?:he|she)<\/a> has (?<detected_wounds>.*?)\./i
+        noun       = Regexp.last_match(1)
+        wound_text = Regexp.last_match(:detected_wounds).gsub(/<[^>]+>/, '').gsub(/\s+/, ' ').strip
+        entry = people_status.find { |_id, p| p[:noun].casecmp?(noun) }
+        if entry
+          id = entry[0]
+          all_text = wound_text.downcase
+          status = if all_text =~ /no apparent injuries|no apparent wounds/i
+            "OK"
+          elsif all_text =~ /\bdead\b|not breathing|lifeless/i then "Dead"
+          elsif all_text =~ BLEED_WORDS  then "Bleeding"
+          elsif all_text =~ /\bpoison/i  then "Poisoned"
+          elsif all_text =~ /\bdisease/i then "Diseased"
+          elsif all_text =~ NERVE_WORDS  then "Nerve dmg"
+          elsif all_text =~ WOUND_WORDS || wound_text.scan(WOUND_SCAN).any? then "Injured"
+          elsif all_text =~ SCAR_WORDS   then "Scarred"
+          else "OK"
+          end
+          people_status[id][:status] = status
+          puts(build_dialog(people_status))
+        end
+      end
+      line
+    })
 
     startup_people = current_people
     startup_people.each do |id, pc|
@@ -139,7 +160,19 @@ module InjuryWatch
     end
     puts(build_dialog(people_status))
 
+    last_room = Room.current.id
+
     loop do
+      # When we change rooms, wipe state — everyone here is new to us
+      if Room.current.id != last_room
+        last_room = Room.current.id
+        checked.clear
+        people_status.clear
+        puts(build_dialog(people_status))
+        sleep CHECK_EVERY
+        next
+      end
+
       current = current_people
 
       gone_ids = checked.keys - current.keys
