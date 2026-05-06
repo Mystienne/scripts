@@ -1,8 +1,6 @@
 # injurywatch.lic
-# Dockable Injury Watch for StormFront/Wrayth.
-# Appraises each person once when they enter the room.
-# Removes them when they leave.
-# Re-appraises them if they leave and come back.
+# Injury Watch — dockable triage window, modelled on uberbar_eo.lic
+# Uses module context so puts() routes to the StormFront/Wrayth XML stream.
 
 no_kill_all
 no_pause_all
@@ -10,131 +8,159 @@ hide_me
 silence_me
 
 unless ['stormfront', 'wrayth'].include?($frontend)
-  echo "InjuryWatch dock mode only works in StormFront/Wrayth."
+  respond "InjuryWatch only works in StormFront/Wrayth."
   exit
 end
 
-CHECK_EVERY = 1.0
-APPRAISE_DELAY = 0.35
-MAX_ROWS = 14
+module InjuryWatch
 
-INJURY_WORDS = /wound|wounds|injur|injuries|bleed|bleeding|scar|scars|missing|mangled|crushed|broken|fractured|severed|rank|minor|moderate|serious|severe|dead|unconscious|stunned/i
-HEALTHY_WORDS = /no apparent injuries|perfect health|appears? to be in good shape|is in good shape|healthy/i
+  CHECK_EVERY = 1.0
 
-def iw_xml(text)
-  text.to_s.gsub('&', '&amp;')
-           .gsub('<', '&lt;')
-           .gsub('>', '&gt;')
-           .gsub("'", '&apos;')
-           .gsub('"', '&quot;')
-end
+  WOUND_SCAN = /a (?:black-and-blue|severe bruises and swelling around|missing|blinded|swollen|bruised) (?:left|right) eye|old battle scars on (?:his|her) (?:left|right) (?:hand|arm|leg)|mangled (?:left|right) (?:hand|arm|leg)|missing (?:left|right) (?:hand|arm|leg)|deep lacerations across (?:his|her) \w+|deep gashes and serious bleeding (?:on|from|across) (?:his|her) \w+|minor cuts and bruises on (?:his|her) (?:left|right) (?:hand|arm|leg)|a (?:fractured and bleeding|completely severed) (?:left|right) (?:hand|arm|leg)|moderate bleeding from (?:his|her) neck|snapped bones and serious bleeding from the neck|minor bruises on (?:his|her) neck|scar across (?:his|her) neck|some old neck wounds|terrible scars from some serious neck injury|minor (?:bruises|lacerations) about the head|minor cuts and bruises on (?:his|her) (?:chest|back|abdominal(?: area)?)|severe head trauma and bleeding from the ears|strange case of muscle twitching|case of (?:sporadic|uncontrollable) convulsions|scar across (?:his|her) face|several facial scars|old mutilation wounds about (?:his|her) head|old battle scar across (?:his|her) (?:chest|back|abdominal(?: area)?)|several painful-looking scars across (?:his|her) (?:chest|back|abdominal(?: area)?)|terrible, permanent mutilation of (?:his|her) (?:chest|back|abdominal(?: area)?) muscles|developed slurred speech|constant muscle spasms|a very difficult time with muscle control|overexerted/i
 
-def iw_compact_appraise(text)
-  clean = text.to_s
-              .gsub(/<[^>]+>/, ' ')
-              .gsub(/\s+/, ' ')
-              .strip
+  SCAR_WORDS  = /scar|old battle|old mutilation|mutilat|painful-looking|permanent mutilation/i
+  BLEED_WORDS = /bleeding|lacerations|deep gashes/i
+  NERVE_WORDS = /muscle twitching|convulsions|slurred speech|muscle spasms|muscle control/i
+  WOUND_WORDS = /fractured|severed|mangled|missing|crushed|broken|bruise|bruises|trauma/i
 
-  return nil if clean.empty?
-  return nil if clean =~ HEALTHY_WORDS && clean !~ INJURY_WORDS
-  return nil unless clean =~ INJURY_WORDS
-
-  parts = clean.scan(/(?:left|right)?\s?(?:eye|arm|hand|leg|foot)|head|neck|chest|abdomen|back|nerves|blood|wound|scar|bleeding|minor|moderate|serious|severe|rank \d/i)
-  parts = parts.map(&:strip).reject(&:empty?).uniq
-
-  parts.empty? ? clean[0, 180] : parts.join(', ')
-end
-
-def iw_quiet_appraise(pc)
-  raw = Lich::Util.quiet_command_xml(
-    "appraise ##{pc.id}",
-    /<output class="mono"\/>/,
-    /<prompt time=/
-  )
-
-  sleep APPRAISE_DELAY
-
-  raw = raw.join(' ') if raw.is_a?(Array)
-  iw_compact_appraise(raw)
-rescue => e
-  "APPRAISE ERROR: #{e.message}"
-end
-
-def iw_current_people
-  GameObj.pcs.each_with_object({}) do |pc, hash|
-    name = pc.name.to_s.strip
-    id = pc.id.to_s.strip
-    next if name.empty? || id.empty?
-
-    hash[id] = name
+  def self.strip_xml(str)
+    str.to_s.gsub(/<[^>]+>/, '').gsub(/\s+/, ' ').strip
   end
-end
 
-def iw_build_dialog(injured)
-  rows = injured.values.sort.first(MAX_ROWS)
-  title = rows.empty? ? "Injury Watch: clear" : "Injury Watch: #{rows.length} injured"
+  def self.xml_escape(text)
+    text.to_s
+        .gsub('&', '&amp;')
+        .gsub('<', '&lt;')
+        .gsub('>', '&gt;')
+        .gsub("'", '&apos;')
+        .gsub('"', '&quot;')
+  end
 
-  lines = []
-  lines << "<closeDialog id='InjuryWatch'/>"
-  lines << "<openDialog type='dynamic' id='InjuryWatch' title='Injury Watch' target='InjuryWatch' location='main' height='260' width='420' resident='true'>"
-  lines << "<dialogData id='InjuryWatch' clear='t'>"
-  lines << "<label id='iwtitle' value='#{iw_xml(title)}' justify='4' top='5' left='5' height='22' width='390'/>"
+  # ---------------------------------------------------------------------------
+  # Appraise by noun — ecure's exact line patterns
+  # ---------------------------------------------------------------------------
+  def self.appraise(pc_noun)
+    wound_text = nil
+    scar_text  = nil
 
-  if rows.empty?
-    lines << "<label id='iwrow0' value='No appraised injuries detected.' justify='4' top='32' left='5' height='20' width='390'/>"
-  else
-    rows.each_with_index do |row, i|
-      lines << "<label id='iwrow#{i}' value='#{iw_xml(row)}' justify='4' top='#{32 + (i * 16)}' left='5' height='18' width='400'/>"
+    lines = Lich::Util.issue_command(
+      "appraise #{pc_noun}",
+      /You take a quick|Appraise what\?|^Usage:/,
+      usexml: true, quiet: true, silent: true
+    )
+
+    lines.each do |line|
+      if line =~ /^\s*You take a quick appraisal of <a exist="-\d+" noun=".*">(?:\w+)<\/a> and find that <a exist="-\d+" noun=".*">(?:he|she)<\/a> has (?<detected_wounds>.*)\./i
+        wound_text = strip_xml(Regexp.last_match(:detected_wounds))
+      end
+      if line =~ /^\s*<a exist="-\d+" noun=".*">(?:He|She)<\/a> has (?<detected_scars>.*)\./i
+        scar_text = strip_xml(Regexp.last_match(:detected_scars))
+      end
+    end
+
+    return "?"  if wound_text.nil? && scar_text.nil?
+    return "OK" if wound_text =~ /no apparent injuries|no apparent wounds/i && scar_text.nil?
+
+    all_text = [wound_text, scar_text].compact.join(' ')
+
+    return "Dead"      if all_text =~ /\bdead\b|not breathing|lifeless/i
+    return "Bleeding"  if all_text =~ BLEED_WORDS
+    return "Poisoned"  if all_text =~ /\bpoison/i
+    return "Diseased"  if all_text =~ /\bdisease/i
+    return "Nerve dmg" if all_text =~ NERVE_WORDS
+    return "Injured"   if all_text =~ WOUND_WORDS || (wound_text && wound_text !~ /no apparent/i && wound_text.scan(WOUND_SCAN).any?)
+    return "Scarred"   if all_text =~ SCAR_WORDS
+    "OK"
+  rescue
+    "?"
+  end
+
+  # ---------------------------------------------------------------------------
+  # Return { id => { noun: } } for every PC in the room
+  # noun is used for both display and appraise command
+  # ---------------------------------------------------------------------------
+  def self.current_people
+    GameObj.pcs.each_with_object({}) do |pc, hash|
+      noun = pc.noun.to_s.strip
+      id   = pc.id.to_s.strip
+      next if noun.empty? || id.empty?
+      hash[id] = { noun: noun }
     end
   end
 
-  lines << "</dialogData>"
-  lines << "</openDialog>"
-  lines.join
-end
+  # ---------------------------------------------------------------------------
+  # Build dialog XML
+  # ---------------------------------------------------------------------------
+  def self.build_dialog(people_status)
+    rows       = people_status.values.sort_by { |p| p[:noun] }
+    row_height = 18
+    top_pad    = 10
+    height     = [top_pad + (rows.length * row_height) + 14, 50].max
 
-before_dying do
-  puts "<closeDialog id='InjuryWatch'/>"
-end
+    xml  = "<closeDialog id='InjuryWatch'/>"
+    xml += "<openDialog type='dynamic' id='InjuryWatch' title='Injury Watch' "
+    xml += "target='InjuryWatch' location='main' height='#{height}' width='220' resident='true'>"
+    xml += "<dialogData id='InjuryWatch' clear='t'>"
 
-checked = {}
-injured = {}
-last_people = {}
+    if rows.empty?
+      xml += "<label id='iw0' value='No one here.' justify='4' "
+      xml += "top='#{top_pad}' left='5' height='#{row_height}' width='205'/>"
+    else
+      rows.each_with_index do |person, i|
+        top   = top_pad + (i * row_height)
+        label = "#{person[:noun]}: #{person[:status]}"
+        xml += "<label id='iw#{i}' value='#{xml_escape(label)}' justify='4' "
+        xml += "top='#{top}' left='5' height='#{row_height}' width='210'/>"
+      end
+    end
 
-puts iw_build_dialog(injured)
-
-loop do
-  current_people = iw_current_people
-
-  # Remove anyone who left the room.
-  gone_ids = checked.keys - current_people.keys
-  gone_ids.each do |id|
-    checked.delete(id)
-    injured.delete(id)
+    xml += "</dialogData></openDialog>"
+    xml
   end
 
-  # Appraise only new arrivals.
-  new_ids = current_people.keys - checked.keys
-  new_ids.each do |id|
-    checked[id] = true
-    name = current_people[id]
+  # ---------------------------------------------------------------------------
+  # Main
+  # ---------------------------------------------------------------------------
+  def self.main
+    before_dying { puts("<closeDialog id='InjuryWatch'/>") }
 
-    pc = GameObj.pcs.find { |p| p.id.to_s == id }
-    next unless pc
+    checked       = {}
+    people_status = {}
 
-    result = iw_quiet_appraise(pc)
+    startup_people = current_people
+    startup_people.each do |id, pc|
+      checked[id] = true
+      people_status[id] = { noun: pc[:noun], status: "..." }
+    end
+    puts(build_dialog(people_status))
 
-    if result && result !~ /^APPRAISE ERROR/
-      injured[id] = "#{name}: #{result}"
-    elsif result
-      injured[id] = "#{name}: #{result}"
+    startup_people.each do |id, pc|
+      people_status[id][:status] = appraise(pc[:noun])
+    end
+    puts(build_dialog(people_status))
+
+    loop do
+      current = current_people
+
+      gone_ids = checked.keys - current.keys
+      gone_ids.each { |id| checked.delete(id); people_status.delete(id) }
+
+      new_ids = current.keys - checked.keys
+      new_ids.each do |id|
+        checked[id] = true
+        people_status[id] = { noun: current[id][:noun], status: "..." }
+      end
+
+      puts(build_dialog(people_status)) if !gone_ids.empty? || !new_ids.empty?
+
+      new_ids.each { |id| people_status[id][:status] = appraise(current[id][:noun]) }
+
+      puts(build_dialog(people_status)) unless new_ids.empty?
+
+      sleep CHECK_EVERY
     end
   end
 
-  if current_people != last_people || !new_ids.empty? || !gone_ids.empty?
-    puts iw_build_dialog(injured)
-    last_people = current_people.dup
-  end
-
-  sleep CHECK_EVERY
 end
+
+InjuryWatch.main

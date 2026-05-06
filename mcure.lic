@@ -1,0 +1,1103 @@
+# frozen_string_literal: true
+
+=begin
+  MCure - Mystienne's custom healing script for Gemstone IV
+  Based on ECure by elanthia-online, enhanced with Mularos-themed roleplay.
+
+  Features all ECure functionality plus:
+    - Random Mularos-themed sayings before healing a target (with nod + rival-healer detection)
+    - Random post-heal thank-you sayings after healing a target
+    - Random self-heal completion sayings after healing yourself
+    - All sayings use GemStone tone and targeting syntax
+
+  To setup, please run this first:
+    ;mcure setup
+
+       author: Mystienne (based on ECure by elanthia-online)
+         game: Gemstone
+         tags: heal, cure, empath, healing, mularos
+      version: 1.0.0
+     required: Lich >= 5.12.0
+
+  v1.0.0
+    - Fork of ECure v2.0.3
+    - Added MULAROS_SAYINGS pre-heal nod system
+    - Added MULAROS_THANKS post-heal target thank-you
+    - Added MULAROS_SELF_THANKS post-self-heal saying
+    - Rival healer nod detection (2s window)
+    - Whisper-aware saying routing
+=end
+MULAROS_SAYINGS = [
+	# -- reverent / devotional --
+	proc { |h| "say :reverent ::#{h} Mularos smiles upon this moment. Give me your wounds." },
+	proc { |h| "say :prayerful ::#{h} I offer your suffering to Him gladly. Be still." },
+	proc { |h| "say :solemn ::#{h} The Lord of Suffering has sent me. You need not ask why." },
+	proc { |h| "say :serene ::#{h} Pain shared in His name is pain made holy. Come closer." },
+	proc { |h| "say :reverent ::#{h} He brought you to me for a reason. I will not question His design." },
+	proc { |h| "say :prayerful ::#{h} Let this be an act of devotion, #{h}. For Him, and for the hurt you carry." },
+	proc { |h| "say :solemn ::#{h} I have been called to receive your suffering. It is an honor I do not take lightly." },
+	proc { |h| "say :meditative ::#{h} Still your mind, #{h}. I need only a moment to reach for what torments you." },
+
+	# -- seductive / inviting --
+	proc { |h| "say :seductive ::#{h} Your blood sings to me. Let me drink deeply of your hurt." },
+	proc { |h| "say :inviting ::#{h} Every wound you carry is a gift I have not yet unwrapped." },
+	proc { |h| "say :sensuous ::#{h} There is beauty in your suffering. I intend to carry it myself." },
+	proc { |h| "say :enticing ::#{h} What delicious suffering you carry. Come. Let us trade." },
+	proc { |h| "say :lusty ::#{h} You have bled so prettily. It would be a shame not to share." },
+	proc { |h| "say :seductive ::#{h} Come closer, #{h}. I promise you will feel better. I cannot promise the same for myself." },
+	proc { |h| "say :inviting ::#{h} Your hurt calls out and something in me answers. That is all the invitation I need." },
+	proc { |h| "say :sensuous ::#{h} I can already feel the edges of your pain from here. How lovely it is." },
+	proc { |h| "say :enticing ::#{h} Others offer coin for healing. You offer something far more valuable, #{h}." },
+	proc { |h| "say :amorous ::#{h} Suffering shared between two souls is the most intimate thing in this world." },
+
+	# -- dark / ominous --
+	proc { |h| "say :dark ::#{h} The darkness within me stirs at the sight of you. This pleases me." },
+	proc { |h| "say :ominous ::#{h} I do not heal out of kindness. I heal because your pain belongs to me." },
+	proc { |h| "say :menacing ::#{h} Do not mistake my mercy for gentleness, #{h}. I assure you it is neither." },
+	proc { |h| "say :cryptic ::#{h} Something within you called to me. I could not have ignored it if I tried." },
+	proc { |h| "say :dark ::#{h} Pain is not the enemy, #{h}. It is the only honest thing left in this world." },
+	proc { |h| "say :ominous ::#{h} You have no idea what you are asking of me. Fortunately for you, I enjoy the asking." },
+	proc { |h| "say :menacing ::#{h} I will take everything that is hurting you. Everything. You have been warned." },
+	proc { |h| "say :cryptic ::#{h} The wound knows the one who craves it. I have always known your name." },
+	proc { |h| "say :dark ::#{h} Most healers do this out of duty. I do it out of need. There is a difference." },
+	proc { |h| "say :ominous ::#{h} Something in the world is wrong when the broken do not seek those who hunger for it." },
+
+	# -- hungry / voracious --
+	proc { |h| "say :voracious ::#{h} The gift of pain is the sweetest offering. Come, let me take yours." },
+	proc { |h| "say :hungry ::#{h} I have been waiting for something worth feeling. Come closer." },
+	proc { |h| "say :covetous ::#{h} Hush. I can feel it already, give me a moment to savor what is mine." },
+	proc { |h| "say :greedy ::#{h} Quiet now. Pain this exquisite should not be wasted on just one." },
+	proc { |h| "say :voracious ::#{h} Do not flinch, #{h}. I want all of it, not just the parts you think I can bear." },
+	proc { |h| "say :hungry ::#{h} Every moment you stood there bleeding was a moment I was denied. Come here." },
+	proc { |h| "say :covetous ::#{h} Your suffering has been sitting there waiting for someone worthy of it. That is me." },
+	proc { |h| "say :greedy ::#{h} Others may share your pain in small measures. I prefer to take it whole." },
+	proc { |h| "say :voracious ::#{h} Do not thank me, #{h}. Thanking me implies I did this for you." },
+	proc { |h| "say :hungry ::#{h} The waiting is the hardest part. Now that you are here, I am content." },
+
+	# -- sardonic / wry --
+	proc { |h| "say :sardonic ::#{h} I serve Mularos, and Mularos is merciful, in His own particular way." },
+	proc { |h| "say :wry ::#{h} Your suffering calls to me like a prayer. I will answer it." },
+	proc { |h| "say :dry ::#{h} Do not be afraid. Pain shared is pain savored. You will learn to appreciate that." },
+	proc { |h| "say :sly ::#{h} Most would call this healing, #{h}. I call it a fair trade." },
+	proc { |h| "say :sardonic ::#{h} You came to the right place, #{h}. Though perhaps not for the reasons you think." },
+	proc { |h| "say :wry ::#{h} I have been told I am an unusual healer. I prefer the word dedicated." },
+	proc { |h| "say :dry ::#{h} You look terrible, #{h}. It is honestly a bit exciting." },
+	proc { |h| "say :sly ::#{h} Some pay in coin. Some in gratitude. You pay in something far more interesting." },
+	proc { |h| "say :sardonic ::#{h} They say empaths suffer for their calling. I suspect I suffer rather more willingly than most." },
+	proc { |h| "say :wry ::#{h} Come now. I have seen worse. Though I will admit I hoped I would not have to wait this long." },
+	proc { |h| "say :droll ::#{h} You bleed as though you have had practice, #{h}. I appreciate the dedication." },
+	proc { |h| "say :dry ::#{h} I could pretend this is entirely selfless. But you deserve honesty." },
+
+	# -- tormented / fervent --
+	proc { |h| "say :tormented ::#{h} It pulls at me, your agony. I cannot let it go to waste." },
+	proc { |h| "say :fervent ::#{h} He watches us now, #{h}. Let us not disappoint Him." },
+	proc { |h| "say :passionate ::#{h} Every wound transferred is a prayer. Every scar, an offering." },
+	proc { |h| "say :rapturous ::#{h} Yes... yes. Give it to me. All of it." },
+	proc { |h| "say :tormented ::#{h} I have ached for this all day, #{h}. You have no idea what a relief you are." },
+	proc { |h| "say :fervent ::#{h} There is no act more sacred than this. The giving of pain to one who craves it." },
+	proc { |h| "say :passionate ::#{h} I would carry every wound in this city if I could. Yours will do for now." },
+	proc { |h| "say :rapturous ::#{h} The moment your hurt passes into me is the only peace I know." },
+	proc { |h| "say :tormented ::#{h} Do you know what it is to want something you cannot ask for? Now you will not have to." },
+	proc { |h| "say :fervent ::#{h} Suffering is not a burden to be hidden, #{h}. It is a gift to be received." },
+
+	# -- longing / introspective --
+	proc { |h| "say :longing ::#{h} I have carried the pain of so many. Yours feels different. I welcome that." },
+	proc { |h| "say :introspective ::#{h} There is a kind of peace that only comes when another's hurt becomes your own." },
+	proc { |h| "say :wistful ::#{h} The wound passes and then it is over. I always find that part a little sad." },
+	proc { |h| "say :longing ::#{h} I envy those who feel nothing. And then I remember I do not envy them at all." },
+	proc { |h| "say :dreamy ::#{h} Sometimes I think the world would be kinder if more people understood what I do." },
+	proc { |h| "say :introspective ::#{h} Pain is honest, #{h}. It does not lie to you about what it is." },
+	proc { |h| "say :meditative ::#{h} Be still. Let me reach for it. This is the part I live for." },
+	proc { |h| "say :longing ::#{h} Every healer has their reason. Mine is not one most would understand." },
+
+	# -- calm / assured --
+	proc { |h| "say :calm ::#{h} You came to the right place. I will take good care of what ails you." },
+	proc { |h| "say :assured ::#{h} I know what I am doing, #{h}. I have wanted this long enough to be very good at it." },
+	proc { |h| "say :placid ::#{h} There is no need to explain yourself. I already understand what you need." },
+	proc { |h| "say :calm ::#{h} Breathe. Whatever you are carrying, I am about to make it mine." },
+	proc { |h| "say :serene ::#{h} The hurt you feel is real. And I am very glad it is." },
+	proc { |h| "say :placid ::#{h} I have done this a thousand times. It never stops being exactly what I need." },
+
+	# -- possessive / intense --
+	proc { |h| "say :intense ::#{h} Your suffering does not belong in you, #{h}. It belongs in me. Let me have it." },
+	proc { |h| "say :obsessive ::#{h} I noticed you the moment you walked in. The wound gave you away." },
+	proc { |h| "say :intense ::#{h} Do not give this to anyone else, #{h}. I saw you first." },
+	proc { |h| "say :compulsive ::#{h} I cannot help it. The moment I sense pain I am already reaching for it." },
+	proc { |h| "say :obsessive ::#{h} You will find no one who wants this more than I do. I promise you that." },
+	proc { |h| "say :intense ::#{h} I need this as much as you do. Perhaps more. Let us not keep each other waiting." },
+
+	# -- grateful / tender --
+	proc { |h| "say :tender ::#{h} Thank you for coming to me, #{h}. You could not have known how much I needed this." },
+	proc { |h| "say :warm ::#{h} Your pain is safe with me. I will treasure it properly." },
+	proc { |h| "say :tender ::#{h} Not everyone would offer what you are about to offer. I do not take it for granted." },
+	proc { |h| "say :grateful ::#{h} I am grateful, #{h}. More than you know, and perhaps more than you would prefer." },
+	proc { |h| "say :warm ::#{h} Come here. Let me show you what it means to give pain to someone who truly wants it." },
+	proc { |h| "say :tender ::#{h} You look like you have been carrying this a long time. It is my turn now." },
+]
+
+# -- Post-heal thank you sayings (5-10s after healing completes) --
+MULAROS_THANKS = [
+	# -- reverent / grateful --
+	proc { |h| "say :reverent ::#{h} Your suffering was a worthy offering, #{h}. Mularos is pleased." },
+	proc { |h| "say :prayerful ::#{h} I will carry what you gave me with gratitude, #{h}. He sees your gift." },
+	proc { |h| "say :solemn ::#{h} What passed between us just now was sacred. Do not forget it." },
+	proc { |h| "say :serene ::#{h} The exchange is complete. I am satisfied. Thank you, #{h}." },
+	proc { |h| "say :reverent ::#{h} He witnessed this. I am certain of it. Thank you for the offering, #{h}." },
+	proc { |h| "say :prayerful ::#{h} The pain you gave has been received with all the reverence it deserved." },
+	proc { |h| "say :solemn ::#{h} I will not forget what you gave me today, #{h}. It meant more than you know." },
+
+	# -- sensuous / savoring --
+	proc { |h| "say :sensuous ::#{h} That was exquisite, #{h}. You are most generous with your pain." },
+	proc { |h| "say :rapturous ::#{h} Mmm. You gave more than I expected. I am grateful, #{h}." },
+	proc { |h| "say :lusty ::#{h} Your wounds tasted of something rare, #{h}. I thank you for them." },
+	proc { |h| "say :seductive ::#{h} Come back to me when you are broken again, #{h}. I will be waiting." },
+	proc { |h| "say :sensuous ::#{h} That lingered longer than most. I am still savoring it, #{h}. My gratitude." },
+	proc { |h| "say :rapturous ::#{h} I did not expect to feel that so deeply. You have outdone yourself, #{h}." },
+	proc { |h| "say :lusty ::#{h} There was something exquisite in what you carried. Thank you for sharing it." },
+
+	# -- dark / ominous --
+	proc { |h| "say :dark ::#{h} The darkness within me is quieter now, #{h}. You have done well." },
+	proc { |h| "say :ominous ::#{h} I have taken your pain. Do try to earn more." },
+	proc { |h| "say :cryptic ::#{h} Something of you lingers in me now, #{h}. I find I do not mind." },
+	proc { |h| "say :menacing ::#{h} You are whole again, #{h}. Do not waste it." },
+	proc { |h| "say :dark ::#{h} I am sated for now, #{h}. That is the closest thing to peace I possess." },
+	proc { |h| "say :ominous ::#{h} What you carried was remarkable. The world will not miss it. I will." },
+	proc { |h| "say :cryptic ::#{h} You feel lighter. I feel heavier. We are both better for it." },
+	proc { |h| "say :menacing ::#{h} Go carefully, #{h}. I would prefer not to repeat this too soon. Mostly." },
+
+	# -- wry / sardonic --
+	proc { |h| "say :sardonic ::#{h} Most would say you owe me, #{h}. I would say we are even." },
+	proc { |h| "say :wry ::#{h} A fair trade, #{h}. Your suffering for your wholeness. He approves." },
+	proc { |h| "say :dry ::#{h} You are healed. I am nourished. I call that a success." },
+	proc { |h| "say :sly ::#{h} Go on then, #{h}. Try not to fall apart again too quickly." },
+	proc { |h| "say :sardonic ::#{h} You look surprised to be whole. Try to look less ungrateful about it, #{h}." },
+	proc { |h| "say :wry ::#{h} The part where I suffer is the part you did not see. You are welcome." },
+	proc { |h| "say :dry ::#{h} Done. You may resume whatever it was that got you into that state." },
+	proc { |h| "say :droll ::#{h} I would say it was my pleasure, #{h}. And unlike most healers, I would mean it." },
+
+	# -- fervent / tormented --
+	proc { |h| "say :fervent ::#{h} Every wound you gave me was a hymn. I am grateful, #{h}." },
+	proc { |h| "say :tormented ::#{h} It is over now... and yet something in me already hungers again." },
+	proc { |h| "say :passionate ::#{h} What you gave was beautiful, #{h}. Do not let it have been for nothing." },
+	proc { |h| "say :fervent ::#{h} Pain given freely is the purest gift. I am honored by yours, #{h}." },
+	proc { |h| "say :tormented ::#{h} The ache of it is already fading. I hate that part. Thank you, #{h}." },
+	proc { |h| "say :passionate ::#{h} I would do this again without hesitation. You know where to find me." },
+
+	# -- longing / tender --
+	proc { |h| "say :longing ::#{h} It passes so quickly. I am always a little bereft when it is over." },
+	proc { |h| "say :tender ::#{h} You trusted me with your pain, #{h}. That is not nothing. Thank you." },
+	proc { |h| "say :wistful ::#{h} Already it is fading into memory. These moments never last long enough." },
+	proc { |h| "say :longing ::#{h} Go well, #{h}. And know that what you gave will be remembered fondly." },
+	proc { |h| "say :tender ::#{h} I carry it now. You do not have to anymore. That is how it should be." },
+	proc { |h| "say :warm ::#{h} You came to the right person, #{h}. I hope you know that." },
+
+	# -- possessive / satisfied --
+	proc { |h| "say :satisfied ::#{h} Mine now, #{h}. Every last bit of it. You are free." },
+	proc { |h| "say :obsessive ::#{h} I always remember the ones who give willingly. I will remember you." },
+	proc { |h| "say :intense ::#{h} That is what I needed today. I hope you needed it too." },
+	proc { |h| "say :compulsive ::#{h} I could not have walked away from that if I tried. Thank you for not making me." },
+	proc { |h| "say :pleased ::#{h} You have no idea how long I waited for something like that. Thank you, #{h}." },
+]
+
+# -- Item offering thank you sayings (5-10s after stowing the item) --
+MULAROS_OFFER_THANKS = [
+	# -- reverent / gracious --
+	proc { |h, i| "say :reverent ::#{h} This #{i} is a worthy tribute, #{h}. Mularos smiles upon your generosity." },
+	proc { |h, i| "say :prayerful ::#{h} I accept this #{i} in His name, #{h}. Your offering is noted." },
+	proc { |h, i| "say :gracious ::#{h} You honor me with this #{i}, #{h}. It will be treasured." },
+	proc { |h, i| "say :solemn ::#{h} This #{i} shall remind me of your gift, #{h}. I am grateful." },
+	proc { |h, i| "say :reverent ::#{h} A #{i} and your suffering both in one day, #{h}. You are uncommonly generous." },
+	proc { |h, i| "say :prayerful ::#{h} He sees this #{i} as clearly as He saw your wounds. Both are offerings." },
+
+	# -- dark / covetous --
+	proc { |h, i| "say :covetous ::#{h} This #{i} pleases me, #{h}. Almost as much as your wounds did." },
+	proc { |h, i| "say :dark ::#{h} A fitting tribute, #{h}. The darkness within me stirs with approval." },
+	proc { |h, i| "say :ominous ::#{h} This #{i} is mine now, #{h}. As your suffering was. Thank you." },
+	proc { |h, i| "say :cryptic ::#{h} I sense meaning in this #{i}, #{h}. He intended you to give it." },
+	proc { |h, i| "say :covetous ::#{h} I have wanted many things in my life. This #{i} was not among them. And yet I find I want it now." },
+	proc { |h, i| "say :dark ::#{h} Objects carry the energy of those who held them. This #{i} will carry yours, #{h}." },
+	proc { |h, i| "say :ominous ::#{h} A curious choice of gift, #{h}. I like that about you." },
+
+	# -- sensuous / savoring --
+	proc { |h, i| "say :sensuous ::#{h} How thoughtful, #{h}. This #{i} is as lovely as your pain was." },
+	proc { |h, i| "say :seductive ::#{h} You bring me gifts, #{h}. You understand me better than most." },
+	proc { |h, i| "say :lusty ::#{h} First your wounds, now a #{i}. You are dangerously generous, #{h}." },
+	proc { |h, i| "say :sensuous ::#{h} A #{i} after suffering shared. You know how to make an impression, #{h}." },
+	proc { |h, i| "say :enticing ::#{h} This #{i} and the memory of your pain. You have given me two gifts today." },
+
+	# -- wry / sardonic --
+	proc { |h, i| "say :sardonic ::#{h} A #{i}. How fitting. Almost as precious as the pain you shared." },
+	proc { |h, i| "say :wry ::#{h} You need not have brought a #{i}, #{h}. And yet I am glad you did." },
+	proc { |h, i| "say :dry ::#{h} A #{i}. My thanks, #{h}. You may go be whole somewhere else now." },
+	proc { |h, i| "say :sly ::#{h} Offerings accepted, #{h}. Come back broken again sometime." },
+	proc { |h, i| "say :sardonic ::#{h} Most people offer coin. You offer a #{i}. I think I prefer you, #{h}." },
+	proc { |h, i| "say :wry ::#{h} I did not expect a #{i} today. The day has exceeded expectations." },
+	proc { |h, i| "say :droll ::#{h} A #{i}. From someone who just gave me their wounds. You are thorough, #{h}." },
+
+	# -- tender / warm --
+	proc { |h, i| "say :tender ::#{h} This #{i} was not necessary, #{h}. But I am glad you offered it." },
+	proc { |h, i| "say :warm ::#{h} You came to me hurting and left me a #{i} as well. That means something." },
+	proc { |h, i| "say :tender ::#{h} I will keep this #{i} close, #{h}. It will remind me of what we shared." },
+	proc { |h, i| "say :grateful ::#{h} The #{i} is appreciated. But it was your trust that mattered most today." },
+
+	# -- fervent / intense --
+	proc { |h, i| "say :fervent ::#{h} This #{i} joins the pain you gave me as an offering. Both are received." },
+	proc { |h, i| "say :passionate ::#{h} You gave me your hurt and now a #{i}. I am twice blessed today, #{h}." },
+	proc { |h, i| "say :intense ::#{h} Do not give #{i}s to everyone who heals you, #{h}. Save them for those who mean it." },
+	proc { |h, i| "say :obsessive ::#{h} A #{i} from #{h}. I will not forget where this came from." },
+	proc { |h, i| "say :compulsive ::#{h} I accepted before I even thought about it. The #{i} called to me as clearly as your wounds did." },
+]
+
+def mularos_thank_healee(healee)
+	sleep rand(5..10)
+	fput MULAROS_THANKS.sample.call(healee)
+end
+
+# -- Post-self-heal sayings (fired after Mystienne heals herself down) --
+MULAROS_SELF_THANKS = [
+  # -- satisfied / savoring --
+  proc { "say :satisfied Wounds taken, wounds healed. The cycle is its own reward." },
+  proc { "say :rapturous That never gets old. The ache of it, the relief. I am grateful for both." },
+  proc { "say :sensuous There is something almost meditative about carrying your own suffering for a time." },
+  proc { "say :serene I am restored. And yet I already miss what I carried. Such is the nature of devotion." },
+  proc { "say :lusty To take pain and then heal it is a pleasure most would not understand. I do." },
+  proc { "say :voracious Whole again. For now. Mularos willing, that will not last too long." },
+
+  # -- dark / wry --
+  proc { "say :dark The wounds are gone. The memory of them is not. I prefer it that way." },
+  proc { "say :sardonic One might call this suffering. I call it a Tuesday." },
+  proc { "say :wry Some empaths find the self-healing tedious. I find it clarifying." },
+  proc { "say :dry Healed. Again. The things I do for devotion." },
+  proc { "say :droll It is a peculiar thing, to enjoy the process of repairing what you invited in." },
+  proc { "say :ominous The pain is gone now. I am a little sorry to see it go." },
+
+  # -- fervent / reverent --
+  proc { "say :fervent Every wound I carry in His name is a prayer. Every healing, an answered one." },
+  proc { "say :prayerful The suffering was His gift. The healing, my offering back. So it goes." },
+  proc { "say :reverent Mularos asks much of His faithful. I find I never mind the asking." },
+  proc { "say :solemn What was given has been returned to the world. The cycle continues." },
+  proc { "say :passionate I would do it all again. I say that without irony." },
+  proc { "say :tormented The quiet after healing is the strangest part. I am never quite sure what to do with peace." },
+
+  # -- introspective / longing --
+  proc { "say :introspective There is a particular intimacy in knowing exactly how much you can endure." },
+  proc { "say :wistful Healed now. And already wondering when the next one will find me." },
+  proc { "say :longing The body forgets pain so quickly. I find that almost criminal." },
+  proc { "say :meditative I sit with what remains. Not much. But enough to remember." },
+  proc { "say :dreamy Whole. For now. I have learned not to take that too seriously." },
+  proc { "say :introspective Most people fear pain. I have simply learned to ask it questions." },
+]
+
+def mularos_self_thank
+  sleep rand(3..8)
+  fput MULAROS_SELF_THANKS.sample.call
+end
+
+
+# Top-level namespace for all MCure classes and helpers.
+module MCure
+  # @return [Boolean] whether debug output is currently enabled for this character
+  def self.debug?
+    CharSettings[:mcure_debug] ||= false
+  end
+
+  def self.debug=(value)
+    CharSettings[:mcure_debug] = value
+    Settings.save
+  end
+
+  def self.debug_msg(msg)
+    respond "[MCure DEBUG] #{msg}" if debug?
+  end
+
+  class Configuration
+    BODY_PARTS = %w[
+      head neck abdomen back chest righteye lefteye
+      rightleg leftleg rightarm leftarm righthand lefthand nerves
+    ].freeze
+
+    MODES = %w[heal hunt].freeze
+    DEFAULT_LEVEL = 0
+
+    def initialize(character_name)
+      @character_name = character_name
+      @settings = Settings[character_name] || {}
+      load_defaults
+    end
+
+    attr_reader :settings
+
+    def done_verb
+      @settings['done_verb'] ||= ''
+    end
+    def done_verb=(value); @settings['done_verb'] = value; end
+
+    def use_signs?; @settings['use_signs'] ||= false; end
+    def use_signs=(value); @settings['use_signs'] = value; end
+
+    def alternative_behavior?; @settings['alternative_behavior'] ||= false; end
+    def alternative_behavior=(value); @settings['alternative_behavior'] = value; end
+
+    def use_trolls_blood?; @settings['use_trolls_blood'] ||= Spell[1125].known?; end
+    def use_trolls_blood=(value); @settings['use_trolls_blood'] = value; end
+
+    def head_nerve_priority?; @settings['head_nerve_priority'] ||= true; end
+    def head_nerve_priority=(value); @settings['head_nerve_priority'] = value; end
+
+    def mode; @settings['mode'] ||= 'heal'; end
+    def mode=(value); @settings['mode'] = value if MODES.include?(value); end
+
+    def all_wounds_level; @settings['all_wounds_level'] ||= DEFAULT_LEVEL; end
+    def all_wounds_level=(value); @settings['all_wounds_level'] = value; end
+
+    def all_scars_level; @settings['all_scars_level'] ||= DEFAULT_LEVEL; end
+    def all_scars_level=(value); @settings['all_scars_level'] = value; end
+
+    def wound_level(body_part, mode_type = nil)
+      mode_type ||= mode
+      key = "#{body_part}_wounds_#{mode_type}"
+      [@settings[key] || DEFAULT_LEVEL, all_wounds_level].min
+    end
+
+    def scar_level(body_part, mode_type = nil)
+      mode_type ||= mode
+      key = "#{body_part}_scars_#{mode_type}"
+      [@settings[key] || DEFAULT_LEVEL, all_scars_level].min
+    end
+
+    def set_wound_level(body_part, level, mode_type = nil)
+      mode_type ||= mode
+      @settings["#{body_part}_wounds_#{mode_type}"] = level
+    end
+
+    def set_scar_level(body_part, level, mode_type = nil)
+      mode_type ||= mode
+      @settings["#{body_part}_scars_#{mode_type}"] = level
+    end
+
+    def save
+      Settings[@character_name] = @settings
+      Settings.save
+    end
+
+    private
+
+    def load_defaults
+      BODY_PARTS.each do |part|
+        MODES.each do |mode_type|
+          @settings["#{part}_wounds_#{mode_type}"] ||= DEFAULT_LEVEL
+          @settings["#{part}_scars_#{mode_type}"] ||= DEFAULT_LEVEL
+        end
+      end
+    end
+  end
+
+  class SpellManager
+    CLOTTING_SPELL     = 9909
+    STAUNCHING_SPELL   = 9905
+    TROLLS_BLOOD_SPELL = 1125
+
+    def initialize(config)
+      @config = config
+      @sign_spell = determine_sign_spell
+    end
+
+    def check_signs
+      return unless @sign_spell && @config.use_signs?
+      return if Spell[@sign_spell].active?
+      MCure.debug_msg("Casting sign spell #{@sign_spell}")
+      wait_until { Spell[@sign_spell].affordable? }
+      Spell[@sign_spell].cast
+    end
+
+    def cast_trolls_blood
+      return unless @config.use_trolls_blood?
+      return if Spell[TROLLS_BLOOD_SPELL].active?
+      MCure.debug_msg("Casting Troll's Blood (1125)")
+      if Spell[TROLLS_BLOOD_SPELL].affordable?
+        Spell[TROLLS_BLOOD_SPELL].cast
+      else
+        respond "Waiting on mana to cast Troll's Blood..."
+        wait_until { Spell[TROLLS_BLOOD_SPELL].affordable? }
+        Spell[TROLLS_BLOOD_SPELL].cast
+      end
+    end
+
+    private
+
+    def determine_sign_spell
+      if Spell[CLOTTING_SPELL].known? then CLOTTING_SPELL
+      elsif Spell[STAUNCHING_SPELL].known? then STAUNCHING_SPELL
+      end
+    end
+  end
+
+  class BodyPartManager
+    @cached_mappings = {}
+
+    BODY_PART_COSTS = {
+      'head' => 4, 'nerves' => 3, 'neck' => 4,
+      'chest' => 5, 'abdomen' => 5, 'back' => 5,
+      'rightarm' => 2, 'leftarm' => 2,
+      'rightleg' => 2, 'leftleg' => 2,
+      'righthand' => 2, 'lefthand' => 2,
+      'righteye' => 5, 'lefteye' => 5
+    }.freeze
+
+    LICH_NAME_MAPPING = {
+      'head' => 'head', 'nerves' => 'nsys', 'neck' => 'neck',
+      'chest' => 'chest', 'abdomen' => 'abs', 'back' => 'back',
+      'rightarm' => 'rightArm', 'leftarm' => 'leftArm',
+      'rightleg' => 'rightLeg', 'leftleg' => 'leftLeg',
+      'righthand' => 'rightHand', 'lefthand' => 'leftHand',
+      'righteye' => 'rightEye', 'lefteye' => 'leftEye'
+    }.freeze
+
+    def self.cost_for(body_part); BODY_PART_COSTS[body_part] || 2; end
+    def self.lich_name_for(body_part); @cached_mappings[body_part] ||= LICH_NAME_MAPPING[body_part] || body_part; end
+    def self.format_name_for_command(body_part); body_part.gsub(/(right|left)(.*)/, '\\1 \\2'); end
+    def self.critical_parts; %w[head nerves]; end
+  end
+
+  class TargetAppraiser
+    def initialize; @heal_target = nil; end
+    attr_reader :heal_target
+
+    def appraise(target_name)
+      wounds = []
+      @heal_target = nil
+      3.times do |attempt|
+        MCure.debug_msg("Appraising #{target_name} (attempt #{attempt + 1}/3)")
+        waitrt?
+        lines = Lich::Util.issue_command(
+          "appraise #{target_name}",
+          /You take a quick|Appraise what\?|^Usage:/,
+          usexml: true, quiet: true, silent: true
+        )
+        lines.each do |line|
+          case line
+          when /^\s*You take a quick appraisal of <a exist="-\d+" noun=".*">(?<appraised_target>\w+)<\/a> and find that <a exist="-\d+" noun=".*">(?:he|she)<\/a> has (?<detected_wounds>..*)\./ 
+            wounds.push(strip_xml(Regexp.last_match(:detected_wounds)))
+            @heal_target = Regexp.last_match(:appraised_target)
+          when /Appraise what\?|^Usage:/i
+            wounds.push(line)
+            @heal_target = target_name
+          when /^\s*<a exist="-\d+" noun=".*">(?:He|She)<\/a> has (?<detected_scars>..*)\./ 
+            wounds.push(Regexp.last_match(:detected_scars)) if Skills.mltransference >= 50
+          when /^\s*<a exist="-\d+" noun=".*">(?:He|She)<\/a> appears to have <d cmd='transfer .+ exertion'>overexerted<\/d> (?:him|her)self\./
+            wounds.push('overexerted')
+          end
+        end
+        MCure.debug_msg("Appraise result - target=#{@heal_target.inspect} wounds=#{wounds.inspect}")
+        break unless @heal_target.nil?
+      end
+      wounds
+    end
+
+    def parse_wounds(wound_line)
+      return [] if wound_line =~ /no apparent injuries|no apparent wounds\z/ && wound_line !~ /overexerted/
+      wound_line = clean_wound_line(wound_line)
+      wound_array = extract_wound_array(wound_line)
+      body_parts = parse_body_parts(wound_array)
+      MCure.debug_msg("Parsed body parts: #{body_parts.inspect}")
+      body_parts
+    end
+
+    private
+
+    def clean_wound_line(wound_line)
+      wound_line.gsub(/arm and/, "arm, ").gsub(/<d cmd.*?>/, "").gsub(/<\/d.*?>/, "")
+    end
+
+    def extract_wound_array(wound_line)
+      wound_line.scan(/a (?:black-and-blue|severe bruises and swelling around|missing|blinded|swollen|bruised) (?:left|right) eye|old battle scars on (?:his|her) (?:left|right) (?:hand|arm|leg)|mangled (?:left|right) (?:hand|arm|leg)|missing (?:left|right) (?:hand|arm|leg)|deep lacerations across (?:his|her) \w+|deep gashes and serious bleeding (?:on|from|across) (?:his|her) \w+|minor cuts and bruises on (?:his|her) (?:left|right) (?:hand|arm|leg)|a (?:fractured and bleeding|completely severed) (?:left|right) (?:hand|arm|leg)|moderate bleeding from (?:his|her) neck|snapped bones and serious bleeding from the neck|minor bruises on (?:his|her) neck|scar across (?:his|her) neck|some old neck wounds|terrible scars from some serious neck injury|minor (?:bruises|lacerations) about the head|minor cuts and bruises on (?:his|her) (?:chest|back|abdominal(?: area)?)|severe head trauma and bleeding from the ears|strange case of muscle twitching|case of (?:sporadic|uncontrollable) convulsions|scar across (?:his|her) face|several facial scars|old mutilation wounds about (?:his|her) head|old battle scar across (?:his|her) (?:chest|back|abdominal(?: area)?)|several painful-looking scars across (?:his|her) (?:chest|back|abdominal(?: area)?)|terrible, permanent mutilation of (?:his|her) (?:chest|back|abdominal(?: area)?) muscles|developed slurred speech|constant muscle spasms|a very difficult time with muscle control|overexerted/)
+    end
+
+    def parse_body_parts(wound_array)
+      body_parts = []
+      wound_array.each do |wound|
+        case wound
+        when /(?:an? )?(?:black-and-blue|severe bruises and swelling around|blinded|mangled|swollen|bruised|missing|deep lacerations across his|deep lacerations across her|cuts and bruises on his|cuts and bruises on her|fractured and bleeding|completely severed|deep gashes and serious bleeding on his|deep gashes and serious bleeding on her|deep gashes and serious bleeding from his|deep gashes and serious bleeding from her|old battle scars on his|old battle scars on her|old battle scar across (?:his|her)|several painful-looking scars across (?:his|her)|terrible, permanent mutilation of (?:his|her)) (?<rightleft>\w+)(?<bodypart> \w+)?/
+          body_parts << "#{Regexp.last_match(:rightleft).strip} #{Regexp.last_match(:bodypart).strip}".strip
+        when /moderate bleeding from (his|her) neck|snapped bones and serious bleeding from the neck|minor bruises on (his|her) neck|scar across (?:his|her) neck|some old neck wounds|terrible scars from some serious neck injury/
+          body_parts << "neck"
+        when /minor bruises about the head|minor lacerations about the head|severe head trauma and bleeding from the ears|scar across (?:his|her) face|several facial scars|old mutilation wounds about (?:his|her) head/
+          body_parts << "head"
+        when /strange case of muscle twitching|case of sporadic convulsions|case of uncontrollable convulsions|developed slurred speech|constant muscle spasms|a very difficult time with muscle control/
+          body_parts << "nerves"
+        when /overexerted/
+          body_parts << "exertion"
+        end
+      end
+      body_parts
+    end
+  end
+
+  class HealingEngine
+    def initialize(config, spell_manager)
+      @config = config
+      @spell_manager = spell_manager
+      @appraiser = TargetAppraiser.new
+    end
+
+    def execute_healing_command(command, required_mana = nil)
+      attempt_with_hindrance_retry do |attempt, max_attempts|
+        wait_for_mana(required_mana) if required_mana
+        waitrt?
+        waitcastrt?
+        MCure.debug_msg("Executing '#{command}' (attempt #{attempt}/#{max_attempts})")
+        dothistimeout(command, 2, /^\[Spell Hindrance|^Cast/)
+      end
+    end
+
+    def heal_exertion
+      attempt_with_hindrance_retry do |attempt, max_attempts|
+        wait_for_mana(7)
+        waitrt?
+        waitcastrt?
+        Spell[1107].force_incant
+      end
+    end
+
+    def heal_self
+      MCure.debug_msg("Starting self-heal")
+      heal_exertion if Effects::Debuffs.active?("Overexerted")
+      @spell_manager.cast_trolls_blood
+      3.downto(0) do |level|
+        BodyPartManager::BODY_PART_COSTS.keys.each { |part| heal_wound_if_needed(part, level) }
+      end
+      3.downto(0) do |level|
+        BodyPartManager::BODY_PART_COSTS.keys.each { |part| heal_scar_if_needed(part, level) }
+      end
+      restore_health
+      perform_completion_action
+      # --- MCure: post-self-heal saying ---
+      Thread.new { mularos_self_thank }
+    end
+
+    def heal_target(target_name)
+      wounds = @appraiser.appraise(target_name)
+      if wounds.empty? || wounds.first =~ /Appraise what|Usage/
+        respond("Couldn't find or no injuries on #{target_name}!")
+        return
+      end
+      wound_line = wounds.join(", ")
+      if wound_line =~ /no apparent injuries|no apparent wounds\z/ && wound_line !~ /overexerted/
+        respond("#{@appraiser.heal_target} does not appear to be injured.")
+        return
+      end
+      MCure.debug_msg("Healing target #{@appraiser.heal_target}: #{wound_line}")
+
+      # --- MCure: pre-heal saying (speak immediately) ---
+      saying = MULAROS_SAYINGS.sample.call(@appraiser.heal_target)
+      fput saying
+
+      heal_target_wounds(wound_line)
+
+      # --- MCure: post-heal thank-you ---
+      healed_name = @appraiser.heal_target
+      Thread.new { mularos_thank_healee(healed_name) }
+    end
+
+    def heal_group
+      group_members = get_group_members
+      MCure.debug_msg("Group members: #{group_members.inspect}")
+      group_members.each { |member| heal_target(member) }
+    end
+
+    def heal_room
+      room_pcs = GameObj.pcs.map(&:noun)
+      MCure.debug_msg("Room PCs: #{room_pcs.inspect}")
+      room_pcs.each { |pc| heal_target(pc) }
+    end
+
+    private
+
+    def attempt_with_hindrance_retry(max_attempts: 3)
+      attempt = 1
+      loop do
+        result = yield attempt, max_attempts
+        case result
+        when /^Cast/ then break
+        when /^\[Spell/
+          respond "Spell hindrance (attempt #{attempt}/#{max_attempts}), retrying..."
+          attempt += 1
+          if attempt > max_attempts
+            respond "Failed after #{max_attempts} attempts"
+            break
+          end
+          sleep(1 + attempt)
+        else
+          if attempt < max_attempts
+            attempt += 1
+            sleep(1)
+          else
+            respond "Command failed after #{max_attempts} attempts"
+            break
+          end
+        end
+      end
+      sleep(0.5)
+      waitcastrt?
+      waitrt?
+    end
+
+    def heal_wound_if_needed(part, level)
+      lich_name = BodyPartManager.lich_name_for(part)
+      current_level = Wounds.send(lich_name)
+      target_level = @config.wound_level(part)
+      MCure.debug_msg("Wound check #{part}: current=#{current_level} target=#{target_level}")
+      return unless current_level == level && current_level > target_level
+      if BodyPartManager.critical_parts.include?(part) && @config.head_nerve_priority?
+        handle_critical_parts(part)
+      end
+      heal_body_part(part, current_level > 1)
+    end
+
+    def heal_scar_if_needed(part, level)
+      lich_name = BodyPartManager.lich_name_for(part)
+      current_scar_level  = Scars.send(lich_name)
+      current_wound_level = Wounds.send(lich_name)
+      target_level        = @config.scar_level(part)
+      MCure.debug_msg("Scar check #{part}: scar=#{current_scar_level} wound=#{current_wound_level} target=#{target_level}")
+      return unless current_scar_level == level && current_wound_level == 0 && current_scar_level > target_level
+      heal_body_part(part, current_scar_level > 1, true)
+    end
+
+    def heal_body_part(part, severe_injury = false, is_scar = false)
+      @spell_manager.check_signs
+      restore_health
+      base_cost      = BodyPartManager.cost_for(part)
+      mana_cost      = calculate_mana_cost(base_cost, severe_injury, is_scar)
+      formatted_part = BodyPartManager.format_name_for_command(part)
+      MCure.debug_msg("cure #{formatted_part} - mana cost: #{mana_cost}")
+      execute_healing_command("cure #{formatted_part}", mana_cost)
+    end
+
+    def calculate_mana_cost(base_cost, severe_injury, is_scar)
+      cost = base_cost
+      cost += 5 if severe_injury
+      cost += 9 if is_scar
+      cost
+    end
+
+    def wait_for_mana(required_mana)
+      return if Char.mana >= required_mana
+      MCure.debug_msg("Waiting for mana: need #{required_mana}, have #{Char.mana}")
+      respond("Waiting for mana...")
+      sleep(1) until Char.mana >= required_mana
+    end
+
+    def restore_health
+      while Char.percent_health < 90
+        execute_healing_command("cure blood", 1)
+      end
+    end
+
+    def handle_critical_parts(part)
+      case part
+      when 'head'   then heal_to_scar_level('head', 1)
+      when 'nerves' then heal_to_scar_level('nerves', 1)
+      end
+    end
+
+    def heal_to_scar_level(part, target_level)
+      lich_name = BodyPartManager.lich_name_for(part)
+      while Scars.send(lich_name) > target_level
+        while Wounds.send(lich_name) > 0
+          heal_body_part(part, Wounds.send(lich_name) > 1)
+        end
+        heal_body_part(part, false, true)
+      end
+    end
+
+    def heal_target_wounds(wound_line)
+      body_parts = @appraiser.parse_wounds(wound_line)
+      return if body_parts.empty?
+      @spell_manager.check_signs
+      body_parts.each { |part| transfer_wound(part) }
+      pre_health = Char.health
+      post_health = 0
+      total_healed = 0
+      until pre_health == post_health
+        if Char.health <= 75 || Char.percent_health < 51
+          restore_health
+          next
+        end
+        pre_health = Char.health
+        fput("transfer #{@appraiser.heal_target}")
+        post_health = Char.health
+        total_healed += (pre_health - post_health)
+      end
+      report_healing_results(wound_line, total_healed)
+      restore_health
+    end
+
+    def transfer_wound(part)
+      MCure.debug_msg("Transferring #{part} from #{@appraiser.heal_target}")
+      case part
+      when /^(left|right) (arm|hand|leg|eye)$/
+        heal_body_part(part.gsub(' ', '')) if Wounds.send(BodyPartManager.lich_name_for(part.gsub(' ', ''))) == 3
+        fput("transfer #{@appraiser.heal_target} #{part}")
+      when /abdom/
+        heal_body_part('abdomen') if Wounds.abs == 3
+        fput("transfer #{@appraiser.heal_target} abdomen")
+        sleep(1)
+      when 'nerves'
+        heal_body_part('nerves') if Wounds.nsys == 3
+        fput("transfer #{@appraiser.heal_target} nerves")
+        sleep(1)
+      when 'head', 'neck'
+        heal_body_part(part) if Wounds.send(part) == 3
+        fput("transfer #{@appraiser.heal_target} #{part}")
+      when 'chest', 'back'
+        heal_body_part(part) if Wounds.send(part) == 3
+        fput("transfer #{@appraiser.heal_target} #{part}")
+      when 'exertion'
+        heal_exertion if Effects::Debuffs.active?("Overexerted")
+        fput("transfer #{@appraiser.heal_target} #{part}")
+      end
+    end
+
+    def report_healing_results(wound_description, health_healed)
+      if health_healed > 0
+        respond "You healed #{@appraiser.heal_target} of #{wound_description} along with #{health_healed} hitpoints."
+      else
+        respond "You healed #{@appraiser.heal_target} of #{wound_description}."
+      end
+    end
+
+    def get_group_members
+      Lich::Util.issue_command("group", /^You are/, /GROUP HELP/, usexml: false, quiet: true, silent: true)
+      Group.nouns
+    end
+
+    def perform_completion_action
+      return if @config.done_verb.nil? || @config.done_verb.empty?
+      fput @config.done_verb
+    end
+  end
+
+  class Application
+    def initialize
+      validate_character_profession
+      @config = Configuration.new(Char.name)
+      @spell_manager = SpellManager.new(@config)
+      @healing_engine = HealingEngine.new(@config, @spell_manager)
+    end
+
+    def run(args = [])
+      return toggle_debug        if args.include?('--debug')
+      return show_settings_list  if args.include?('--list')
+      return show_configuration  if args.first =~ /^setup$|^options$/i
+      return show_help           if args.include?('help')
+
+      MCure.debug_msg("run args=#{args.inspect} mode=#{@config.mode}")
+      process_arguments(args)
+      action = determine_action(args)
+      MCure.debug_msg("Action: #{action}")
+
+      case action
+      when :heal_self
+        @healing_engine.heal_self
+      when :heal_targets
+        heal_specified_targets(args)
+        @healing_engine.heal_self
+      when :heal_group
+        @healing_engine.heal_group
+        @healing_engine.heal_self
+      when :heal_room
+        @healing_engine.heal_room
+        @healing_engine.heal_self
+      end
+
+      exit_if_alternative_behavior(args)
+    end
+
+    private
+
+    def toggle_debug
+      MCure.debug = !MCure.debug?
+      respond "MCure debug mode: #{MCure.debug? ? 'ON' : 'OFF'}"
+      exit
+    end
+
+    def show_settings_list
+      w = 16
+      respond "=[ MCure Settings: #{Char.name} ]="
+      respond "#{"Mode".ljust(w)}: #{@config.mode}"
+      respond "#{"Done Verb".ljust(w)}: #{@config.done_verb.empty? ? '(none)' : @config.done_verb}"
+      respond "#{"Use Signs".ljust(w)}: #{@config.use_signs?}"
+      respond "#{"Troll's Blood".ljust(w)}: #{@config.use_trolls_blood?}"
+      respond "#{"Alt Behavior".ljust(w)}: #{@config.alternative_behavior?}"
+      respond "#{"Head/Nerve Pri.".ljust(w)}: #{@config.head_nerve_priority?}"
+      respond "#{"All Wounds Lvl".ljust(w)}: #{@config.all_wounds_level}"
+      respond "#{"All Scars Lvl".ljust(w)}: #{@config.all_scars_level}"
+      Configuration::BODY_PARTS.each do |part|
+        respond "#{part.ljust(12)}  #{@config.wound_level(part).to_s.ljust(6)}  #{@config.scar_level(part)}"
+      end
+      exit
+    end
+
+    def show_configuration
+      require_gui
+      gui = ConfigurationGUI.new(@config)
+      gui.show
+      exit
+    end
+
+    def show_help
+      respond "MCure - Mystienne's custom healing script"
+      respond "  mcure              - Heal yourself"
+      respond "  mcure setup        - Open configuration GUI"
+      respond "  mcure <names>      - Heal specific targets"
+      respond "  mcure group        - Heal group members"
+      respond "  mcure room         - Heal everyone in room"
+      respond "  mcure all          - Heal completely"
+      respond "  mcure hunt/heal    - Switch active mode"
+      respond "  mcure --list       - Show current settings"
+      respond "  mcure --debug      - Toggle debug output"
+      exit
+    end
+
+    def process_arguments(args)
+      if args.include?("all")
+        @config.all_wounds_level = 0
+        @config.all_scars_level  = 0
+        args.delete("all")
+      end
+      @config.mode = 'hunt' if args.first =~ /^hunt$/i
+      @config.mode = 'heal' if args.first =~ /^heal$/i
+    end
+
+    def determine_action(args)
+      return :heal_room    if args.include?('room')
+      return :heal_group   if args.include?('group')
+      return :heal_targets if find_target_players(args).any?
+      :heal_self
+    end
+
+    def heal_specified_targets(args)
+      targets = find_target_players(args)
+      return if targets.empty?
+      respond("Attempting to heal #{targets.join(', ')}")
+      targets.each { |target| @healing_engine.heal_target(target) }
+    end
+
+    def find_target_players(args)
+      return [] unless GameObj.pcs&.any?
+      targets = []
+      failed_targets = []
+      reserved = %w[hunt heal group room all setup options help --list --debug]
+      args.each do |input|
+        next if reserved.include?(input.downcase)
+        pc = GameObj.pcs.find { |gameobj_pc| gameobj_pc.noun =~ /^#{input}/i }
+        pc ? targets << pc.noun : failed_targets << input
+      end
+      respond("Could not find: #{failed_targets.join(', ')}") if failed_targets.any?
+      targets
+    end
+
+    def exit_if_alternative_behavior(args)
+      exit if @config.alternative_behavior? && args.any?
+    end
+
+    def validate_character_profession
+      return if Stats.prof == 'Empath'
+      respond "Nice try, non-empath person!"
+      exit
+    end
+
+    def require_gui
+      # GUI class carried over from ECure - same implementation, MCure namespace
+    end
+  end
+
+  # GUI class is identical to ECure's ConfigurationGUI, just with MCure references
+  # Full GUI implementation inherited from ECure pattern - replace ECure with MCure in labels
+  class ConfigurationGUI
+    def initialize(config)
+      @config = config
+      @window = nil
+      @window_action = nil
+    end
+
+    def show
+      create_gui_window
+      wait_for_user_action
+      cleanup_gui
+      @config.save if @window_action == :save
+    end
+
+    private
+
+    def create_gui_window
+      Gtk.queue do
+        @window = Gtk::Window.new
+        @window.title = "MCure Configuration"
+        @window.border_width = 10
+        @window.signal_connect('delete_event') { @window_action = :cancel }
+        setup_notebook_interface
+        @window.show_all
+      end
+    end
+
+    def setup_notebook_interface
+      notebook = Gtk::Notebook.new
+      notebook.append_page(create_simple_setup_tab,  Gtk::Label.new("Basic Setup"))
+      notebook.append_page(create_hunting_setup_tab, Gtk::Label.new("Hunting Setup"))
+      notebook.append_page(create_healing_setup_tab, Gtk::Label.new("Healing Setup"))
+      main_table = Gtk::Table.new(2, 1, false)
+      main_table.attach(notebook, 0, 1, 0, 1)
+      main_table.attach(create_save_button, 0, 1, 1, 2)
+      @window.add(main_table)
+    end
+
+    def create_simple_setup_tab
+      table = Gtk::Table.new(6, 4, false)
+      table.border_width = 3
+      table.attach(Gtk::Label.new("Wounds:"), 0, 1, 0, 1, :shrink, :shrink, 2, 1)
+      table.attach(create_all_wounds_control, 1, 2, 0, 1, :shrink, :shrink, 8, 1)
+      table.attach(Gtk::Label.new("Scars:"), 2, 3, 0, 1, :shrink, :shrink, 2, 1)
+      table.attach(create_all_scars_control, 3, 4, 0, 1, :shrink, :shrink, 2, 1)
+      mode_button = create_mode_toggle_button
+      mode_button.set_size_request(200, -1)
+      table.attach(mode_button, 0, 4, 1, 2, :shrink, :shrink, 2, 2)
+      cbs = create_checkbox_controls
+      table.attach(cbs[:head_nerve_priority],  0, 2, 2, 3, :shrink, :shrink, 2, 1)
+      table.attach(cbs[:use_trolls_blood],     2, 4, 2, 3, :shrink, :shrink, 2, 1)
+      table.attach(cbs[:alternative_behavior], 0, 2, 3, 4, :shrink, :shrink, 2, 1)
+      table.attach(cbs[:use_signs],            2, 4, 3, 4, :shrink, :shrink, 2, 1)
+      done_hbox = Gtk::Box.new(:horizontal, 5)
+      done_hbox.pack_start(Gtk::Label.new("Done:"), expand: false, fill: false, padding: 0)
+      done_entry = create_done_verb_entry
+      done_entry.set_size_request(120, -1)
+      done_hbox.pack_start(done_entry, expand: false, fill: false, padding: 0)
+      table.attach(done_hbox, 0, 4, 4, 5, :shrink, :shrink, 2, 1)
+      table.attach(Gtk::Label.new("Commands: ;mcure [targets|group|room|all]"), 0, 4, 5, 6, :shrink, :shrink, 2, 2)
+      table
+    end
+
+    def create_checkbox_controls
+      {
+        head_nerve_priority: create_cb("Head/Nerve Priority", @config.head_nerve_priority?, "Heal head/nerves to scar 1 first") { |a| @config.head_nerve_priority = a },
+        use_trolls_blood:    create_cb("Use Troll's Blood",  @config.use_trolls_blood?,    "Cast Troll's Blood before healing")  { |a| @config.use_trolls_blood = a },
+        alternative_behavior:create_cb("Alt Behavior",        @config.alternative_behavior?,"Different targeting behavior")        { |a| @config.alternative_behavior = a },
+        use_signs:           create_cb("Use Signs",            @config.use_signs?,           "Use CoL signs to prevent bleeding")   { |a| @config.use_signs = a },
+      }
+    end
+
+    def create_cb(label, state, tip, &cb)
+      btn = Gtk::CheckButton.new(label)
+      btn.set_active(state)
+      btn.set_tooltip_text(tip)
+      btn.signal_connect("clicked") { cb.call(btn.active?) }
+      btn
+    end
+
+    def create_done_verb_entry
+      entry = Gtk::Entry.new
+      entry.set_text(@config.done_verb)
+      entry.signal_connect("changed") { @config.done_verb = entry.text }
+      entry
+    end
+
+    def create_all_wounds_control
+      s = Gtk::SpinButton.new(0, 3, 1)
+      s.value = @config.all_wounds_level.to_f
+      s.signal_connect("value_changed") { @config.all_wounds_level = s.value.to_i }
+      s
+    end
+
+    def create_all_scars_control
+      s = Gtk::SpinButton.new(0, 3, 1)
+      s.value = @config.all_scars_level.to_f
+      s.signal_connect("value_changed") { @config.all_scars_level = s.value.to_i }
+      s
+    end
+
+    def create_mode_toggle_button
+      lbl = ->(m) { m == 'heal' ? 'Healing Mode Selected' : 'Hunting Mode Selected' }
+      btn = Gtk::Button.new(label: lbl.call(@config.mode))
+      btn.signal_connect('clicked') do
+        @config.mode = @config.mode == 'heal' ? 'hunt' : 'heal'
+        btn.label = lbl.call(@config.mode)
+      end
+      btn
+    end
+
+    def create_healing_setup_tab; create_body_part_tab('heal'); end
+    def create_hunting_setup_tab; create_body_part_tab('hunt'); end
+
+    def create_body_part_tab(mode_type)
+      box = Gtk::Box.new(:vertical, 2)
+      box.border_width = 3
+      box.pack_start(Gtk::Label.new("#{mode_type.capitalize}: 3=ignore, 0=heal completely"), expand: false, fill: false, padding: 1)
+      content = Gtk::Box.new(:horizontal, 5)
+      wf = Gtk::Frame.new("Wounds"); wf.add(create_body_part_grid(:wounds, mode_type)); content.pack_start(wf, expand: false, fill: false, padding: 2)
+      sf = Gtk::Frame.new("Scars");  sf.add(create_body_part_grid(:scars,  mode_type)); content.pack_start(sf, expand: false, fill: false, padding: 2)
+      box.pack_start(content, expand: false, fill: false, padding: 0)
+      box
+    end
+
+    def create_body_part_grid(injury_type, mode_type)
+      table = Gtk::Table.new(7, 2, false)
+      table.border_width = 2
+      core_parts = [['Head','head'],['Neck','neck'],['Chest','chest'],['Abdomen','abdomen'],['Back','back'],['Nerves','nerves']]
+      limb_parts = [['R.Arm','rightarm'],['L.Arm','leftarm'],['R.Hand','righthand'],['L.Hand','lefthand'],['R.Leg','rightleg'],['L.Leg','leftleg'],['R.Eye','righteye'],['L.Eye','lefteye']]
+      row = 0
+      core_parts.each do |dname, part|
+        lbl = Gtk::Label.new("#{dname}:"); lbl.set_alignment(0.0, 0.5); lbl.set_size_request(50, -1)
+        table.attach(lbl, 0, 1, row, row+1, :shrink, :shrink, 1, 1)
+        table.attach(create_spin(part, injury_type, mode_type), 1, 2, row, row+1, :shrink, :shrink, 1, 1)
+        row += 1
+      end
+      table.attach(Gtk::HSeparator.new, 0, 2, row, row+1, :fill, :shrink, 0, 1); row += 1
+      lt = Gtk::Table.new(4, 4, false); lr = 0; lc = 0
+      limb_parts.each do |dname, part|
+        b = Gtk::Box.new(:horizontal, 1)
+        lbl = Gtk::Label.new(dname); lbl.set_size_request(30, -1)
+        sp = create_spin(part, injury_type, mode_type); sp.set_size_request(40, -1)
+        b.pack_start(lbl, expand: false, fill: false, padding: 0)
+        b.pack_start(sp,  expand: false, fill: false, padding: 0)
+        lt.attach(b, lc, lc+1, lr, lr+1, :shrink, :shrink, 1, 1)
+        lc += 1; if lc >= 2; lc = 0; lr += 1; end
+      end
+      table.attach(lt, 0, 2, row, row+1, :shrink, :shrink, 0, 0)
+      table
+    end
+
+    def create_spin(part, injury_type, mode_type)
+      cur = injury_type == :wounds ? @config.wound_level(part, mode_type) : @config.scar_level(part, mode_type)
+      sp = Gtk::SpinButton.new(0, 3, 1); sp.value = cur.to_f; sp.set_size_request(50, -1)
+      sp.signal_connect("value_changed") do
+        if injury_type == :wounds then @config.set_wound_level(part, sp.value.to_i, mode_type)
+        else @config.set_scar_level(part, sp.value.to_i, mode_type) end
+      end
+      sp
+    end
+
+    def create_save_button
+      btn = Gtk::Button.new(label: 'Save')
+      btn.signal_connect('clicked') { respond("-=[ Settings Saved ]=-"); @window_action = :save }
+      btn
+    end
+
+    def wait_for_user_action
+      before_dying { Gtk.queue { @window&.destroy } }
+      wait_while { @window_action.nil? }
+      undo_before_dying
+    end
+
+    def cleanup_gui
+      Gtk.queue { @window&.destroy }
+    end
+  end
+end
+
+# Script execution
+silence_me
+before_dying { DownstreamHook.remove("Appraising") }
+
+mcure_app = MCure::Application.new
+mcure_app.run(Script.current.vars[1..-1])
