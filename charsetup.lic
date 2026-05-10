@@ -1,0 +1,14 @@
+account = Script.current.vars[0]
+
+if account.nil? || account.empty?
+  echo "Usage: ;lumnissetup <accountname>"
+  exit
+end
+
+start_script('lumnismon', ["--char-account=#{account}"])
+sleep 0.2
+start_script('lumnismon', ['--show-account=on'])
+sleep 0.2
+start_script('lumnismon', ['--header-repeat-rows=0'])
+sleep 0.2
+start_script('lumnismon')

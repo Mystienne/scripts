@@ -10,6 +10,7 @@
 =end
 
 MULAROS_SAYINGS = [
+	# -- reverent / devotional --
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :reverent ::#{h} Mularos smiles upon this moment. Give me your wounds." },
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :prayerful ::#{h} I offer your suffering to Him gladly. Be still." },
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :solemn ::#{h} The Lord of Suffering has sent me. You need not ask why." },
@@ -18,51 +19,233 @@ MULAROS_SAYINGS = [
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :prayerful ::#{h} Let this be an act of devotion, #{h}. For Him, and for the hurt you carry." },
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :solemn ::#{h} I have been called to receive your suffering. It is an honor I do not take lightly." },
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :meditative ::#{h} Still your mind, #{h}. I need only a moment to reach for what torments you." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :reverent ::#{h} He witnessed this. I am certain of it. Thank you for the offering, #{h}." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :prayerful ::#{h} The pain you gave has been received with all the reverence it deserved." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :solemn ::#{h} I will not forget what you gave me today, #{h}. It meant more than you know." },
+
+	# -- seductive / inviting --
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :seductive ::#{h} Your blood sings to me. Let me drink deeply of your hurt." },
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :inviting ::#{h} Every wound you carry is a gift I have not yet unwrapped." },
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :sensuous ::#{h} There is beauty in your suffering. I intend to carry it myself." },
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :enticing ::#{h} What delicious suffering you carry. Come. Let us trade." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :lusty ::#{h} You have bled so prettily. It would be a shame not to share." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :seductive ::#{h} Come closer, #{h}. I promise you will feel better. I cannot promise the same for myself." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :inviting ::#{h} Your hurt calls out and something in me answers. That is all the invitation I need." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :sensuous ::#{h} I can already feel the edges of your pain from here. How lovely it is." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :enticing ::#{h} Others offer coin for healing. You offer something far more valuable, #{h}." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :amorous ::#{h} Suffering shared between two souls is the most intimate thing in this world." },
+
+	# -- dark / ominous --
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :dark ::#{h} The darkness within me stirs at the sight of you. This pleases me." },
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :ominous ::#{h} I do not heal out of kindness. I heal because your pain belongs to me." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :menacing ::#{h} Do not mistake my mercy for gentleness, #{h}. I assure you it is neither." },
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :cryptic ::#{h} Something within you called to me. I could not have ignored it if I tried." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :dark ::#{h} Pain is not the enemy, #{h}. It is the only honest thing left in this world." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :ominous ::#{h} You have no idea what you are asking of me. Fortunately for you, I enjoy the asking." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :menacing ::#{h} I will take everything that is hurting you. Everything. You have been warned." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :cryptic ::#{h} The wound knows the one who craves it. I have always known your name." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :dark ::#{h} Most healers do this out of duty. I do it out of need. There is a difference." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :ominous ::#{h} Something in the world is wrong when the broken do not seek those who hunger for it." },
+
+	# -- hungry / voracious --
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :voracious ::#{h} The gift of pain is the sweetest offering. Come, let me take yours." },
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :hungry ::#{h} I have been waiting for something worth feeling. Come closer." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :covetous ::#{h} Hush. I can feel it already, give me a moment to savor what is mine." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :greedy ::#{h} Quiet now. Pain this exquisite should not be wasted on just one." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :voracious ::#{h} Do not flinch, #{h}. I want all of it, not just the parts you think I can bear." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :hungry ::#{h} Every moment you stood there bleeding was a moment I was denied. Come here." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :covetous ::#{h} Your suffering has been sitting there waiting for someone worthy of it. That is me." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :greedy ::#{h} Others may share your pain in small measures. I prefer to take it whole." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :voracious ::#{h} Do not thank me, #{h}. Thanking me implies I did this for you." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :hungry ::#{h} The waiting is the hardest part. Now that you are here, I am content." },
+
+	# -- sardonic / wry --
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :sardonic ::#{h} I serve Mularos, and Mularos is merciful, in His own particular way." },
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :wry ::#{h} Your suffering calls to me like a prayer. I will answer it." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :dry ::#{h} Do not be afraid. Pain shared is pain savored. You will learn to appreciate that." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :sly ::#{h} Most would call this healing, #{h}. I call it a fair trade." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :sardonic ::#{h} You came to the right place, #{h}. Though perhaps not for the reasons you think." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :wry ::#{h} I have been told I am an unusual healer. I prefer the word dedicated." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :dry ::#{h} You look terrible, #{h}. It is honestly a bit exciting." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :sly ::#{h} Some pay in coin. Some in gratitude. You pay in something far more interesting." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :sardonic ::#{h} They say empaths suffer for their calling. I suspect I suffer rather more willingly than most." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :wry ::#{h} Come now. I have seen worse. Though I will admit I hoped I would not have to wait this long." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :droll ::#{h} You bleed as though you have had practice, #{h}. I appreciate the dedication." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :dry ::#{h} I could pretend this is entirely selfless. But you deserve honesty." },
+
+	# -- tormented / fervent --
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :tormented ::#{h} It pulls at me, your agony. I cannot let it go to waste." },
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :fervent ::#{h} He watches us now, #{h}. Let us not disappoint Him." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :passionate ::#{h} Every wound transferred is a prayer. Every scar, an offering." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :rapturous ::#{h} Yes... yes. Give it to me. All of it." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :tormented ::#{h} I have ached for this all day, #{h}. You have no idea what a relief you are." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :fervent ::#{h} There is no act more sacred than this. The giving of pain to one who craves it." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :passionate ::#{h} I would carry every wound in this city if I could. Yours will do for now." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :rapturous ::#{h} The moment your hurt passes into me is the only peace I know." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :tormented ::#{h} Do you know what it is to want something you cannot ask for? Now you will not have to." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :fervent ::#{h} Suffering is not a burden to be hidden, #{h}. It is a gift to be received." },
+
+	# -- longing / introspective --
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :longing ::#{h} I have carried the pain of so many. Yours feels different. I welcome that." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :introspective ::#{h} There is a kind of peace that only comes when another's hurt becomes your own." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :wistful ::#{h} The wound passes and then it is over. I always find that part a little sad." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :longing ::#{h} I envy those who feel nothing. And then I remember I do not envy them at all." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :dreamy ::#{h} Sometimes I think the world would be kinder if more people understood what I do." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :introspective ::#{h} Pain is honest, #{h}. It does not lie to you about what it is." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :meditative ::#{h} Be still. Let me reach for it. This is the part I live for." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :longing ::#{h} Every healer has their reason. Mine is not one most would understand." },
+
+	# -- calm / assured --
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :calm ::#{h} You came to the right place. I will take good care of what ails you." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :placid ::#{h} There is no need to explain yourself. I already understand what you need." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :calm ::#{h} Breathe. Whatever you are carrying, I am about to make it mine." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :serene ::#{h} The hurt you feel is real. And I am very glad it is." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :placid ::#{h} I have done this a thousand times. It never stops being exactly what I need." },
+
+	# -- possessive / intense --
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :intense ::#{h} Your suffering does not belong in you, #{h}. It belongs in me. Let me have it." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :obsessive ::#{h} I noticed you the moment you walked in. The wound gave you away." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :intense ::#{h} Do not give this to anyone else, #{h}. I saw you first." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :compulsive ::#{h} I cannot help it. The moment I sense pain I am already reaching for it." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :obsessive ::#{h} You will find no one who wants this more than I do. I promise you that." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :intense ::#{h} I need this as much as you do. Perhaps more. Let us not keep each other waiting." },
+
+	# -- grateful / tender --
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :tender ::#{h} Thank you for coming to me, #{h}. You could not have known how much I needed this." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :warm ::#{h} Your pain is safe with me. I will treasure it properly." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :tender ::#{h} Not everyone would offer what you are about to offer. I do not take it for granted." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :grateful ::#{h} I am grateful, #{h}. More than you know, and perhaps more than you would prefer." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :warm ::#{h} Come here. Let me show you what it means to give pain to someone who truly wants it." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :tender ::#{h} You look like you have been carrying this a long time. It is my turn now." },
 ]
 
 MULAROS_THANKS = [
+	# -- reverent / grateful --
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :reverent ::#{h} Your suffering was a worthy offering, #{h}. Mularos is pleased." },
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :prayerful ::#{h} I will carry what you gave me with gratitude, #{h}. He sees your gift." },
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :solemn ::#{h} What passed between us just now was sacred. Do not forget it." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :serene ::#{h} The exchange is complete. I am satisfied. Thank you, #{h}." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :reverent ::#{h} He witnessed this. I am certain of it. Thank you for the offering, #{h}." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :prayerful ::#{h} The pain you gave has been received with all the reverence it deserved." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :solemn ::#{h} I will not forget what you gave me today, #{h}. It meant more than you know." },
+
+	# -- sensuous / savoring --
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :sensuous ::#{h} That was exquisite, #{h}. You are most generous with your pain." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :rapturous ::#{h} Mmm. You gave more than I expected. I am grateful, #{h}." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :lusty ::#{h} Your wounds tasted of something rare, #{h}. I thank you for them." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :seductive ::#{h} Come back to me when you are broken again, #{h}. I will be waiting." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :sensuous ::#{h} That lingered longer than most. I am still savoring it, #{h}. My gratitude." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :rapturous ::#{h} I did not expect to feel that so deeply. You have outdone yourself, #{h}." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :lusty ::#{h} There was something exquisite in what you carried. Thank you for sharing it." },
+
+	# -- dark / ominous --
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :dark ::#{h} The darkness within me is quieter now, #{h}. You have done well." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :ominous ::#{h} I have taken your pain. Do try to earn more." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :cryptic ::#{h} Something of you lingers in me now, #{h}. I find I do not mind." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :menacing ::#{h} You are whole again, #{h}. Do not waste it." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :dark ::#{h} I am sated for now, #{h}. That is the closest thing to peace I possess." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :ominous ::#{h} What you carried was remarkable. The world will not miss it. I will." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :cryptic ::#{h} You feel lighter. I feel heavier. We are both better for it." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :menacing ::#{h} Go carefully, #{h}. I would prefer not to repeat this too soon. Mostly." },
+
+	# -- wry / sardonic --
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :sardonic ::#{h} Most would say you owe me, #{h}. I would say we are even." },
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :wry ::#{h} A fair trade, #{h}. Your suffering for your wholeness. He approves." },
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :dry ::#{h} You are healed. I am nourished. I call that a success." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :sly ::#{h} Go on then, #{h}. Try not to fall apart again too quickly." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :sardonic ::#{h} You look surprised to be whole. Try to look less ungrateful about it, #{h}." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :wry ::#{h} The part where I suffer is the part you did not see. You are welcome." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :dry ::#{h} Done. You may resume whatever it was that got you into that state." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :droll ::#{h} I would say it was my pleasure, #{h}. And unlike most healers, I would mean it." },
+
+	# -- fervent / tormented --
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :fervent ::#{h} Every wound you gave me was a hymn. I am grateful, #{h}." },
-	proc { |h, w| "#{w ? 'whisper' : 'say'} :tender ::#{h} You trusted me with your pain, #{h}. That is not nothing. Thank you." },
-	proc { |h, w| "#{w ? 'whisper' : 'say'} :satisfied ::#{h} Mine now, #{h}. Every last bit of it. You are free." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :tormented ::#{h} It is over now. And yet something in me already hungers again." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :passionate ::#{h} What you gave was beautiful, #{h}. Do not let it have been for nothing." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :fervent ::#{h} Pain given freely is the purest gift. I am honored by yours, #{h}." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :tormented ::#{h} The ache of it is already fading. I hate that part. Thank you, #{h}." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :passionate ::#{h} I would do this again without hesitation. You know where to find me." },
+
+	# -- longing / tender --
 	proc { |h, w| "#{w ? 'whisper' : 'say'} :longing ::#{h} It passes so quickly. I am always a little bereft when it is over." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :tender ::#{h} You trusted me with your pain, #{h}. That is not nothing. Thank you." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :wistful ::#{h} Already it is fading into memory. These moments never last long enough." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :longing ::#{h} Go well, #{h}. And know that what you gave will be remembered fondly." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :tender ::#{h} I carry it now. You do not have to anymore. That is how it should be." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :warm ::#{h} You came to the right person, #{h}. I hope you know that." },
+
+	# -- possessive / satisfied --
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :satisfied ::#{h} Mine now, #{h}. Every last bit of it. You are free." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :obsessive ::#{h} I always remember the ones who give willingly. I will remember you." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :intense ::#{h} That is what I needed today. I hope you needed it too." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :compulsive ::#{h} I could not have walked away from that if I tried. Thank you for not making me." },
+	proc { |h, w| "#{w ? 'whisper' : 'say'} :pleased ::#{h} You have no idea how long I waited for something like that. Thank you, #{h}." },
 ]
 
 MULAROS_OFFER_THANKS = [
+	# -- reverent / gracious --
 	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :reverent ::#{h} This #{i} is a worthy tribute, #{h}. Mularos smiles upon your generosity." },
 	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :prayerful ::#{h} I accept this #{i} in His name, #{h}. Your offering is noted." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :gracious ::#{h} You honor me with this #{i}, #{h}. It will be treasured." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :solemn ::#{h} This #{i} shall remind me of your gift, #{h}. I am grateful." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :reverent ::#{h} A #{i} and your suffering both in one day, #{h}. You are uncommonly generous." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :prayerful ::#{h} He sees this #{i} as clearly as He saw your wounds. Both are offerings." },
+
+	# -- dark / covetous --
 	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :covetous ::#{h} This #{i} pleases me, #{h}. Almost as much as your wounds did." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :dark ::#{h} A fitting tribute, #{h}. The darkness within me stirs with approval." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :ominous ::#{h} This #{i} is mine now, #{h}. As your suffering was. Thank you." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :cryptic ::#{h} I sense meaning in this #{i}, #{h}. He intended you to give it." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :covetous ::#{h} I have wanted many things in my life. This #{i} was not among them. And yet I find I want it now." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :dark ::#{h} Objects carry the energy of those who held them. This #{i} will carry yours, #{h}." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :ominous ::#{h} A curious choice of gift, #{h}. I like that about you." },
+
+	# -- sensuous / savoring --
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :sensuous ::#{h} How thoughtful, #{h}. This #{i} is as lovely as your pain was." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :seductive ::#{h} You bring me gifts, #{h}. You understand me better than most." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :lusty ::#{h} First your wounds, now a #{i}. You are dangerously generous, #{h}." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :sensuous ::#{h} A #{i} after suffering shared. You know how to make an impression, #{h}." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :enticing ::#{h} This #{i} and the memory of your pain. You have given me two gifts today." },
+
+	# -- wry / sardonic --
 	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :sardonic ::#{h} A #{i}. How fitting. Almost as precious as the pain you shared." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :wry ::#{h} You need not have brought a #{i}, #{h}. And yet I am glad you did." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :dry ::#{h} A #{i}. My thanks, #{h}. You may go be whole somewhere else now." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :sly ::#{h} Offerings accepted, #{h}. Come back broken again sometime." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :sardonic ::#{h} Most people offer coin. You offer a #{i}. I think I prefer you, #{h}." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :wry ::#{h} I did not expect a #{i} today. The day has exceeded expectations." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :droll ::#{h} A #{i}. From someone who just gave me their wounds. You are thorough, #{h}." },
+
+	# -- tender / warm --
 	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :tender ::#{h} This #{i} was not necessary, #{h}. But I am glad you offered it." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :warm ::#{h} You came to me hurting and left me a #{i} as well. That means something." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :tender ::#{h} I will keep this #{i} close, #{h}. It will remind me of what we shared." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :grateful ::#{h} The #{i} is appreciated. But it was your trust that mattered most today." },
+
+	# -- fervent / intense --
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :fervent ::#{h} This #{i} joins the pain you gave me as an offering. Both are received." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :passionate ::#{h} You gave me your hurt and now a #{i}. I am twice blessed today, #{h}." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :intense ::#{h} Do not give #{i}s to everyone who heals you, #{h}. Save them for those who mean it." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :obsessive ::#{h} A #{i} from #{h}. I will not forget where this came from." },
+	proc { |h, i, w| "#{w ? 'whisper' : 'say'} :compulsive ::#{h} I accepted before I even thought about it. The #{i} called to me as clearly as your wounds did." },
 ]
 
 def mularos_thank_healee(healee, whisper_mode = false)
 	sleep rand(5..10)
-	fput MULAROS_THANKS.sample.call(healee, whisper_mode)
+	# Check if target is still in the room
+	still_here = GameObj.pcs.any? { |pc| pc.noun =~ /^#{healee}$/i }
+	if still_here
+		fput MULAROS_THANKS.sample.call(healee, whisper_mode)
+	else
+		# Target has left — send a private think to instead
+		saying = MULAROS_THANKS.sample.call(healee, false)
+		# Extract just the message text from the say/whisper command
+		if saying =~ /(?:say|whisper) (?::\w+ )?(?:::#{healee} )?(.+)$/
+			fput "think to #{healee} :wistful #{$1}"
+		else
+			fput "think to #{healee} :wistful The moment has passed, #{healee}. But what you gave lingers still."
+		end
+	end
 end
 
 MULAROS_SELF_THANKS = [
@@ -320,6 +503,10 @@ module MCure
       fput MULAROS_SAYINGS.sample.call(@appraiser.heal_target, whisper_mode)
       heal_target_wounds(wound_line)
       healed_name = @appraiser.heal_target
+
+      # Post-heal appraisal — use fput so injurywatch downstream hook sees the result
+      waitrt?
+      fput "appraise #{healed_name}"
       Thread.new { mularos_thank_healee(healed_name, whisper_mode) }
     end
 
@@ -470,7 +657,7 @@ module MCure
       return show_configuration if args.first =~ /^setup$|^options$/i
       return show_help          if args.include?('help')
 
-      whisper_mode   = args.delete('--whisper') || false
+      whisper_mode   = args.delete('--whisper') || args.delete('whisper') || false
       healing_engine = MCure::HealingEngine.new(@config, @spell_manager, whisper_mode: whisper_mode)
 
       process_arguments(args)
@@ -531,7 +718,7 @@ module MCure
       respond "  mcure room         - Heal everyone in room"
       respond "  mcure all          - Heal completely"
       respond "  mcure hunt/heal    - Switch active mode"
-      respond "  mcure --whisper    - Use whisper mode for sayings"
+      respond "  mcure whisper      - Use whisper mode for sayings"
       respond "  mcure --list       - Show current settings"
       respond "  mcure --debug      - Toggle debug output"
       exit
@@ -556,7 +743,7 @@ module MCure
 
     def find_target_players(args)
       return [] unless GameObj.pcs&.any?
-      reserved = %w[hunt heal group room all setup options help --list --debug --whisper]
+      reserved = %w[hunt heal group room all setup options help --list --debug --whisper whisper]
       targets = []; failed = []
       args.each do |input|
         next if reserved.include?(input.downcase)

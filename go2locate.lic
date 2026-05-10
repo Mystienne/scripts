@@ -1,58 +1,102 @@
+# encoding: utf-8
 =begin
 
-	This script attemps to make go2 take you to the last room you located.
+  go2locate.lic - Attempts to make go2 take you to the last room you located.
+  Optionally casts Locate Person (116) on a target first.
 
-	tillmen@lichproject.org
+  Usage:
+    ;go2locate              (uses last locate in buffer)
+    ;go2locate <name>       (casts locate on name first, then navigates)
+
+  tillmen@lichproject.org (bugfixed)
 
 =end
 
-room_title = room_description = room_exits_string = nil
-
+# If a name was passed, cast locate on them first
 if script.vars[1]
-	# fput 'set description on'
-	cast(116, script.vars[1])
-	# fput 'set description off'
+  target = script.vars[1]
+
+  result = dothistimeout "prepare 116", 10, /Your spell is ready|already preparing/i
+  if result.nil?
+    echo "go2locate: Timed out waiting to prepare spell."
+    exit
+  end
+
+  result = dothistimeout "cast #{target}", 10, /Cast Roundtime|your sight begins to clear|beyond the reach|What were you referring|unseen force|withers/i
+  if result.nil?
+    echo "go2locate: Timed out waiting for cast result."
+    exit
+  end
+
+  waitrt
 end
 
-history = ($_SERVERBUFFER_ + $_SERVERBUFFER_.history).reverse
-history.each_index { |i|
-	# Your vision begins to become murky and clouded.  You have a sensation of rapidly passing distance.  Eventually your sight begins to clear and a vision of .* surroundings fills your mind...
-	if history[i] =~ /^Your vision begins to become murky and clouded/
-		history[i-7..i].each { |line|
-			if line =~ /<style id="roomName" \/>(.*)$/
-				room_title = $1.strip
-			elsif line =~ /<style id="roomDesc"\/>(.*?)<style id=""\/>/
-				room_description = $1.strip.gsub(/<.*?>/, '')
-			elsif line =~ /(Obvious (?:paths|exits): .*)/
-				room_exits_string = $1.strip.gsub(/<.*?>/, '')
-			end
-		}
-		break
-	end
-}
+# Search the server buffer for the most recent locate vision
+room_title       = nil
+room_description = nil
+room_exits_string = nil
 
-if room_title and room_exits_string and not room_description
-	echo 'Room descriptions must be turned on.'
-	exit
+buffer = $_SERVERBUFFER_.dup rescue []
+buffer = (buffer + buffer.history rescue buffer)
+history = buffer.reverse
+
+history.each_index do |i|
+  if history[i] =~ /your sight begins to clear and a vision/i
+    # Search forward in the reversed buffer (i.e. lines that came after the trigger)
+    window = history[(i - 15).clamp(0, history.length)..i].reverse
+    window.each do |line|
+      clean = line.gsub(/<.*?>/, '').strip
+
+      if line =~ /<style id="roomName" \/>(.*)$/ || line =~ /^\[(.+?) - \d+\]/
+        room_title = ($1 || clean).strip
+      elsif line =~ /<style id="roomDesc"\/>.*?<style id=""\/>/
+        room_description = line.gsub(/<.*?>/, '').strip
+      elsif room_description.nil? && clean.length > 40 && clean !~ /^(Also here|Obvious|You also)/
+        # Fallback: treat long descriptive lines as room description
+        room_description ||= clean
+      elsif clean =~ /(Obvious (?:paths|exits): .+)/
+        room_exits_string = $1.strip
+      end
+    end
+    break
+  end
 end
 
-unless room_title and room_description and room_exits_string
-	echo 'Could not find a locate in your history.  Locate someone and try again.'
-	exit
+unless room_title
+  echo "go2locate: Could not find a locate vision in your buffer. Locate someone and try again."
+  exit
 end
 
-room = Map.list.find { |room| room.title.include?(room_title) and room.desc.include?(room_description) and room.paths.include?(room_exits_string) }
+unless room_description
+  echo "go2locate: Room description not found. Make sure description display is on."
+  exit
+end
+
+unless room_exits_string
+  echo "go2locate: Could not find obvious exits from the located room."
+  exit
+end
+
+# Try exact match first
+room = Map.list.find { |r| r.title.include?(room_title) && r.desc.include?(room_description) && r.paths.include?(room_exits_string) }
+
+# Fuzzy description match if exact fails
+unless room
+  desc_regex = /#{Regexp.escape(room_description).gsub(/\\\.(?:\\\.\\\.)?/, '|')}/
+  room = Map.list.find { |r| r.title.include?(room_title) && r.paths.include?(room_exits_string) && r.desc.find { |d| d =~ desc_regex } }
+end
+
+# Title + exits only as last resort
+unless room
+  room = Map.list.find { |r| r.title.include?(room_title) && r.paths.include?(room_exits_string) }
+end
 
 unless room
-	desc_regex = /#{Regexp.escape(room_description).gsub(/\\\.(?:\\\.\\\.)?/, '|')}/
-	room = Map.list.find { |room| room.title.include?(room_title) and room.paths.include?(room_exits_string) and room.desc.find { |desc| desc =~ desc_regex } }
+  echo "go2locate: Could not find a matching room in the map database for the last locate."
+  echo "go2locate: Title: #{room_title}"
+  echo "go2locate: Exits: #{room_exits_string}"
+  exit
 end
 
-unless room
-	echo 'Could not find a maching room in the map database for the last locate.'
-	exit
-end
-
-pause_script if script.vars[1]
-
-start_script 'go2', [ room.id.to_s ]
+echo "go2locate: Navigating to room #{room.id} -- #{room_title}"
+start_script 'go2', [room.id.to_s]

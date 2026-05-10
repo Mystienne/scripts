@@ -1,642 +1,798 @@
+# encoding: utf-8
 =begin
-	# Heal bot
-	#Speaking Heal Regex by Gib
-	#Small modifications by Auryana.
-	# v 0.76 beta
 
-	New Healbot 2025, based off the old Healbot on the repo since 2015.
-	by Daedeus
-	NEW FEATURES:
+  InjuryWatch - Room triage display for Gemstone IV
 
-	- Will wait a default of 6 seconds before responding to a heal request.
-	- When mind is high, will increase wait time to 20s to give other healers a longer chance.
-	- Will monitor for other healers responding to a request, and cancel if it happens.
-	- Will try to respond appropriately to heal requests for a dead body.
-	- Will scan and maintain a list of known empaths, and avoid automatically healing them.
-	- Will appraise a target before accepting their heal request.
-    - Will respond to taps.
-	- Will monitor for bards in the room that blow up a gem.
-	- Will monitor for rogues in the room that set off certain traps. (BETA/INCOMPLETE)
+  *** BETA - Published, feedback welcome ***
 
-	- ;healbot invasion   -INVASION MODE! faster healing, less waiting etiquette
+  Tip: To disable the appraise popup windows that appear during silent
+  appraisals, type FLAG DIALOGS OFF in your game client. Type FLAG DIALOGS
+  ON to re-enable them.
+
+  InjuryWatch tracks everyone in your room and displays a triage status for
+  each person so you can quickly identify who needs healing. It silently
+  appraises each person as they arrive and updates automatically as things
+  change - no commands needed during normal use.
+
+  Triage statuses (displayed in priority order):
+      Dead, Poisoned, Diseased, Bleeding, Injured, Nerve dmg, Scarred, OK
+
+  Dead people show their injury status too, e.g. "Dead - Bleeding", so you
+  know what they will need before they are raised.
+
+  The display updates automatically when:
+      - Someone arrives or leaves the room
+      - You change rooms (clears and rescans)
+      - You manually appraise someone
+      - A dead person is raised (checked every 15 seconds)
+
+  Note: The window only updates when an appraise is performed. In active
+  combat situations statuses may lag behind until you manually appraise
+  the person.
+
+  To update someone's status after they have been healed, simply appraise
+  them manually and the window will update automatically.
+
+  To start with debug output:
+      ;injurywatch debug
+
+  Display modes:
+      The display mode is auto-detected based on your client. You can change
+      it using the setup screen or by setting the variable directly.
+
+      ;injurywatch setup
+          Opens a setup window to choose your display mode.
+
+      ;vars set injurywatch_display=dock
+          Dockable panel in StormFront or Wrayth (default for those clients).
+
+      ;vars set injurywatch_display=popup
+          Floating popup window, works in any client that supports GTK.
+
+      ;vars set injurywatch_display=text
+          Prints to your story window, works in all clients including Wizard.
+
+      Leave the variable unset or delete it to use auto-detection.
+
+  Known issues:
+      - Dead person detection and revival tracking are still being refined.
+        If someone shows incorrect Dead status manually appraise them to correct it.
+      - Cannot auto-detect when another empath heals someone.
+        Manually appraise them to update their status in the window.
+      - Bodies fogged or dragged in may briefly show ? before resolving.
+      - Poisoned and Diseased statuses are not yet fully tested.
+
+       author: Mystienne
+         game: gs
+         tags: heal, empath, triage, injury, window, hud
+     required: Lich >= 5.11.0
+        email: Mystienne@mystienne.com
+      discord: Mystienne
+
 =end
 
+no_kill_all
+no_pause_all
+hide_me
+silence_me
 
-#You will automatically heal these people when they run into the room.
-#Pinipin focuses on Azanoth with intense concentration.
-friendlist = []
-ignore = []
-$invasion = script.vars[1] =~ /invasion/
+module InjuryWatch
 
-if $invasion
-	echo "************************"
-	echo "**** INVASION MODE *****"
-	echo "************************"
+  CHECK_EVERY = 1.0
+
+  WOUND_SCAN = /a (?:black-and-blue|severe bruises and swelling around|missing|blinded|swollen|bruised) (?:left|right) eye|old battle scars on (?:his|her) (?:left|right) (?:hand|arm|leg)|mangled (?:left|right) (?:hand|arm|leg)|missing (?:left|right) (?:hand|arm|leg)|deep lacerations across (?:his|her) \w+|deep gashes and serious bleeding (?:on|from|across) (?:his|her) \w+|minor cuts and bruises on (?:his|her) (?:left|right) (?:hand|arm|leg)|a (?:fractured and bleeding|completely severed) (?:left|right) (?:hand|arm|leg)|moderate bleeding from (?:his|her) neck|snapped bones and serious bleeding from the neck|minor bruises on (?:his|her) neck|scar across (?:his|her) neck|some old neck wounds|terrible scars from some serious neck injury|minor (?:bruises|lacerations) about the head|minor cuts and bruises on (?:his|her) (?:chest|back|abdominal(?: area)?)|severe head trauma and bleeding from the ears|strange case of muscle twitching|case of (?:sporadic|uncontrollable) convulsions|scar across (?:his|her) face|several facial scars|old mutilation wounds about (?:his|her) head|old battle scar across (?:his|her) (?:chest|back|abdominal(?: area)?)|several painful-looking scars across (?:his|her) (?:chest|back|abdominal(?: area)?)|terrible, permanent mutilation of (?:his|her) (?:chest|back|abdominal(?: area)?) muscles|developed slurred speech|constant muscle spasms|a very difficult time with muscle control|overexerted/i
+
+  SCAR_WORDS  = /scar|old battle|old mutilation|mutilat|painful-looking|permanent mutilation/i
+  BLEED_WORDS = /bleeding|lacerations|deep gashes/i
+  NERVE_WORDS = /muscle twitching|convulsions|slurred speech|muscle spasms|muscle control/i
+  WOUND_WORDS = /fractured|severed|mangled|missing|crushed|broken|bruise|bruises|trauma/i
+
+  @debug = false
+  @bulk_appraising = false
+  def self.debug?; @debug; end
+  def self.debug=(v); @debug = v; end
+  def self.dbg(msg); respond "[IW] #{msg}" if @debug; end
+  def self.bulk_appraising?; @bulk_appraising; end
+  def self.bulk_appraising=(v); @bulk_appraising = v; end
+
+  # ---------------------------------------------------------------------------
+  # Triage priority - lower number = higher priority = shown first
+  # ---------------------------------------------------------------------------
+  def self.status_priority(status)
+    case status
+    when /^Dead/             then 0
+    when /Poisoned|Diseased/ then 1
+    when /Bleeding/          then 2
+    when /Injured/           then 3
+    when /Nerve dmg/         then 4
+    when /Scarred/           then 5
+    else                          6  # OK, ?, ...
+    end
+  end
+
+  def self.sort_people(people_status)
+    people_status.values.sort_by { |p| [status_priority(p[:status]), p[:noun].downcase] }
+  end
+
+  # ---------------------------------------------------------------------------
+  # Detect or load display mode
+  # ---------------------------------------------------------------------------
+  def self.display_mode
+    saved = Vars[:injurywatch_display].to_s.strip
+    mode = if saved.empty?
+      if ['stormfront', 'wrayth'].include?($frontend)
+        :dock
+      elsif defined?(Gtk)
+        :popup
+      else
+        :text
+      end
+    else
+      saved.to_sym
+    end
+
+    if mode == :popup && !defined?(Gtk)
+      unless @warned_mode
+        respond "[InjuryWatch] GTK not available - using text mode."
+        @warned_mode = true
+      end
+      :text
+    elsif mode == :dock && !['stormfront', 'wrayth'].include?($frontend)
+      unless @warned_mode
+        respond "[InjuryWatch] Dock requires StormFront/Wrayth - using text mode."
+        @warned_mode = true
+      end
+      :text
+    else
+      mode
+    end
+  end
+
+  def self.display_mode=(mode)
+    Vars[:injurywatch_display] = mode.to_s
+  end
+
+  # ---------------------------------------------------------------------------
+  # GTK popup display - scrollable, capped at 400px tall
+  # ---------------------------------------------------------------------------
+  module PopupDisplay
+    @window   = nil
+    @vbox     = nil
+    @scrolled = nil
+    @labels   = {}
+    @running  = false
+
+    def self.running?; @running; end
+
+    @exit_requested = false
+    def self.exit_requested?; @exit_requested; end
+
+    def self.open
+      return if @running
+      unless defined?(Gtk)
+        respond "[InjuryWatch] GTK is not available in this environment. Use display=dock instead."
+        return
+      end
+      @running = true
+      Gtk.queue do
+        @window = Gtk::Window.new
+        @window.title = 'Injury Watch'
+        @window.keep_above = true
+        @window.set_default_size(200, 80)
+        @window.signal_connect('delete_event') {
+          @window  = nil
+          @running = false
+          @exit_requested = true
+          false
+        }
+
+        @vbox = Gtk::Box.new(:vertical, 2)
+        @vbox.border_width = 4
+
+        # Scrollable area - caps at 400px, scrollbar appears when needed
+        @scrolled = Gtk::ScrolledWindow.new
+        @scrolled.set_policy(:never, :automatic)
+        @scrolled.set_min_content_height(40)
+        @scrolled.set_max_content_height(316)
+        @scrolled.add(@vbox)
+
+        @window.add(@scrolled)
+        @window.show_all
+      end
+    end
+
+    def self.close
+      return unless @running
+      @running = false
+      return unless @window
+      Gtk.queue do
+        @window&.destroy rescue nil
+        @window   = nil
+        @scrolled = nil
+        @labels   = {}
+      end
+    end
+
+    def self.update(people_status)
+      return unless @running
+      rows = InjuryWatch.sort_people(people_status)
+      Gtk.queue do
+        @vbox.children.each { |c| @vbox.remove(c) }
+        @labels = {}
+
+        # Header summary - two line style matching dock
+        total    = rows.length
+        needs    = rows.count { |p| p[:status] !~ /^OK$|^\.\.\.$|\?/ }
+        ok_count = rows.count { |p| p[:status] == "OK" }
+
+        hdr_title = Gtk::Label.new("~ Triage Summary ~")
+        hdr_title.set_alignment(0.5, 0.5)
+        @vbox.pack_start(hdr_title, expand: false, fill: false, padding: 2)
+
+        hdr_box = Gtk::Box.new(:horizontal, 0)
+        hdr_box.border_width = 2
+
+        col1 = Gtk::Box.new(:vertical, 0)
+        col2 = Gtk::Box.new(:vertical, 0)
+        col3 = Gtk::Box.new(:vertical, 0)
+
+        [["Here:", total], ["Need:", needs], ["OK:", ok_count]].zip([col1, col2, col3]).each do |pair, col|
+          label_lbl = Gtk::Label.new(pair[0])
+          label_lbl.set_alignment(0.0, 0.5)
+          val_lbl = Gtk::Label.new(pair[1].to_s)
+          val_lbl.set_alignment(0.0, 0.5)
+          col.pack_start(label_lbl, expand: false, fill: false, padding: 0)
+          col.pack_start(val_lbl,   expand: false, fill: false, padding: 0)
+          hdr_box.pack_start(col, expand: true, fill: true, padding: 4)
+        end
+
+        @vbox.pack_start(hdr_box, expand: false, fill: false, padding: 2)
+        sep = Gtk::Separator.new(:horizontal)
+        @vbox.pack_start(sep, expand: false, fill: true, padding: 1)
+
+        if rows.empty?
+          lbl = Gtk::Label.new('No one here.')
+          lbl.set_alignment(0.0, 0.5)
+          @vbox.pack_start(lbl, expand: false, fill: false, padding: 1)
+        else
+          rows.each do |person|
+            lbl = Gtk::Label.new("#{person[:noun]}: #{person[:status]}")
+            lbl.set_alignment(0.0, 0.5)
+            @labels[person[:noun]] = lbl
+            @vbox.pack_start(lbl, expand: false, fill: false, padding: 1)
+          end
+        end
+
+        # Resize: header ~40px + separator + rows
+        content_height = [total * 20 + 56, 60].max
+        @window.resize(200, content_height.clamp(60, 372))
+        @window.show_all
+      end
+    end
+
+    def self.not_running
+      return unless @running
+      Gtk.queue do
+        @vbox.children.each { |c| @vbox.remove(c) }
+        lbl = Gtk::Label.new('-- not running --')
+        lbl.set_alignment(0.0, 0.5)
+        @vbox.pack_start(lbl, expand: false, fill: false, padding: 1)
+        @window.show_all
+      end
+    end
+  end
+
+  def self.strip_xml(str)
+    str.to_s.gsub(/<[^>]+>/, '').gsub(/\s+/, ' ').strip
+  end
+
+  def self.xml_escape(text)
+    text.to_s
+        .gsub('&', '&amp;')
+        .gsub('<', '&lt;')
+        .gsub('>', '&gt;')
+        .gsub("'", '&apos;')
+        .gsub('"', '&quot;')
+  end
+
+  def self.appraise(pc_noun)
+    wound_text = nil
+    scar_text  = nil
+
+    3.times do |attempt|
+      lines = Lich::Util.issue_command(
+        "appraise #{pc_noun}",
+        /You take a quick|Appraise what\?|^Usage:/,
+        usexml: true, quiet: true, silent: true
+      )
+
+      is_dead = false
+      lines.each do |line|
+        plain = line.gsub(/<[^>]+>/, ' ').gsub(/\s+/, ' ').strip
+        is_dead = true if plain =~ /quite dead|He is also quite dead|She is also quite dead/i
+        if line =~ /You take a quick appraisal of <a [^>]*>([^<]+)<\/a> and find that [^<]*<[^>]+>[^<]*<\/[^>]+> has (.*?)\./i
+          wound_text = strip_xml(Regexp.last_match(2))
+          dbg "appraise #{pc_noun} -> wound: #{wound_text[0,60]}"
+        end
+        if line !~ /You take a quick appraisal/i && line =~ /<a [^>]*>(?:He|She)<\/a> has (.*?)\./i
+          candidate = strip_xml(Regexp.last_match(1))
+          if candidate =~ SCAR_WORDS
+            scar_text = candidate
+            dbg "appraise #{pc_noun} -> scar: #{scar_text[0,60]}"
+          end
+        end
+      end
+
+      if is_dead
+        injury = if wound_text.nil? || wound_text =~ /no apparent injuries|no apparent wounds/i
+          "OK"
+        else
+          all = [wound_text, scar_text].compact.join(' ')
+          if    all =~ /\bpoison/i                                          then "Poisoned"
+          elsif all =~ /\bdisease/i                                         then "Diseased"
+          elsif all =~ BLEED_WORDS                                          then "Bleeding"
+          elsif all =~ WOUND_WORDS || wound_text.scan(WOUND_SCAN).any?     then "Injured"
+          elsif all =~ NERVE_WORDS                                          then "Nerve dmg"
+          elsif all =~ SCAR_WORDS                                           then "Scarred"
+          else "OK"
+          end
+        end
+        dbg "appraise #{pc_noun} -> dead with injury: #{injury}"
+        return "Dead - #{injury}"
+      end
+
+      break if wound_text || scar_text
+      break unless GameObj.pcs&.any? { |pc| pc.noun.downcase == pc_noun.downcase }
+      dbg "appraise #{pc_noun} -> no lines (attempt #{attempt + 1}/3), retrying..."
+      sleep 0.5
+    end
+
+    dbg "appraise #{pc_noun} -> no lines captured (returning ?)" if wound_text.nil? && scar_text.nil?
+    return "?"  if wound_text.nil? && scar_text.nil?
+    return "OK" if wound_text =~ /no apparent injuries|no apparent wounds/i && scar_text.nil?
+
+    all_text = [wound_text, scar_text].compact.join(' ')
+
+    return "Poisoned"  if all_text =~ /\bpoison/i
+    return "Diseased"  if all_text =~ /\bdisease/i
+    return "Bleeding"  if all_text =~ BLEED_WORDS
+    return "Injured"   if all_text =~ WOUND_WORDS || (wound_text && wound_text !~ /no apparent/i && wound_text.scan(WOUND_SCAN).any?)
+    return "Nerve dmg" if all_text =~ NERVE_WORDS
+    return "Scarred"   if all_text =~ SCAR_WORDS
+    "OK"
+  rescue
+    "?"
+  end
+
+  def self.current_people
+    pcs = GameObj.pcs
+    return {} if pcs.nil?
+    pcs.each_with_object({}) do |pc, hash|
+      noun = pc.noun.to_s.strip
+      id   = pc.id.to_s.strip
+      next if noun.empty? || id.empty?
+      hash[id] = { noun: noun }
+    end
+  end
+
+  def self.build_dock_xml(people_status)
+    rows       = sort_people(people_status)
+    row_height = 18
+    top_pad    = 52  # title + two-line header + spacing
+    height     = [top_pad + (rows.length * row_height) + 14, 80].max
+
+    total    = rows.length
+    needs    = rows.count { |p| p[:status] !~ /^OK$|^\.\.\.$|\?/ }
+    ok_count = rows.count { |p| p[:status] == "OK" }
+
+    xml  = "<closeDialog id='InjuryWatch'/>"
+    xml += "<openDialog type='dynamic' id='InjuryWatch' title='Injury Watch' "
+    xml += "target='InjuryWatch' location='main' height='#{height}' width='220' resident='true'>"
+    xml += "<dialogData id='InjuryWatch' clear='t'>"
+    xml += "<label id='iw_title' value='~ Triage Summary ~' justify='4' top='2' left='5' height='14' width='210'/>"
+    xml += "<label id='iw_h1a' value='Here:' justify='4' top='20' left='5' height='14' width='45'/>"
+    xml += "<label id='iw_h1b' value='Need:' justify='4' top='20' left='75' height='14' width='45'/>"
+    xml += "<label id='iw_h1c' value='OK:' justify='4' top='20' left='145' height='14' width='40'/>"
+    xml += "<label id='iw_h2a' value='#{total}' justify='4' top='34' left='5' height='14' width='45'/>"
+    xml += "<label id='iw_h2b' value='#{needs}' justify='4' top='34' left='75' height='14' width='45'/>"
+    xml += "<label id='iw_h2c' value='#{ok_count}' justify='4' top='34' left='145' height='14' width='40'/>"
+
+    if rows.empty?
+      xml += "<label id='iw0' value='No one here.' justify='4' "
+      xml += "top='#{top_pad}' left='5' height='#{row_height}' width='195'/>"
+    else
+      rows.each_with_index do |person, i|
+        top   = top_pad + (i * row_height)
+        label = "#{person[:noun]}: #{person[:status]}"
+        xml += "<label id='iw#{i}' value='#{xml_escape(label)}' justify='4' "
+        xml += "top='#{top}' left='5' height='#{row_height}' width='200'/>"
+      end
+    end
+
+    xml += "</dialogData></openDialog>"
+    xml
+  end
+
+  def self.display(people_status)
+    case display_mode
+    when :dock
+      puts(build_dock_xml(people_status))
+    when :popup
+      PopupDisplay.update(people_status)
+    when :text
+      rows = sort_people(people_status)
+      snapshot = rows.map { |p| "#{p[:noun]}:#{p[:status]}" }.join(",")
+      if snapshot != @last_text_snapshot
+        @last_text_snapshot = snapshot
+        total    = rows.length
+        needs    = rows.count { |p| p[:status] !~ /^OK$|^\.\.\.$|\?/ }
+        ok_count = rows.count { |p| p[:status] == "OK" }
+        respond "--- Injury Watch ---"
+        respond "~ Triage Summary ~"
+        respond "Here: #{total}  Need: #{needs}  OK: #{ok_count}"
+        respond "--------------------"
+        rows.empty? ? respond("  No one here.") : rows.each { |p| respond "  #{p[:noun]}: #{p[:status]}" }
+        respond "--------------------"
+      end
+    end
+  end
+
+  def self.main
+    before_dying do
+      DownstreamHook.remove("iw_manual_appraise")
+      DownstreamHook.remove("iw_death_watch")
+      DownstreamHook.remove("iw_revival_watch")
+      PopupDisplay.close if display_mode == :popup
+    end
+
+    PopupDisplay.open if display_mode == :popup
+
+    checked       = {}
+    people_status = {}
+    known_dead    = []
+
+    # Watch for revival
+    DownstreamHook.add("iw_revival_watch", proc { |line|
+      plain = line.gsub(/<[^>]+>/, ' ').gsub(/\s+/, ' ').strip
+      if plain =~ /The glazed look leaves (\w+)/i
+        noun = Regexp.last_match(1)
+        entry = people_status.find { |_id, p| p[:noun].downcase == noun.downcase }
+        if entry && entry[1][:status] =~ /^Dead/
+          dbg "revival watch -> glazed look left #{noun}, re-appraising"
+          entry[1][:status] = "..."
+          display(people_status)
+          refresh_queue << "refresh #{noun}"
+        end
+      end
+      line
+    })
+
+    # Watch for death/body messages
+    DownstreamHook.add("iw_death_watch", proc { |line|
+      plain = line.gsub(/<[^>]+>/, ' ').gsub(/\s+/, ' ').strip
+
+      noun = nil
+      if plain =~ /^(\w+) (?:just (?:died|went down)|is dead|collapses?)/i
+        noun = Regexp.last_match(1)
+      elsif plain =~ /dragging the body of (\w+)/i
+        noun = Regexp.last_match(1)
+      elsif plain =~ /the body of (\w+)/i
+        noun = Regexp.last_match(1)
+      end
+
+      if noun
+        dbg "death watch -> detected: #{noun}"
+        entry = people_status.find { |_id, p| p[:noun].downcase == noun.downcase }
+        if entry
+          if entry[1][:status] =~ /^Dead/
+            dbg "death watch -> #{noun} already marked Dead, skipping"
+          else
+            dbg "death watch -> #{noun} found, marking Dead"
+            prior = entry[1][:status]
+            injury = (prior.nil? || prior == "..." || prior == "?") ? "..." : prior
+            entry[1][:status] = "Dead - #{injury}"
+            display(people_status)
+            refresh_queue << "refresh #{noun}"
+          end
+        else
+          dbg "death watch -> #{noun} not in window yet, queuing as known dead"
+          known_dead << noun.downcase unless known_dead.include?(noun.downcase)
+        end
+      end
+      line
+    })
+
+    # Watch for manual appraisals
+    refresh_queue       = []
+    last_appraised_id   = nil
+    last_appraised_noun = nil
+    DownstreamHook.add("iw_manual_appraise", proc { |line|
+      noun       = nil
+      wound_text = nil
+
+      if line =~ /You take a quick appraisal of <a [^>]*>([^<]+)<\/a> and find that [^<]*<[^>]+>[^<]*<\/[^>]+> has (.*?)\./i
+        noun       = Regexp.last_match(1).strip
+        wound_text = Regexp.last_match(2).gsub(/<[^>]+>/, '').gsub(/\s+/, ' ').strip
+      elsif line =~ /You take a quick appraisal of (\w+) and find that (?:he|she) has (.*?)\./i
+        noun       = Regexp.last_match(1)
+        wound_text = Regexp.last_match(2).strip
+      end
+
+      # "She is also quite dead." on a separate line
+      plain = line.gsub(/<[^>]+>/, ' ').gsub(/\s+/, ' ').strip
+      if plain =~ /^(?:He|She) is also quite dead/i && last_appraised_noun
+        entry = people_status.find { |_id, p| p[:noun].downcase == last_appraised_noun.downcase }
+        if entry
+          dbg "manual appraise -> #{last_appraised_noun} is quite dead, queuing full appraise"
+          entry[1][:status] = "Dead - ..."
+          refresh_queue << "refresh #{last_appraised_noun}"
+          last_appraised_noun = nil
+          last_appraised_id   = nil
+          display(people_status)
+        end
+      end
+
+      # Scar/nerve follow-up line
+      if last_appraised_id && line !~ /You take a quick appraisal/i && line =~ /<a [^>]*>(?:He|She)<\/a> has (.*?)\./i
+        candidate      = Regexp.last_match(1).gsub(/<[^>]+>/, '').gsub(/\s+/, ' ').strip
+        current_status = people_status[last_appraised_id]&.dig(:status)
+        if candidate =~ SCAR_WORDS && current_status == "OK"
+          dbg "manual appraise -> scar follow-up for #{people_status[last_appraised_id][:noun]}: upgrading to Scarred"
+          people_status[last_appraised_id][:status] = "Scarred"
+          display(people_status)
+        elsif candidate =~ NERVE_WORDS && (current_status == "OK" || current_status == "Injured")
+          dbg "manual appraise -> nerve follow-up for #{people_status[last_appraised_id][:noun]}: upgrading to Nerve dmg"
+          people_status[last_appraised_id][:status] = "Nerve dmg"
+          display(people_status)
+        end
+        last_appraised_id = nil
+      end
+
+      if noun && wound_text && !InjuryWatch.bulk_appraising?
+        dbg "manual appraise -> noun: #{noun} wound: #{wound_text[0,60]}"
+        entry = people_status.find { |_id, p| p[:noun].downcase == noun.downcase }
+        dbg "manual appraise -> #{noun} #{entry ? 'found in window' : 'NOT in window'}"
+        if entry
+          id       = entry[0]
+          all_text = wound_text.downcase
+          injury = if all_text =~ /no apparent injuries|no apparent wounds/i
+            "OK"
+          elsif all_text =~ /\bdead\b|not breathing|lifeless/i then "Dead"
+          elsif all_text =~ /\bpoison/i  then "Poisoned"
+          elsif all_text =~ /\bdisease/i then "Diseased"
+          elsif all_text =~ BLEED_WORDS  then "Bleeding"
+          elsif all_text =~ WOUND_WORDS || wound_text.scan(WOUND_SCAN).any? then "Injured"
+          elsif all_text =~ NERVE_WORDS  then "Nerve dmg"
+          elsif all_text =~ SCAR_WORDS   then "Scarred"
+          else "OK"
+          end
+          # Never overwrite Dead status from manual appraise
+          if people_status[id][:status] =~ /^Dead/
+            next
+          end
+          status = injury
+          dbg "manual appraise -> #{noun} status set to: #{status}"
+          people_status[id][:status] = status
+          last_appraised_noun = noun
+          last_appraised_id = (status == "OK") ? id : nil
+          display(people_status)
+        end
+      end
+      line
+    })
+
+    startup_people = current_people
+    startup_people.each do |id, pc|
+      checked[id] = true
+      people_status[id] = { noun: pc[:noun], status: "..." }
+    end
+    display(people_status)
+
+    InjuryWatch.bulk_appraising = true if display_mode == :text
+    startup_people.each do |id, pc|
+      people_status[id][:status] = appraise(pc[:noun])
+    end
+    InjuryWatch.bulk_appraising = false
+    display(people_status)
+
+    last_room = Room.current.id
+
+    loop do
+      if Room.current.id != last_room
+        last_room = Room.current.id
+        checked.clear
+        people_status.clear
+        known_dead.clear
+        display(people_status)
+        sleep CHECK_EVERY
+        next
+      end
+
+      current = current_people
+
+      gone_ids = checked.keys - current.keys
+      gone_ids.each do |id|
+        dbg "left room: #{people_status[id]&.dig(:noun)}"
+        checked.delete(id)
+        people_status.delete(id)
+      end
+
+      new_ids = current.keys - checked.keys
+      new_ids.each do |id|
+        noun = current[id][:noun]
+        checked[id] = true
+        if known_dead.include?(noun.downcase)
+          people_status[id] = { noun: noun, status: "Dead - ..." }
+          known_dead.delete(noun.downcase)
+          dbg "arrived: #{noun} (known dead, marked immediately)"
+        else
+          people_status[id] = { noun: noun, status: "..." }
+          dbg "arrived: #{noun}"
+        end
+      end
+
+      display(people_status) if (!gone_ids.empty? || !new_ids.empty?) && display_mode != :text
+
+      InjuryWatch.bulk_appraising = true if display_mode == :text
+      new_ids.each do |id|
+        if people_status[id][:status] == "Dead - ..."
+          injury = appraise(current[id][:noun])
+          injury = "Unknown" if injury == "?" || injury == "..."
+          people_status[id][:status] = "Dead - #{injury}"
+          dbg "dead arrival #{current[id][:noun]} appraised as: #{injury}"
+        elsif people_status[id][:status] != "Dead"
+          people_status[id][:status] = appraise(current[id][:noun])
+        end
+      end
+      InjuryWatch.bulk_appraising = false
+
+      display(people_status) if !new_ids.empty? || !gone_ids.empty?
+
+      until refresh_queue.empty?
+        msg = refresh_queue.shift
+        if msg =~ /^(?:r|refresh)\s+(\S+)$/i
+          target_noun = Regexp.last_match(1)
+          entry = people_status.find { |_id, p| p[:noun].downcase == target_noun.downcase }
+          if entry
+            dbg "refresh #{target_noun}"
+            result = appraise(entry[1][:noun])
+            people_status[entry[0]][:status] = result unless result == "?"
+            display(people_status)
+          else
+            respond "[InjuryWatch] #{target_noun} not found in room."
+          end
+        else
+          dbg "refresh all (#{people_status.length} people)"
+          people_status.each do |id, p|
+            people_status[id][:status] = appraise(p[:noun])
+          end
+          display(people_status)
+        end
+      end
+
+      # Every 15 seconds re-appraise dead people to detect revival
+      if (Time.now.to_i % 15).zero?
+        people_status.each do |id, p|
+          next unless p[:status] =~ /^Dead/
+          result = appraise(p[:noun])
+          if result != "?" && result !~ /^Dead/
+            dbg "revival detected: #{p[:noun]} no longer dead, status: #{result}"
+            people_status[id][:status] = result
+            display(people_status)
+          end
+        end
+      end
+
+      exit if display_mode == :popup && PopupDisplay.exit_requested?
+
+      sleep CHECK_EVERY
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Setup screen
+  # ---------------------------------------------------------------------------
+  def self.show_setup
+    unless defined?(Gtk)
+      respond "[InjuryWatch] GTK is not available. Set your display preference with:"
+      respond "  ;vars set injurywatch_display=dock"
+      respond "  ;vars set injurywatch_display=popup"
+      return
+    end
+
+    done = false
+    Gtk.queue do
+      window = Gtk::Window.new
+      window.title = "InjuryWatch Setup"
+      window.set_default_size(300, 120)
+      window.set_window_position(:center)
+      window.border_width = 12
+
+      vbox = Gtk::Box.new(:vertical, 8)
+
+      hbox = Gtk::Box.new(:horizontal, 8)
+      lbl  = Gtk::Label.new("Display Mode:")
+      lbl.set_alignment(0.0, 0.5)
+
+      combo = Gtk::ComboBoxText.new
+      combo.append_text("Auto (recommended)")
+      combo.append_text("Dock - dockable panel in StormFront/Wrayth")
+      combo.append_text("Popup - floating window, works in any client")
+      combo.append_text("Story Window - prints to story window, works everywhere")
+
+      current = Vars[:injurywatch_display].to_s
+      case current
+      when "dock"   then combo.active = 1
+      when "popup"  then combo.active = 2
+      when "text"   then combo.active = 3
+      else               combo.active = 0
+      end
+
+      hbox.pack_start(lbl,   expand: false, fill: false, padding: 0)
+      hbox.pack_start(combo, expand: true,  fill: true,  padding: 0)
+      vbox.pack_start(hbox,  expand: false, fill: false, padding: 0)
+
+      info = Gtk::Label.new("Setting is saved and used on next launch.\nYou can also set it with: ;vars set injurywatch_display=dock")
+      info.set_alignment(0.0, 0.5)
+      info.set_line_wrap(true)
+      vbox.pack_start(info, expand: false, fill: false, padding: 0)
+
+      btn_box  = Gtk::Box.new(:horizontal, 4)
+      save_btn = Gtk::Button.new(label: "Save")
+      save_btn.signal_connect("clicked") {
+        case combo.active
+        when 0 then Vars[:injurywatch_display] = nil
+        when 1 then Vars[:injurywatch_display] = "dock"
+        when 2 then Vars[:injurywatch_display] = "popup"
+        when 3 then Vars[:injurywatch_display] = "text"
+        end
+        respond "[InjuryWatch] display mode saved: #{Vars[:injurywatch_display] || 'auto'}"
+        done = true
+        window.destroy
+      }
+      cancel_btn = Gtk::Button.new(label: "Cancel")
+      cancel_btn.signal_connect("clicked") { done = true; window.destroy }
+      btn_box.pack_end(save_btn,   expand: false, fill: false, padding: 0)
+      btn_box.pack_end(cancel_btn, expand: false, fill: false, padding: 0)
+      vbox.pack_start(btn_box, expand: false, fill: false, padding: 0)
+
+      window.add(vbox)
+      window.signal_connect("delete_event") { done = true; false }
+      window.show_all
+    end
+
+    wait_until { done }
+  end
+
 end
 
-#We will keep track of known empaths here
-CharSettings['known_empaths'] = Hash.new unless CharSettings['known_empaths']
-
-#from title.lic
-squelch_who = proc{
-	started = false
-	hook_proc = proc { |s|
-		if started
-			if s =~ /<prompt/
-				DownstreamHook.remove('squelch-who')
-				nil
-			elsif s =~ /<output/
-				s
-			else
-				nil
-			end
-		elsif s =~ /^Brave Adventurers Questing:/
-			started = true
-			nil
-		else
-			s
-		end
-	}
-	DownstreamHook.add('squelch-who', hook_proc)
-}
-
-scan_for_empaths = proc {
-	echo "***Checking for new empaths...***"
-	number_of_players_added = 0
-	squelch_who.call
-	silence_me
-	fput "who profession empath"
-	silence_me
-	all_list = nil
-	while (line = get)
-		if (line =~ /Brave Adventurers Questing\:/)
-			while (line = get)
-				all_list += "#{line} " unless (line =~ /Total\:|^\[.*?\]\-[A-z]+\:|^\[server\]\: "/)
-				break if (line =~ /Total\:/)
-			end
-			break
-		end
-	end
-	all_list = all_list.split(" ")
-	all_list.each { |name|
-		unless CharSettings['known_empaths'].include?(name)
-			#players_added += "#{name} (#{checking_current_profession})\n"
-			CharSettings['known_empaths'].store(name, "empath")
-			number_of_players_added += 1	
-		end
-	}
-	echo "***Added #{number_of_players_added} new empaths to the list.***"
-}
-
-#You will also not automatically heal these people who you know to be empaths
-#Sometimes people can hide their profession from the who list
-KnownEmpaths = /Tawariell|Suvean|Chandrellia|Phatall|Tranquia|Vrom|Invuna|
-				Roqe|Aezha|Treeva|Elionwey|Wanion|Samyael|Balley|Kahlanni|
-				Yosaffbrig|Snarc|Dirvy|Martyle|Cyana|Xanthras|Rhangath|Iseo|
-				Archengrace|Minniemae|Hanscold|Elionway|Dowfen|Telare|Anditus|
-				Aeraaxu|Mirando|Morvai|Svanya/x
-
-def gd_wound_transfer(person)
-	fput "appraise #{person}"
-	line = matchtimeout 5, "You take a quick appraisal of "
-	if line !~ /You take a quick appraisal of/ then return end
-	wounds = []
-	if line =~ /head/ then wounds.push "head" end
-	if line =~ /neck/ then wounds.push "neck" end
-	if line =~ /right eye/ then wounds.push "right eye" end
-	if line =~ /left eye/ then wounds.push "left eye" end
-	if line =~ /back/ then wounds.push "back" end
-	if line =~ /chest/ then wounds.push "chest" end
-	if line =~ /abdomen|abdominal/ then wounds.push "abdomen" end
-	if line =~ /left arm/ then wounds.push "left arm" end
-	if line =~ /right arm/ then wounds.push "right arm" end
-	if line =~ /left hand/ then wounds.push "left hand" end
-	if line =~ /right hand/ then wounds.push "right hand" end
-	if line =~ /left leg/ then wounds.push "left leg" end
-	if line =~ /right leg/ then wounds.push "right leg" end
-	if line =~ /twitching|convulsions/ then wounds.push "nerves" end
-	if line =~ /no apparent injuries/ then wounds = [] end
-
-	wounds.each do |wound|
-		put "transfer #{person} #{wound}"
-		pause("0.25s")
-	end
-	if line !~ /no apparent injuries/
-		line = "You take some of sombody's blood loss."
-		while checkhealth > 75 and line =~ /some of .+ blood loss/
-			fput "transfer #{person}"
-			line = matchwait "You take", "You infuse", "Nothing happens."
-		end
-	end
-
-	echo "wound transfer done"
-end
-def healbot_cure(cureloc, curemana)
-	curelevel = curemana
-	curelevel -= 4 if curelevel > 14
-	waitrt?
-	waitcastrt?
-	if checkmana(curemana) and Char.prof == "Empath" and Char.level >= curelevel and Spells.empath >= curelevel
-		fput "cure #{cureloc}"
-		pause("2s")
-		return false
-	end
-	waitrt?
-	waitcastrt?
-	return true
+before_dying do
+  if ['stormfront', 'wrayth'].include?($frontend) && Vars[:injurywatch_display].to_s != 'popup' && Vars[:injurywatch_display].to_s != 'text'
+    puts(
+      "<closeDialog id='InjuryWatch'/>" \
+      "<openDialog type='dynamic' id='InjuryWatch' title='Injury Watch' " \
+      "target='InjuryWatch' location='main' height='44' width='220' resident='true'>" \
+      "<dialogData id='InjuryWatch' clear='t'>" \
+      "<label id='iw0' value='-- not running --' justify='4' " \
+      "top='10' left='5' height='18' width='195'/>" \
+      "</dialogData></openDialog>"
+    )
+  end
 end
 
-#In this script, we don't heal rank 1 wounds or scars, in order to maximize healing uptime.
-#Scars can take a lot of RT to heal which can interfere with healing others.
-#Rank 1 Wounds can usually be left to Troll's Blood
-#If you really want to heal these, use another script like ;healself
-def healbot_healme(type, dtr)
-	if checkhealth < maxhealth then healbot_cure("", 1) end
-	dtr = 3 if dtr > 3
-	dtr = 1 if dtr < 1
-	if type == "Wounds"
-		#echo "healing wounds"
-		dtr.times { |m|
-			n = [3, 2, 2][m]
-			x = [5, 5, 0][m]
-			if Wounds.head == n		then healbot_cure("head", 4+x) end
-			if Wounds.leftArm == n		then healbot_cure("left arm", 2+x) end
-			if Wounds.rightArm == n		then healbot_cure("right arm", 2+x) end
-			if Wounds.nerves == n		then healbot_cure("nerves", 3+x) end
-			if Wounds.leftEye == n		then healbot_cure("left eye", 5+x) end
-			if Wounds.rightEye == n		then healbot_cure("right eye", 5+x) end
-			if Wounds.leftHand == n		then healbot_cure("left hand", 2+x) end
-			if Wounds.rightHand == n	then healbot_cure("right hand", 2+x) end
-
-			if !$invasion
-				if Wounds.neck == n		then healbot_cure("neck", 4+x) end
-				if Wounds.chest == n		then healbot_cure("chest", 5+x) end
-				if Wounds.abdomen == n		then healbot_cure("abdomen", 5+x) end
-				
-				if Wounds.leftLeg == n		then healbot_cure("left leg", 2+x) end
-				if Wounds.rightLeg == n		then healbot_cure("right leg", 2+x) end
-				if Wounds.back == n			then healbot_cure("back", 5+x) end
-			end
-		}
-	elsif type == "Scars"
-		dtr.times { |m|
-			n = [3, 2, 2][m]
-			x = [4, 4, 4][m]
-
-			n = 4 if $invasion # do not heal scars during invasion because your empath takes too much RT
-
-			if Scars.head == n		then healbot_cure("head", 13+x) end
-			if Scars.neck == n		then healbot_cure("neck", 13+x) end
-			if Scars.chest == n		then healbot_cure("chest", 14+x) end
-			if Scars.abdomen == n		then healbot_cure("abdomen", 14+x) end
-			if Scars.leftArm == n		then healbot_cure("left arm", 11+x) end
-			if Scars.rightArm == n		then healbot_cure("right arm", 11+x) end
-			if Scars.leftLeg == n		then healbot_cure("left leg", 11+x) end
-			if Scars.rightLeg == n		then healbot_cure("right leg", 11+x) end
-			if Scars.back == n			then healbot_cure("back", 14+x) end
-			if Scars.leftHand == n		then healbot_cure("left hand", 11+x) end
-			if Scars.rightHand == n		then healbot_cure("right hand", 11+x) end
-			if Scars.nerves == n		then healbot_cure("nerves", 12+x) end
-			if Scars.leftEye == n		then healbot_cure("left eye", 14+x) end
-			if Scars.rightEye == n		then healbot_cure("right eye", 14+x) end
-		}
- 	end
+# Handle startup args
+args = Script.current.vars[1..-1].join(' ').strip
+InjuryWatch.debug = true if args =~ /\bdebug\b/i
+if args =~ /\bhelp\b/i
+  script_path = Script.current.file_name
+  File.read(script_path).match(/=begin(.+?)=end/m) { |m| respond m[1] }
+  exit
+elsif args =~ /\bsetup\b/i
+  InjuryWatch.show_setup
+  exit
+elsif args =~ /\bdisplay=(dock|popup)\b/i
+  InjuryWatch.display_mode = Regexp.last_match(1)
+  respond "[InjuryWatch] display mode set to: #{InjuryWatch.display_mode}"
 end
 
-# Each entry is a proc so #{healee} can be interpolated at call time.
-# Syntax: say :{tone} ::{target} {message}
-# Tones and targeting are baked into each line for full in-game flavor.
-MULAROS_SAYINGS = [
-	# -- reverent / devotional --
-	proc { |h| "say :reverent ::#{h} Mularos smiles upon this moment. Give me your wounds." },
-	proc { |h| "say :prayerful ::#{h} I offer your suffering to Him gladly. Be still." },
-	proc { |h| "say :solemn ::#{h} The Lord of Suffering has sent me. You need not ask why." },
-	proc { |h| "say :serene ::#{h} Pain shared in His name is pain made holy. Come closer." },
-	proc { |h| "say :reverent ::#{h} He brought you to me for a reason. I will not question His design." },
-	proc { |h| "say :prayerful ::#{h} Let this be an act of devotion, #{h}. For Him, and for the hurt you carry." },
-	proc { |h| "say :solemn ::#{h} I have been called to receive your suffering. It is an honor I do not take lightly." },
-	proc { |h| "say :meditative ::#{h} Still your mind, #{h}. I need only a moment to reach for what torments you." },
-
-	# -- seductive / inviting --
-	proc { |h| "say :seductive ::#{h} Your blood sings to me. Let me drink deeply of your hurt." },
-	proc { |h| "say :inviting ::#{h} Every wound you carry is a gift I have not yet unwrapped." },
-	proc { |h| "say :sensuous ::#{h} There is beauty in your suffering. I intend to carry it myself." },
-	proc { |h| "say :enticing ::#{h} What delicious suffering you carry. Come. Let us trade." },
-	proc { |h| "say :lusty ::#{h} You have bled so prettily. It would be a shame not to share." },
-	proc { |h| "say :seductive ::#{h} Come closer, #{h}. I promise you will feel better. I cannot promise the same for myself." },
-	proc { |h| "say :inviting ::#{h} Your hurt calls out and something in me answers. That is all the invitation I need." },
-	proc { |h| "say :sensuous ::#{h} I can already feel the edges of your pain from here. How lovely it is." },
-	proc { |h| "say :enticing ::#{h} Others offer coin for healing. You offer something far more valuable, #{h}." },
-	proc { |h| "say :amorous ::#{h} Suffering shared between two souls is the most intimate thing in this world." },
-
-	# -- dark / ominous --
-	proc { |h| "say :dark ::#{h} The darkness within me stirs at the sight of you. This pleases me." },
-	proc { |h| "say :ominous ::#{h} I do not heal out of kindness. I heal because your pain belongs to me." },
-	proc { |h| "say :menacing ::#{h} Do not mistake my mercy for gentleness, #{h}. I assure you it is neither." },
-	proc { |h| "say :cryptic ::#{h} Something within you called to me. I could not have ignored it if I tried." },
-	proc { |h| "say :dark ::#{h} Pain is not the enemy, #{h}. It is the only honest thing left in this world." },
-	proc { |h| "say :ominous ::#{h} You have no idea what you are asking of me. Fortunately for you, I enjoy the asking." },
-	proc { |h| "say :menacing ::#{h} I will take everything that is hurting you. Everything. You have been warned." },
-	proc { |h| "say :cryptic ::#{h} The wound knows the one who craves it. I have always known your name." },
-	proc { |h| "say :dark ::#{h} Most healers do this out of duty. I do it out of need. There is a difference." },
-	proc { |h| "say :ominous ::#{h} Something in the world is wrong when the broken do not seek those who hunger for it." },
-
-	# -- hungry / voracious --
-	proc { |h| "say :voracious ::#{h} The gift of pain is the sweetest offering. Come, let me take yours." },
-	proc { |h| "say :hungry ::#{h} I have been waiting for something worth feeling. Come closer." },
-	proc { |h| "say :covetous ::#{h} Hush. I can feel it already, give me a moment to savor what is mine." },
-	proc { |h| "say :greedy ::#{h} Quiet now. Pain this exquisite should not be wasted on just one." },
-	proc { |h| "say :voracious ::#{h} Do not flinch, #{h}. I want all of it, not just the parts you think I can bear." },
-	proc { |h| "say :hungry ::#{h} Every moment you stood there bleeding was a moment I was denied. Come here." },
-	proc { |h| "say :covetous ::#{h} Your suffering has been sitting there waiting for someone worthy of it. That is me." },
-	proc { |h| "say :greedy ::#{h} Others may share your pain in small measures. I prefer to take it whole." },
-	proc { |h| "say :voracious ::#{h} Do not thank me, #{h}. Thanking me implies I did this for you." },
-	proc { |h| "say :hungry ::#{h} The waiting is the hardest part. Now that you are here, I am content." },
-
-	# -- sardonic / wry --
-	proc { |h| "say :sardonic ::#{h} I serve Mularos, and Mularos is merciful, in His own particular way." },
-	proc { |h| "say :wry ::#{h} Your suffering calls to me like a prayer. I will answer it." },
-	proc { |h| "say :dry ::#{h} Do not be afraid. Pain shared is pain savored. You will learn to appreciate that." },
-	proc { |h| "say :sly ::#{h} Most would call this healing, #{h}. I call it a fair trade." },
-	proc { |h| "say :sardonic ::#{h} You came to the right place, #{h}. Though perhaps not for the reasons you think." },
-	proc { |h| "say :wry ::#{h} I have been told I am an unusual healer. I prefer the word dedicated." },
-	proc { |h| "say :dry ::#{h} You look terrible, #{h}. It is honestly a bit exciting." },
-	proc { |h| "say :sly ::#{h} Some pay in coin. Some in gratitude. You pay in something far more interesting." },
-	proc { |h| "say :sardonic ::#{h} They say empaths suffer for their calling. I suspect I suffer rather more willingly than most." },
-	proc { |h| "say :wry ::#{h} Come now. I have seen worse. Though I will admit I hoped I would not have to wait this long." },
-	proc { |h| "say :droll ::#{h} You bleed as though you have had practice, #{h}. I appreciate the dedication." },
-	proc { |h| "say :dry ::#{h} I could pretend this is entirely selfless. But you deserve honesty." },
-
-	# -- tormented / fervent --
-	proc { |h| "say :tormented ::#{h} It pulls at me, your agony. I cannot let it go to waste." },
-	proc { |h| "say :fervent ::#{h} He watches us now, #{h}. Let us not disappoint Him." },
-	proc { |h| "say :passionate ::#{h} Every wound transferred is a prayer. Every scar, an offering." },
-	proc { |h| "say :rapturous ::#{h} Yes... yes. Give it to me. All of it." },
-	proc { |h| "say :tormented ::#{h} I have ached for this all day, #{h}. You have no idea what a relief you are." },
-	proc { |h| "say :fervent ::#{h} There is no act more sacred than this. The giving of pain to one who craves it." },
-	proc { |h| "say :passionate ::#{h} I would carry every wound in this city if I could. Yours will do for now." },
-	proc { |h| "say :rapturous ::#{h} The moment your hurt passes into me is the only peace I know." },
-	proc { |h| "say :tormented ::#{h} Do you know what it is to want something you cannot ask for? Now you will not have to." },
-	proc { |h| "say :fervent ::#{h} Suffering is not a burden to be hidden, #{h}. It is a gift to be received." },
-
-	# -- longing / introspective --
-	proc { |h| "say :longing ::#{h} I have carried the pain of so many. Yours feels different. I welcome that." },
-	proc { |h| "say :introspective ::#{h} There is a kind of peace that only comes when another's hurt becomes your own." },
-	proc { |h| "say :wistful ::#{h} The wound passes and then it is over. I always find that part a little sad." },
-	proc { |h| "say :longing ::#{h} I envy those who feel nothing. And then I remember I do not envy them at all." },
-	proc { |h| "say :dreamy ::#{h} Sometimes I think the world would be kinder if more people understood what I do." },
-	proc { |h| "say :introspective ::#{h} Pain is honest, #{h}. It does not lie to you about what it is." },
-	proc { |h| "say :meditative ::#{h} Be still. Let me reach for it. This is the part I live for." },
-	proc { |h| "say :longing ::#{h} Every healer has their reason. Mine is not one most would understand." },
-
-	# -- calm / assured --
-	proc { |h| "say :calm ::#{h} You came to the right place. I will take good care of what ails you." },
-	proc { |h| "say :assured ::#{h} I know what I am doing, #{h}. I have wanted this long enough to be very good at it." },
-	proc { |h| "say :placid ::#{h} There is no need to explain yourself. I already understand what you need." },
-	proc { |h| "say :calm ::#{h} Breathe. Whatever you are carrying, I am about to make it mine." },
-	proc { |h| "say :serene ::#{h} The hurt you feel is real. And I am very glad it is." },
-	proc { |h| "say :placid ::#{h} I have done this a thousand times. It never stops being exactly what I need." },
-
-	# -- possessive / intense --
-	proc { |h| "say :intense ::#{h} Your suffering does not belong in you, #{h}. It belongs in me. Let me have it." },
-	proc { |h| "say :obsessive ::#{h} I noticed you the moment you walked in. The wound gave you away." },
-	proc { |h| "say :intense ::#{h} Do not give this to anyone else, #{h}. I saw you first." },
-	proc { |h| "say :compulsive ::#{h} I cannot help it. The moment I sense pain I am already reaching for it." },
-	proc { |h| "say :obsessive ::#{h} You will find no one who wants this more than I do. I promise you that." },
-	proc { |h| "say :intense ::#{h} I need this as much as you do. Perhaps more. Let us not keep each other waiting." },
-
-	# -- grateful / tender --
-	proc { |h| "say :tender ::#{h} Thank you for coming to me, #{h}. You could not have known how much I needed this." },
-	proc { |h| "say :warm ::#{h} Your pain is safe with me. I will treasure it properly." },
-	proc { |h| "say :tender ::#{h} Not everyone would offer what you are about to offer. I do not take it for granted." },
-	proc { |h| "say :grateful ::#{h} I am grateful, #{h}. More than you know, and perhaps more than you would prefer." },
-	proc { |h| "say :warm ::#{h} Come here. Let me show you what it means to give pain to someone who truly wants it." },
-	proc { |h| "say :tender ::#{h} You look like you have been carrying this a long time. It is my turn now." },
-]
-
-def mularos_speak_and_nod(healee, whisper = false)
-	fput "nod #{healee}"
-	# Watch for ~2s after our nod to catch near-simultaneous nods from other healers
-	rival = matchtimeout 2, "nods at #{healee}", "nods to #{healee}", "focuses on #{healee} with intense concentration"
-	if rival && rival =~ /([A-Z][a-z]+) (?:nods|focuses)/
-		rival_name = $1
-		if rival_name != Char.name
-			echo "***** #{rival_name} also nodded at #{healee} just after us, stepping back. *****"
-			return false
-		end
-	end
-	sleep rand(3..7)
-	saying = MULAROS_SAYINGS.sample.call(healee)
-	if whisper
-		# Convert "say :{tone} ::{target} {message}" to "whisper :{tone} {healee}, {message}"
-		if saying =~ /^say (:.+?) ::#{healee} (.+)$/
-			fput "whisper #{$1} #{healee}, #{$2}"
-		else
-			fput saying.sub(/^say /, "whisper #{healee}, ")
-		end
-	else
-		fput saying
-	end
-	return true
-end
-
-# -- Post-heal thank you sayings (5-10s after healing completes) --
-MULAROS_THANKS = [
-	# -- reverent / grateful --
-	proc { |h| "say :reverent ::#{h} Your suffering was a worthy offering, #{h}. Mularos is pleased." },
-	proc { |h| "say :prayerful ::#{h} I will carry what you gave me with gratitude, #{h}. He sees your gift." },
-	proc { |h| "say :solemn ::#{h} What passed between us just now was sacred. Do not forget it." },
-	proc { |h| "say :serene ::#{h} The exchange is complete. I am satisfied. Thank you, #{h}." },
-	proc { |h| "say :reverent ::#{h} He witnessed this. I am certain of it. Thank you for the offering, #{h}." },
-	proc { |h| "say :prayerful ::#{h} The pain you gave has been received with all the reverence it deserved." },
-	proc { |h| "say :solemn ::#{h} I will not forget what you gave me today, #{h}. It meant more than you know." },
-
-	# -- sensuous / savoring --
-	proc { |h| "say :sensuous ::#{h} That was exquisite, #{h}. You are most generous with your pain." },
-	proc { |h| "say :rapturous ::#{h} Mmm. You gave more than I expected. I am grateful, #{h}." },
-	proc { |h| "say :lusty ::#{h} Your wounds tasted of something rare, #{h}. I thank you for them." },
-	proc { |h| "say :seductive ::#{h} Come back to me when you are broken again, #{h}. I will be waiting." },
-	proc { |h| "say :sensuous ::#{h} That lingered longer than most. I am still savoring it, #{h}. My gratitude." },
-	proc { |h| "say :rapturous ::#{h} I did not expect to feel that so deeply. You have outdone yourself, #{h}." },
-	proc { |h| "say :lusty ::#{h} There was something exquisite in what you carried. Thank you for sharing it." },
-
-	# -- dark / ominous --
-	proc { |h| "say :dark ::#{h} The darkness within me is quieter now, #{h}. You have done well." },
-	proc { |h| "say :ominous ::#{h} I have taken your pain. Do try to earn more." },
-	proc { |h| "say :cryptic ::#{h} Something of you lingers in me now, #{h}. I find I do not mind." },
-	proc { |h| "say :menacing ::#{h} You are whole again, #{h}. Do not waste it." },
-	proc { |h| "say :dark ::#{h} I am sated for now, #{h}. That is the closest thing to peace I possess." },
-	proc { |h| "say :ominous ::#{h} What you carried was remarkable. The world will not miss it. I will." },
-	proc { |h| "say :cryptic ::#{h} You feel lighter. I feel heavier. We are both better for it." },
-	proc { |h| "say :menacing ::#{h} Go carefully, #{h}. I would prefer not to repeat this too soon. Mostly." },
-
-	# -- wry / sardonic --
-	proc { |h| "say :sardonic ::#{h} Most would say you owe me, #{h}. I would say we are even." },
-	proc { |h| "say :wry ::#{h} A fair trade, #{h}. Your suffering for your wholeness. He approves." },
-	proc { |h| "say :dry ::#{h} You are healed. I am nourished. I call that a success." },
-	proc { |h| "say :sly ::#{h} Go on then, #{h}. Try not to fall apart again too quickly." },
-	proc { |h| "say :sardonic ::#{h} You look surprised to be whole. Try to look less ungrateful about it, #{h}." },
-	proc { |h| "say :wry ::#{h} The part where I suffer is the part you did not see. You are welcome." },
-	proc { |h| "say :dry ::#{h} Done. You may resume whatever it was that got you into that state." },
-	proc { |h| "say :droll ::#{h} I would say it was my pleasure, #{h}. And unlike most healers, I would mean it." },
-
-	# -- fervent / tormented --
-	proc { |h| "say :fervent ::#{h} Every wound you gave me was a hymn. I am grateful, #{h}." },
-	proc { |h| "say :tormented ::#{h} It is over now... and yet something in me already hungers again." },
-	proc { |h| "say :passionate ::#{h} What you gave was beautiful, #{h}. Do not let it have been for nothing." },
-	proc { |h| "say :fervent ::#{h} Pain given freely is the purest gift. I am honored by yours, #{h}." },
-	proc { |h| "say :tormented ::#{h} The ache of it is already fading. I hate that part. Thank you, #{h}." },
-	proc { |h| "say :passionate ::#{h} I would do this again without hesitation. You know where to find me." },
-
-	# -- longing / tender --
-	proc { |h| "say :longing ::#{h} It passes so quickly. I am always a little bereft when it is over." },
-	proc { |h| "say :tender ::#{h} You trusted me with your pain, #{h}. That is not nothing. Thank you." },
-	proc { |h| "say :wistful ::#{h} Already it is fading into memory. These moments never last long enough." },
-	proc { |h| "say :longing ::#{h} Go well, #{h}. And know that what you gave will be remembered fondly." },
-	proc { |h| "say :tender ::#{h} I carry it now. You do not have to anymore. That is how it should be." },
-	proc { |h| "say :warm ::#{h} You came to the right person, #{h}. I hope you know that." },
-
-	# -- possessive / satisfied --
-	proc { |h| "say :satisfied ::#{h} Mine now, #{h}. Every last bit of it. You are free." },
-	proc { |h| "say :obsessive ::#{h} I always remember the ones who give willingly. I will remember you." },
-	proc { |h| "say :intense ::#{h} That is what I needed today. I hope you needed it too." },
-	proc { |h| "say :compulsive ::#{h} I could not have walked away from that if I tried. Thank you for not making me." },
-	proc { |h| "say :pleased ::#{h} You have no idea how long I waited for something like that. Thank you, #{h}." },
-]
-
-# -- Item offering thank you sayings (5-10s after stowing the item) --
-MULAROS_OFFER_THANKS = [
-	# -- reverent / gracious --
-	proc { |h, i| "say :reverent ::#{h} This #{i} is a worthy tribute, #{h}. Mularos smiles upon your generosity." },
-	proc { |h, i| "say :prayerful ::#{h} I accept this #{i} in His name, #{h}. Your offering is noted." },
-	proc { |h, i| "say :gracious ::#{h} You honor me with this #{i}, #{h}. It will be treasured." },
-	proc { |h, i| "say :solemn ::#{h} This #{i} shall remind me of your gift, #{h}. I am grateful." },
-	proc { |h, i| "say :reverent ::#{h} A #{i} and your suffering both in one day, #{h}. You are uncommonly generous." },
-	proc { |h, i| "say :prayerful ::#{h} He sees this #{i} as clearly as He saw your wounds. Both are offerings." },
-
-	# -- dark / covetous --
-	proc { |h, i| "say :covetous ::#{h} This #{i} pleases me, #{h}. Almost as much as your wounds did." },
-	proc { |h, i| "say :dark ::#{h} A fitting tribute, #{h}. The darkness within me stirs with approval." },
-	proc { |h, i| "say :ominous ::#{h} This #{i} is mine now, #{h}. As your suffering was. Thank you." },
-	proc { |h, i| "say :cryptic ::#{h} I sense meaning in this #{i}, #{h}. He intended you to give it." },
-	proc { |h, i| "say :covetous ::#{h} I have wanted many things in my life. This #{i} was not among them. And yet I find I want it now." },
-	proc { |h, i| "say :dark ::#{h} Objects carry the energy of those who held them. This #{i} will carry yours, #{h}." },
-	proc { |h, i| "say :ominous ::#{h} A curious choice of gift, #{h}. I like that about you." },
-
-	# -- sensuous / savoring --
-	proc { |h, i| "say :sensuous ::#{h} How thoughtful, #{h}. This #{i} is as lovely as your pain was." },
-	proc { |h, i| "say :seductive ::#{h} You bring me gifts, #{h}. You understand me better than most." },
-	proc { |h, i| "say :lusty ::#{h} First your wounds, now a #{i}. You are dangerously generous, #{h}." },
-	proc { |h, i| "say :sensuous ::#{h} A #{i} after suffering shared. You know how to make an impression, #{h}." },
-	proc { |h, i| "say :enticing ::#{h} This #{i} and the memory of your pain. You have given me two gifts today." },
-
-	# -- wry / sardonic --
-	proc { |h, i| "say :sardonic ::#{h} A #{i}. How fitting. Almost as precious as the pain you shared." },
-	proc { |h, i| "say :wry ::#{h} You need not have brought a #{i}, #{h}. And yet I am glad you did." },
-	proc { |h, i| "say :dry ::#{h} A #{i}. My thanks, #{h}. You may go be whole somewhere else now." },
-	proc { |h, i| "say :sly ::#{h} Offerings accepted, #{h}. Come back broken again sometime." },
-	proc { |h, i| "say :sardonic ::#{h} Most people offer coin. You offer a #{i}. I think I prefer you, #{h}." },
-	proc { |h, i| "say :wry ::#{h} I did not expect a #{i} today. The day has exceeded expectations." },
-	proc { |h, i| "say :droll ::#{h} A #{i}. From someone who just gave me their wounds. You are thorough, #{h}." },
-
-	# -- tender / warm --
-	proc { |h, i| "say :tender ::#{h} This #{i} was not necessary, #{h}. But I am glad you offered it." },
-	proc { |h, i| "say :warm ::#{h} You came to me hurting and left me a #{i} as well. That means something." },
-	proc { |h, i| "say :tender ::#{h} I will keep this #{i} close, #{h}. It will remind me of what we shared." },
-	proc { |h, i| "say :grateful ::#{h} The #{i} is appreciated. But it was your trust that mattered most today." },
-
-	# -- fervent / intense --
-	proc { |h, i| "say :fervent ::#{h} This #{i} joins the pain you gave me as an offering. Both are received." },
-	proc { |h, i| "say :passionate ::#{h} You gave me your hurt and now a #{i}. I am twice blessed today, #{h}." },
-	proc { |h, i| "say :intense ::#{h} Do not give #{i}s to everyone who heals you, #{h}. Save them for those who mean it." },
-	proc { |h, i| "say :obsessive ::#{h} A #{i} from #{h}. I will not forget where this came from." },
-	proc { |h, i| "say :compulsive ::#{h} I accepted before I even thought about it. The #{i} called to me as clearly as your wounds did." },
-]
-
-def mularos_thank_healee(healee)
-	sleep rand(5..10)
-	fput MULAROS_THANKS.sample.call(healee)
-end
-
-# Background thread watching for item offers
-Thread.new {
-	loop {
-		offer_line = matchtimeout 30, "offers you"
-		next unless offer_line
-		if offer_line =~ /^([A-Z][a-z]+) offers you an? (.+?)\./
-			giver = $1
-			item  = $2
-			echo "*** #{giver} is offering you a #{item}, will accept shortly ***"
-			sleep rand(3..15)
-			result = dothistimeout "accept #{giver}", 5, /You accept|There is no offer/
-			if result =~ /You accept/
-				echo "*** Accepted #{item} from #{giver}, stowing ***"
-				waitrt?
-				fput "stow #{item}"
-				sleep rand(5..10)
-				fput MULAROS_OFFER_THANKS.sample.call(giver, item)
-			else
-				echo "*** Offer from #{giver} expired or was not found ***"
-			end
-		end
-	}
-}
-
-def AnyOtherEmpaths?()
-	return GameObj.pcs.any? { |pc| 
-		pc.noun != Char.name && !CharSettings['known_empaths'][pc.noun].nil?
-	}
-end
-
-############################################################################################################
-echo "***HealBot knows about #{CharSettings['known_empaths'].length} empaths.***"
-scan_for_empaths.call
-$lastScan = Time.now 
-
-loop {
-	#scan for new empaths every 5 minutes
-	if Time.now - $lastScan > 300
-		scan_for_empaths.call
-		$lastScan = Time.now 
-	end
-
-	#keep staunching up in case you accept bleeders
-	fput "sign of staunching" if Spell["Sign of Staunching"].known? && Spell["Sign of Staunching"].affordable? && !Spell["Sign of Staunching"].active?
-	
-	#echo "waiting for healee.."
-	line = matchtimeout 10, "whispers", "asks", "exclaims", "says", "just", "arrived", "arrives", "taps you", "shatters into thousands of fragments", "severely perforated", "drawing the blood from his body", "begins to boil violently", "sickly greenish hue"
-	#next if checkmind !~ /becoming|muddled|clear|fresh|numbed/
-#You infuse Fliayeb with your own strength, and she appears entirely restored
-if line
-	if line =~ /(?:^Speaking .*to you.*)?((?:The ghostly voice of |The ghost of )?([A-Z][a-z]+)(?:\s+\w+)?\s+(whispers,|asks,|exclaims,|says,))(?i).*?(heal[^t]|healer|bleed|minor|'?ealing?|lacerations|cuts|wound|patch|empath|poison|disease|medic|moment|spare|hurt|injured|injuries)|([A-Z][a-z]+) meditates over.*/i
-		healee = $2 || $5   # $2 from speech match, $5 from meditates match
-		verb = $3
-
-		if line =~ /Speaking .*to/
-			next unless line =~ /Speaking .*to you/
-		end
-
-		next if ignore.include? healee
-		next if healee =~ /Speaking/
-
-		bodies = GameObj.pcs.select { |pc| pc.status =~ /dead/ }.map{ |pc| pc.name }
-		has_bodies = bodies.length > 0
-		bodies_regex = /(#{bodies.join('|')})/
-
-		pause_script "bigshot" if running? 'bigshot'
-		echo "***** Healing requested by #{healee}... *****"
-		if !CharSettings["known_empaths"][healee].nil? || healee =~ KnownEmpaths 
-			echo "*** #{healee} is an empath ***"
-			next
-		end
-		
-		#default wait time
-		waittime = 6
-		sleeptime = 3
-
-		if percentmind <= 25 #you need xp
-			waittime = 2
-			sleeptime = 1
-			echo "*** Mind low, moving quickly on #{healee} ***"
-		end
-		if percentmind > 70 #give other healers a chance
-			if !AnyOtherEmpaths?()
-				echo "*** There seem to be no other empaths, so we won't wait extra long ***"
-			else
-				waittime = 24
-				echo "*** Mind high, waiting longer to see if #{healee} gets healed.. ***"
-			end
-		end
-
-		if $invasion
-			waittime = 3
-			echo "*** It's an invasion, we'll move quickly ***"
-		end
-		
-		if verb =~ /whispers/
-			echo "*** Direct whisper, expediting ***"
-			sleeptime = 1
-			waittime = 1
-		end
-		is_whisper = (verb =~ /whispers/) ? true : false
-
-		result = matchtimeout waittime + checkrt, "nods at #{healee}", "nods to #{healee}", "focuses on #{healee} with intense concentration"
-		if result
-		if result =~ /(.*) nods at|(.*) focuses on #{healee} with intense concentration/ #some other healer is working this target
-			echo "***** Looks like #{$1} is healing #{healee}. ******"
-			next
-		end
-		end
-		echo "***** We will heal #{healee}. ******"
-
-		#appraisal check
-		result = dothistimeout "appraise #{healee}", 5, /You take a quick appraisal/
-		if result =~ /no apparent injuries/
-			echo "***** #{healee} is not injured.  False alarm? *****"
-			if has_bodies && line =~ bodies_regex
-				next if $1.nil?
-				echo "*** Maybe they are talking about the dead body, #{$1} ***"
-				deader = $1
-				result = dothistimeout "appraise #{deader}", 5, /You take a quick appraisal/
-				if result =~ /no apparent injuries/
-					echo "*** The dead body has no injuries. ***"
-					next
-				else
-					next unless mularos_speak_and_nod(deader, is_whisper)
-					healee = deader
-				end
-			else
-				next
-			end
-		else
-			next unless mularos_speak_and_nod(healee, is_whisper)
-		end
-		gd_wound_transfer(healee)
-		Thread.new { mularos_thank_healee(healee) }
-	elsif line =~ /([A-Z,a-z]+)('s group | )(just arrived|arrives at your table|just came crawling in|just limped in|just came marching in|just came sashaying in gracefully|just arrived, skipping merrily|just tiptoed in|just strode in|just stumbled in|just came trudging in)/
-		healee = $1
-		if friendlist.include?(healee)
-			echo "Friend #{$1} arrived."	
-			gd_wound_transfer(healee)
-			Thread.new { mularos_thank_healee(healee) }
-		end
-	elsif line =~ /([A-Z,a-z]+) taps you lightly on the shoulder/
-		healee = $1
-		echo "Direct tap."
-		sleep 2
-		next unless mularos_speak_and_nod(healee)
-		gd_wound_transfer(healee)
-		Thread.new { mularos_thank_healee(healee) }
-	elsif line =~ /which quickly shatters into thousands of fragments/
-		line =~ /(.*)'s voice focuses on the (.*) which quickly shatters into thousands of fragments/
-		healee = $1
-		echo "Uh oh bard accident."
-		gd_wound_transfer(healee)
-	elsif line =~ /(.*) is severely perforated|The ground beneath (.*) begins to boil violently/
-		healee = $1
-		echo "Uh oh rogue accident."
-		gd_wound_transfer(healee)
-	elsif line =~ /\. (.*) looks ill as (?:his|her) skin takes on a sickly greenish hue/
-		healee = $1
-		echo "Uh oh scarab poison."
-		Spell[114].cast healee
-		gd_wound_transfer(healee)
-	elsif line =~ /\. (.*?) moans to himself and his skin takes on a yellowish tint./
-		healee = $1
-		echo "Uh oh scarab disease"
-		Spell[113].cast healee
-	elsif line =~ /(.*) gasps in pain and shock as (.*) drawing the blood from his body/
-		healee = $1
-		echo "Uh oh blood scarab."
-		10.times {
-			fput "transfer #{$1}"
-			fput "cure blood"
-			sleep 3
-		}
-	end
-	end
-	healbot_healme("Wounds", 3)
-	healbot_healme("Scars", 3)
-}
-
-#Tavino gasps in pain and shock as a blood red teardrop-etched scarab pulsates, drawing the blood from his body!
+InjuryWatch.main
