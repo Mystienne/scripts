@@ -396,7 +396,7 @@ module InjuryWatch
     xml += "<openDialog type='dynamic' id='InjuryWatch' title='Injury Watch' "
     xml += "target='InjuryWatch' location='main' height='#{height}' width='220' resident='true'>"
     xml += "<dialogData id='InjuryWatch' clear='t'>"
-    xml += "<label id='iw_title' value='~ Triage Summary ~' justify='4' top='2' left='5' height='14' width='210'/>"
+    xml += "<label id='iw_title' value='~ Triage Summary ~' justify='4' top='2' left='20' height='14' width='190'/>"
     xml += "<label id='iw_h1a' value='Here:' justify='4' top='20' left='5'   height='14' width='45'/>"
     xml += "<label id='iw_h1b' value='Need:' justify='4' top='20' left='75'  height='14' width='45'/>"
     xml += "<label id='iw_h1c' value='OK:'   justify='4' top='20' left='145' height='14' width='40'/>"
@@ -469,7 +469,7 @@ module InjuryWatch
       noun  = nil
 
       # Other empath healing: "Devantis's head wound gradually fades..."
-      # Target is being healed - queue re-appraise after a delay
+      # Queue re-appraise on first wound fade, cancel if "appears entirely restored" fires
       if plain =~ /^(\w+)'s \w+ wound gradually fades/i
         noun = Regexp.last_match(1)
         entry = people_status.find { |_id, p| p[:noun].downcase == noun.downcase }
@@ -479,6 +479,17 @@ module InjuryWatch
             sleep 5
             refresh_queue << "refresh #{noun}"
           end
+        end
+        next line
+      end
+
+      # "Gnic appears entirely restored." - fires when fully healed, re-appraise immediately
+      if plain =~ /^(\w+) appears? entirely restored/i
+        noun = Regexp.last_match(1)
+        entry = people_status.find { |_id, p| p[:noun].downcase == noun.downcase }
+        if entry
+          dbg "other empath heal -> #{noun} entirely restored, queuing immediate re-appraise"
+          refresh_queue << "refresh #{noun}"
         end
         next line
       end
