@@ -1,0 +1,15 @@
+=begin
+Convenience wrapper for lmas.
+
+Usage examples
+  ;sort
+  ;sort setup
+  ;sort help
+=end
+
+vars = script.vars
+if vars.empty?
+  start_script('lmas', ['sort'])
+else
+  start_script('lmas', vars)
+end

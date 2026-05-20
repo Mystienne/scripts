@@ -1,0 +1,910 @@
+=begin
+
+  perfume.lic -- keep a perfume / cologne vial active on yourself at all times.
+
+  How it works
+    * Timer based, and the timer survives logout. A GemStone perfume lasts
+      4 hours; this script re-applies every 3h45m (UserVars.perfume_reapply_hours)
+      so it always refreshes before the scent can lapse.
+    * The time of the last application is saved in UserVars (per character, in
+      Lich's database), so when you log back in it knows how long has really
+      elapsed -- a scent keeps ticking while you're logged out. On login it
+      re-applies immediately if the interval already passed, otherwise it waits
+      out the remaining time.
+    * Backup: a DownstreamHook also watches for the standard wear-off line and
+      re-applies the instant it appears (confirmed verbatim in the logs):
+          "The subtle scent which had been clinging to you dissipates."
+    * Refresh sequence:
+        pause every OTHER running script except a keep-running list
+        wait until at least one hand is free
+        GET MY <vial> FROM MY <bag>
+        POUR MY <vial> ON <self>
+        PUT MY <vial> IN MY <bag>
+        resume exactly the scripts we paused (always, even if interrupted)
+
+  Pausing
+    Rather than maintain an ever-growing list of hunting scripts, this pauses
+    ALL running scripts during the brief refresh EXCEPT those on a keep-running
+    list (heals, networking, HUD/display, logging, infra, and perfume itself).
+    That way any hunting / combat / loot script you run is covered automatically.
+    Only scripts that were actually running AND not already paused are touched,
+    and they're resumed when the refresh ends -- so nothing is left paused.
+
+  Usage
+    ;perfume                 -- start the monitor (apply if due, then keep timing)
+    ;perfume now             -- apply immediately (resets the timer), keep monitoring
+    ;perfume once            -- apply once and exit (no monitor)
+    ;perfume check           -- run one SNIFF and report active / inactive
+    ;perfume status          -- show settings + time until next re-apply
+    ;perfume stop            -- stop the monitor
+    ;perfume measure         -- report applications remaining (MEASURE)
+    ;perfume scan            -- shifting vial: cycle RUB and record every scent (quiet)
+    ;perfume reset           -- wipe the recorded scent catalog and start over
+    ;perfume scents          -- review the recorded scent list (numbered summaries)
+    ;perfume scent <n>       -- full first/third-person detail for scent number <n>
+    ;perfume goto <n>        -- switch the vial to catalog scent number <n>
+    ;perfume help            -- show usage
+    ;perfume set mode <bag|worn> -- bagged vial (needs a free hand) vs worn item
+    ;perfume set vial <name> -- set the vial / worn-item name
+    ;perfume set bag <name>  -- set the bag name (bag mode only)
+    ;perfume set verb <verb> -- apply verb (default pour); e.g. apply, dab, spray
+    ;perfume set warn <n>    -- warn when applications drop to <n> or fewer
+    ;perfume set hours <n>   -- set the re-apply interval in hours
+    ;perfume set keep <csv>  -- set the keep-running list
+
+  Modes
+    bag  (default) -- the perfume is a vial kept in a container. To apply, the
+                      script needs a free hand: it GETs the vial, POURs it on
+                      you, and PUTs it back. Requires vial + bag names.
+    worn           -- the perfume is a worn item (locket / bottle / etc.) that
+                      stays equipped. To apply, the script just POURs it on you
+                      in place: no free hand, no GET/PUT. Requires only the
+                      item name (set it with ';perfume set vial <name>').
+
+  The vial/item name must be what the game recognizes: "pour my <name>" (and in
+  bag mode "get my <name>") has to work by hand. "hollow vial" will NOT match
+  "a pristine hollow bone vial..." -- use "hollow bone vial" (or whatever works).
+
+  On first use it has nothing configured and will ask you to set up; it won't
+  try to apply anything until you do.
+
+  Configuration (UserVars -- set via ';perfume set ...', persists per character)
+    UserVars.perfume_mode           "bag" (default) or "worn"
+    UserVars.perfume_vial           (required) vial/item name -- ;perfume set vial
+    UserVars.perfume_bag            (required in bag mode)     -- ;perfume set bag
+    UserVars.perfume_verb           default: "pour" -- the verb used to apply
+    UserVars.perfume_warn_at        default: 50 -- warn when applications <= this
+    UserVars.perfume_reapply_hours  default: 3.75   (3h45m; scent lasts 4h)
+    UserVars.perfume_keep_scripts   CSV of scripts to LEAVE RUNNING during the
+        refresh. Everything else that's running gets paused briefly. Edit this
+        to add anything you never want paused. perfume itself is always kept.
+    UserVars.perfume_bottomless     (internal) cached true/false from MEASURE.
+    UserVars.perfume_apps_left      (internal) last known applications remaining.
+    UserVars.perfume_last_applied   (internal) epoch time of last application.
+
+  Limited-application perfumes
+    Some perfumes have a finite number of applications (MEASURE shows e.g.
+    "1994 of a maximum 2000 applications"); others are bottomless. After each
+    apply (bag mode) the script MEASUREs the item and warns when the count
+    falls to UserVars.perfume_warn_at or below. The warning is a bordered box
+    highlighted in monsterbold so it's hard to miss. Once it sees "bottomless"
+    it stops measuring. Use ';perfume measure' to check on demand.
+
+  Shifting vials (many scents in one item, ~300)
+    A "shifting vial" cycles through many scents (RUB = next scent). The game
+    gives no per-scent number -- the only numbers are the 5 favorite slots
+    (WHISPER/NUDGE/PONDER) -- so this script assigns its own catalog numbers in
+    discovery order. RUB itself does NOT print the scent, so each step the scan
+    SNIFFs the current scent (short summary) and ANALYZEs it (full first/third-
+    person text), then RUBs to the next. It runs QUIETLY
+    (Lich::Util.quiet_command_xml), so the ~300 SNIFF/ANALYZE/RUB rounds don't
+    spam the screen -- only a periodic progress count shows. Results save --
+    numbered in discovery order -- to a per-character file:
+        DATA_DIR/perfume_scents_<character>.json
+    Because RUB returns to the starting scent, scanning leaves the vial where
+    it began. To avoid the game's flood disconnect, scanning paces itself
+    (UserVars.perfume_scan_delay, default 5s between scents) and saves the
+    catalog incrementally every 10 scents, so a dropped connection mid-scan
+    keeps what it already found. A full ~300-scent scan takes a while -- run it
+    when you're parked somewhere safe. While scanning, a small GTK progress
+    window shows the live count (falls back to text updates if GTK is
+    unavailable).
+      ;perfume scents     -- numbered list of short summaries
+      ;perfume scent <n>  -- full first/third-person detail for one number
+      ;perfume goto <n>   -- switch the vial to that catalog scent
+      ;perfume reset      -- wipe the saved catalog so the next scan is clean
+    A new ';perfume scan' always starts over from scratch (it cycles the whole
+    wheel from wherever the vial currently is), so cancelled scans don't
+    corrupt a later one -- but ';perfume reset' clears any leftover partial data
+    if you want a guaranteed clean slate first.
+    Because the catalog is stored in RUB-cycle order, 'goto' finds the current
+    scent (SNIFF), computes how many RUBs reach the target, and RUBs exactly
+    that many times (with a search fallback if the catalog is out of date).
+    RUBs are paced by UserVars.perfume_goto_delay (default 1.5s) to avoid a
+    flood disconnect, so a far jump can take a couple minutes. The vial only
+    cycles forward, so for scents you use a lot, store them as favorites
+    (NUDGE) and WHISPER the number for an instant switch.
+
+  Author : Mystienne
+  Version: 0.7.0
+
+=end
+
+DEFAULT_KEEP = %w[
+  lnet ecure ecleanse ecaster absorb creaturebar back-in-black injurywatch
+  room-buddy gemtracker lumnismon lumnisdonate uberbar_eo spellactive
+  song-manager reactive alias version dependency repository lich5-update
+  elogin charsetup go2 go2locate
+].join(',')
+
+# NOTE: vial and bag are intentionally NOT defaulted -- the script asks you to
+# configure them (the names must match your specific item / container).
+UserVars.perfume_reapply_hours ||= 3.75
+UserVars.perfume_keep_scripts  ||= DEFAULT_KEEP
+UserVars.perfume_mode          ||= 'bag'
+UserVars.perfume_verb          ||= 'pour'
+UserVars.perfume_warn_at       ||= 50
+UserVars.perfume_scan_delay    ||= 5
+UserVars.perfume_goto_delay    ||= 1.5
+
+VIAL          = UserVars.perfume_vial.to_s.strip
+BAG           = UserVars.perfume_bag.to_s.strip
+MODE          = UserVars.perfume_mode.to_s.strip.downcase
+MODE          = 'bag' unless %w[bag worn].include?(MODE)
+VERB          = (UserVars.perfume_verb.to_s.strip.downcase.empty? ? 'pour' : UserVars.perfume_verb.to_s.strip.downcase)
+WARN_AT       = UserVars.perfume_warn_at.to_i
+SCAN_DELAY    = [UserVars.perfume_scan_delay.to_f, 1.0].max # seconds between scents during a scan
+GOTO_DELAY    = [UserVars.perfume_goto_delay.to_f, 0.5].max # seconds between RUBs while switching scents
+REAPPLY_HOURS = UserVars.perfume_reapply_hours.to_f
+REAPPLY_HOURS = 3.75 if REAPPLY_HOURS <= 0
+REAPPLY_SECS  = (REAPPLY_HOURS * 3600).to_i
+# Names we never pause: the keep list, plus this script itself.
+KEEP_SCRIPTS  = (UserVars.perfume_keep_scripts.to_s.split(',').map { |n| n.strip.downcase } + ['perfume']).reject(&:empty?).uniq
+
+require 'json'
+
+# Catalog of scents for a "shifting vial" (the kind that cycles many scents via
+# RUB). Saved per character in its own file, since a given vial's list is fixed.
+SCENT_FILE = File.join(DATA_DIR, "perfume_scents_#{checkname.to_s.downcase}.json")
+
+# Generic "you are wearing no scent" response -- same for every perfume.
+NO_SCENT_RE = /think\*? you smell okay|smell okay, but then|doesn't everybody/i
+# Apply confirmation -- broad so it works across verbs (pour/apply/dab/spray/...).
+APPLY_OK_RE   = /You pour a few drops|You (?:apply|dab|spray|splash|smear|rub|anoint|spritz|brush|wipe|put)\b|veil of scent|enshroud|now (?:carries|bears|wear)|a (?:faint|subtle|light|delicate) (?:scent|fragrance|aroma)/i
+APPLY_FAIL_RE = /what\?|^What were you|^I could not find|^You don't have|^You can't|^There (?:is|are) no/i
+
+sub = script.vars[1].to_s.downcase
+
+def print_help
+  respond ''
+  respond '=== perfume: usage ==='
+  respond '  ;perfume                  start monitoring (apply if due, keep timing)'
+  respond '  ;perfume now              apply immediately, then keep monitoring'
+  respond '  ;perfume once             apply once and exit'
+  respond '  ;perfume check            sniff once and report active / inactive'
+  respond '  ;perfume measure          show applications remaining (MEASURE)'
+  respond '  ;perfume scan             shifting vial: RUB through and record all scents (quiet)'
+  respond '  ;perfume reset            wipe the recorded scent catalog (start over)'
+  respond '  ;perfume scents           review the recorded scent list (numbered summaries)'
+  respond '  ;perfume scent <n>        full first/third-person detail for scent number <n>'
+  respond '  ;perfume goto <n>         switch the vial to catalog scent number <n>'
+  respond '  ;perfume status           show settings + time until next re-apply'
+  respond '  ;perfume stop             stop the monitor'
+  respond '  ;perfume help             this help'
+  respond '  --- settings (saved per character) ---'
+  respond '  ;perfume set mode <bag|worn>  bag = get/pour/put a vial (needs a free hand)'
+  respond '                                worn = just apply a worn item (no free hand)'
+  respond '  ;perfume set vial <name>  e.g. ;perfume set vial hollow bone vial'
+  respond '  ;perfume set bag <name>   e.g. ;perfume set bag spidersilk bag  (bag mode only)'
+  respond '  ;perfume set verb <verb>  apply verb (default pour); e.g. apply, dab, spray'
+  respond '  ;perfume set warn <n>     warn when applications drop to <n> or fewer (default 50)'
+  respond '  ;perfume set scandelay <s>  seconds between scents while scanning (default 5)'
+  respond '  ;perfume set gotodelay <s>  seconds between RUBs while switching (default 1.5)'
+  respond '  ;perfume set hours <n>    e.g. ;perfume set hours 3.75'
+  respond '  ;perfume set keep <csv>   scripts to leave running during a refresh'
+  respond "  tip: the vial/item name must match how the game sees it -- '<verb> my <name>'"
+  respond "       (and in bag mode 'get my <name>') has to work by hand."
+  respond ''
+end
+
+def prompt_setup
+  respond ''
+  if MODE == 'worn'
+    respond ';perfume: not configured yet -- set the worn item to apply.'
+    respond '  The name must work with POUR by hand, e.g.:'
+    respond '    ;perfume set vial perfume bottle'
+  else
+    respond ';perfume: not configured yet -- please set your vial and bag first.'
+    respond '  The names must work with GET by hand, e.g.:'
+    respond '    ;perfume set vial hollow bone vial'
+    respond '    ;perfume set bag spidersilk bag'
+  end
+  respond '  Then start it with:  ;perfume'
+  respond '  (;perfume set mode worn  if your perfume is a worn item, not a bagged vial.)'
+  respond '  (;perfume help shows all options.)'
+  respond ''
+end
+
+# Help / unknown sub-command -> show usage instead of starting the monitor.
+VALID_SUBS = %w[start now once check measure scan reset scents scent goto switch list status stop set help].freeze
+if sub == 'help' || (!sub.empty? && !VALID_SUBS.include?(sub))
+  print_help
+  exit
+end
+
+if sub == 'set'
+  parts = script.vars[0].to_s.split(/\s+/)
+  key   = parts[1].to_s.downcase
+  value = parts[2..-1].to_a.join(' ').strip
+  if key.empty? || value.empty?
+    respond ''
+    respond ';perfume: usage -- ;perfume set <mode|vial|bag|verb|warn|scandelay|gotodelay|hours|keep> <value>'
+    respond ''
+    exit
+  end
+  respond ''
+  case key
+  when 'mode'
+    v = value.downcase
+    if %w[bag worn].include?(v)
+      UserVars.perfume_mode = v
+      respond ";perfume: mode set to '#{v}'#{v == 'worn' ? ' (worn item -- no free hand, no get/put)' : ' (bagged vial -- get/pour/put)'}."
+    else
+      respond ";perfume: mode must be 'bag' or 'worn'."
+      respond ''
+      exit
+    end
+  when 'vial', 'item'
+    UserVars.perfume_vial = value
+    UserVars.perfume_bottomless = nil # different item -- forget cached MEASURE data
+    UserVars.perfume_apps_left  = nil
+    respond ";perfume: #{MODE == 'worn' ? 'item' : 'vial'} set to '#{value}'."
+  when 'bag'
+    UserVars.perfume_bag = value
+    respond ";perfume: bag set to '#{value}'."
+  when 'verb'
+    UserVars.perfume_verb = value.downcase.split.first
+    respond ";perfume: apply verb set to '#{UserVars.perfume_verb}'."
+  when 'warn'
+    UserVars.perfume_warn_at = value.to_i
+    respond ";perfume: low-application warning set at #{value.to_i} or fewer."
+  when 'scandelay'
+    UserVars.perfume_scan_delay = value.to_f
+    respond ";perfume: scan delay set to #{value.to_f}s between scents (lower = faster but risks a flood disconnect)."
+  when 'gotodelay'
+    UserVars.perfume_goto_delay = value.to_f
+    respond ";perfume: goto delay set to #{value.to_f}s between RUBs."
+  when 'hours'
+    UserVars.perfume_reapply_hours = value.to_f
+    respond ";perfume: re-apply interval set to #{value.to_f}h."
+  when 'keep'
+    UserVars.perfume_keep_scripts = value
+    respond ";perfume: keep-running list set to: #{value}"
+  else
+    respond ";perfume: unknown setting '#{key}'. Use mode, vial, bag, verb, warn, scandelay, gotodelay, hours, or keep."
+    respond ''
+    exit
+  end
+  if Script.list.any? { |s| s.name == 'perfume' && s != Script.current }
+    respond ';perfume: restart the monitor (;k perfume then ;perfume) for the change to take effect.'
+  end
+  respond ''
+  exit
+end
+
+if sub == 'stop'
+  other = Script.list.find { |s| s.name == 'perfume' && s != Script.current }
+  if other
+    kill_script('perfume')
+    respond ';perfume: stopped.'
+  else
+    respond ';perfume: not running.'
+  end
+  exit
+end
+
+if sub == 'status'
+  last = UserVars.perfume_last_applied.to_i
+  respond ''
+  respond '=== perfume ==='
+  respond "  mode          : #{MODE}#{MODE == 'worn' ? ' (worn item -- no free hand)' : ' (bagged vial)'}"
+  respond "  #{MODE == 'worn' ? 'item' : 'vial'}          : #{VIAL.empty? ? '(not set -- ;perfume set vial <name>)' : VIAL}"
+  respond "  bag           : #{BAG.empty? ? '(not set -- ;perfume set bag <name>)' : BAG}" if MODE == 'bag'
+  respond "  apply verb    : #{VERB}"
+  respond "  reapply every : #{REAPPLY_HOURS}h (#{REAPPLY_SECS}s)"
+  if UserVars.perfume_bottomless == true
+    respond '  applications  : bottomless (infinite)'
+  elsif !UserVars.perfume_apps_left.nil?
+    respond "  applications  : #{UserVars.perfume_apps_left.to_i} left (warn at #{WARN_AT})"
+  else
+    respond "  applications  : unknown (run ;perfume measure)"
+  end
+  respond "  keep running  : #{KEEP_SCRIPTS.join(', ')}"
+  if last > 0
+    ago = Time.now.to_i - last
+    due = REAPPLY_SECS - ago
+    respond "  last applied  : #{ago / 60} min ago"
+    respond "  next re-apply : #{due > 0 ? "in #{due / 60} min" : 'overdue (now)'}"
+  else
+    respond '  last applied  : never recorded'
+  end
+  running_other = Script.list.any? { |s| s.name == 'perfume' && s != Script.current }
+  respond "  running       : #{running_other ? 'yes' : 'no'}"
+  respond ''
+  exit
+end
+
+$perfume_paused = []
+
+def has_free_hand?
+  GameObj.right_hand.id.nil? || GameObj.left_hand.id.nil?
+end
+
+def wait_for_free_hand
+  return if has_free_hand?
+  echo 'perfume: both hands full -- waiting for a free hand before refreshing scent.'
+  attempts = 0
+  until has_free_hand?
+    sleep 2
+    attempts += 1
+    break if attempts > 150 # ~5 min safety cap
+  end
+end
+
+# Returns true (active), false (inactive), or nil (couldn't tell).
+def perfume_active?
+  line = dothistimeout "sniff #{checkname}", 5, /^You /
+  return nil if line.nil?
+  !(line =~ NO_SCENT_RE)
+end
+
+# Pause everything currently running except the keep list / perfume itself.
+# Returns the names we actually paused so we can resume exactly those.
+def pause_other_scripts(keep)
+  paused = []
+  Script.list.each do |s|
+    next if s == Script.current
+    next if keep.include?(s.name.to_s.downcase)
+    next if s.paused?
+    pause_script(s.name)
+    paused << s.name
+  end
+  paused
+end
+
+def resume_scripts(paused)
+  return if paused.nil?
+  paused.each { |name| unpause_script(name) if Script.running?(name) }
+end
+
+# Apply the perfume onto yourself using the configured verb. True on success.
+def apply_on_self
+  cmd = "#{VERB} my #{VIAL} on #{checkname}"
+  r = dothistimeout cmd, 5, /#{APPLY_OK_RE.source}|#{APPLY_FAIL_RE.source}/i
+  if r.nil?
+    echo "perfume: '#{cmd}' got no recognizable response. If your perfume uses a verb"
+    echo "perfume: other than '#{VERB}', set it with ';perfume set verb <verb>'."
+    return false
+  end
+  if r =~ APPLY_FAIL_RE
+    echo "perfume: apply failed (game said: #{r.strip})."
+    return false
+  end
+  true
+end
+
+# MEASURE the perfume. Returns :bottomless, [remaining, max], or nil (unknown).
+def measure_perfume
+  line = dothistimeout "measure my #{VIAL}", 5,
+                       /bottomless|infinite amount|currently has \d+ of a maximum \d+|^Measure what|^What were you|^I could not find/i
+  return nil if line.nil?
+  return :bottomless if line =~ /bottomless|infinite amount/i
+  return [$1.to_i, $2.to_i] if line =~ /currently has (\d+) of a maximum (\d+)/i
+  nil
+end
+
+# --- shifting-vial scent catalog -------------------------------------------
+#
+# All scan commands run quietly via Lich::Util.quiet_command_xml so the ~300
+# RUB/ANALYZE pairs don't spam the screen. For each scent we keep a short
+# summary (for the numbered list) and the full first/third-person text (from
+# ANALYZE) for the per-number detail view.
+
+# Current scent's short summary, via SNIFF. Returns text or nil.
+def scent_summary_sniff
+  lines = Lich::Util.quiet_command_xml("sniff my #{VIAL}", /detect the faint scent of|You sniff|Sniff what|rephrase|don't have|can't/, /<prompt/)
+  line  = lines.find { |l| l =~ /detect the faint scent of/i }
+  return $1.strip if line && line =~ /detect the faint scent of (.+?)\.?\s*$/i
+  nil
+end
+
+# Diagnostic: the plain-text response to 'sniff my <vial>' (for failure messages).
+def sniff_debug
+  lines = Lich::Util.quiet_command_xml("sniff my #{VIAL}", /sniff|scent|rephrase|can't|don't have|don't see|What were/i, /<prompt/)
+  lines.map { |l| l.gsub(/<[^>]*>/, '').strip }.reject(&:empty?).join(' ')[0, 200]
+rescue StandardError => e
+  "error: #{e.message}"
+end
+
+# Advance to the next scent. RUB does NOT announce the scent (just "shimmer
+# briefly"), so we read the new scent separately with SNIFF afterward.
+def advance_scent
+  Lich::Util.quiet_command_xml("rub my #{VIAL}", /shimmer briefly|Rub what|I could not find|You can't/, /<prompt/)
+end
+
+# ANALYZE the current scent; return [first_person, third_person] (may be nil).
+def scent_analyze
+  lines = Lich::Util.quiet_command_xml("analyze my #{VIAL}", /You analyze the/, /<prompt/)
+  first = third = nil
+  lines.each do |ln|
+    first = $1.strip if ln =~ /First-person:\s*(.+?)\s*$/
+    third = $1.strip if ln =~ /Third-person:\s*(.+?)\s*$/
+  end
+  [first, third]
+end
+
+# --- optional GTK progress window for the scan -----------------------------
+$perfume_scan_win = nil
+$perfume_scan_lbl = nil
+$perfume_scan_bar = nil
+$perfume_scan_gui = false
+
+def scan_window_open
+  require 'gtk3'
+  Gtk.queue do
+    $perfume_scan_win = Gtk::Window.new(:toplevel)
+    $perfume_scan_win.set_keep_above(true)
+    $perfume_scan_win.set_title('Perfume Scan')
+    $perfume_scan_win.set_default_size(420, 110)
+    box = Gtk::Box.new(:vertical, 4)
+    [:set_margin_top, :set_margin_bottom, :set_margin_start, :set_margin_end].each { |m| box.send(m, 8) }
+    $perfume_scan_lbl = Gtk::Label.new('Starting scan...')
+    $perfume_scan_lbl.set_xalign(0.0)
+    $perfume_scan_lbl.set_line_wrap(true)
+    $perfume_scan_lbl.set_max_width_chars(60)
+    $perfume_scan_bar = Gtk::ProgressBar.new
+    $perfume_scan_bar.set_show_text(true)
+    $perfume_scan_bar.set_text('0 scents')
+    box.pack_start($perfume_scan_lbl, expand: false, fill: false, padding: 0)
+    box.pack_start($perfume_scan_bar, expand: false, fill: false, padding: 0)
+    $perfume_scan_win.signal_connect('destroy') { $perfume_scan_win = nil }
+    $perfume_scan_win.add(box)
+    $perfume_scan_win.show_all
+  end
+  $perfume_scan_gui = true
+rescue StandardError, LoadError => e
+  echo "perfume: progress window unavailable (#{e.message}); scanning with text updates only."
+  $perfume_scan_gui = false
+end
+
+def scan_window_update(n, summary = nil)
+  return unless $perfume_scan_gui
+  Gtk.queue do
+    begin
+      $perfume_scan_lbl.set_text("Recorded #{n} scents#{summary ? "\nlatest: #{summary}" : ''}") if $perfume_scan_lbl
+      if $perfume_scan_bar
+        $perfume_scan_bar.pulse
+        $perfume_scan_bar.set_text("#{n} scents")
+      end
+    rescue StandardError
+      nil # window may have been closed mid-update
+    end
+  end
+end
+
+def scan_window_close(final = nil)
+  return unless $perfume_scan_gui
+  Gtk.queue do
+    begin
+      if $perfume_scan_win
+        if final && $perfume_scan_lbl
+          $perfume_scan_lbl.set_text(final)
+          $perfume_scan_bar.set_fraction(1.0) if $perfume_scan_bar
+        else
+          $perfume_scan_win.destroy
+        end
+      end
+    rescue StandardError
+      nil
+    end
+  end
+end
+
+# Cycle the whole wheel once: SNIFF the current scent (summary) + ANALYZE it
+# (full first/third), then RUB to the next. Stops when a summary repeats (we've
+# come full circle) and caps for safety. Since RUB wraps back to the starting
+# scent, the vial is left where it began.
+def scan_scents
+  scents = []
+  seen   = {}
+  500.times do
+    summary = scent_summary_sniff
+    break if summary.nil?            # can't read -- bail rather than spin
+    break if seen[summary.downcase]  # looped back to a scent we've recorded
+    seen[summary.downcase] = true
+    sleep 1
+    f, t = scent_analyze
+    scents << { 'n' => scents.size + 1, 'summary' => summary, 'first' => f, 'third' => t }
+    # Save incrementally so a disconnect mid-scan doesn't lose progress.
+    save_scents(scents) if (scents.size % 10).zero?
+    respond ";perfume: scanning... recorded #{scents.size}" if (scents.size % 25).zero?
+    scan_window_update(scents.size, summary)
+    sleep 1
+    advance_scent
+    sleep SCAN_DELAY # pace commands to avoid the game's flood disconnect
+  end
+  scents
+end
+
+def save_scents(list)
+  File.open(SCENT_FILE, 'w') do |f|
+    f.write(JSON.pretty_generate('vial' => VIAL, 'scanned_at' => Time.now.to_s, 'scents' => list))
+  end
+end
+
+def load_scents
+  return nil unless File.exist?(SCENT_FILE)
+  JSON.parse(File.read(SCENT_FILE))
+rescue StandardError
+  nil
+end
+
+# Switch the vial to catalog scent #n. The catalog is in RUB-cycle order, so we
+# find the current scent's index (via SNIFF), compute the forward distance to
+# the target, and RUB exactly that many times. If the current scent isn't in
+# the catalog (stale data) or the result doesn't match, fall back to RUBbing
+# around the wheel until the target summary appears. Returns true on success.
+def goto_scent(scents, n)
+  total  = scents.size
+  target = scents[n - 1]['summary'].to_s
+  cur    = scent_summary_sniff
+  if cur && (idx = scents.index { |h| h['summary'].to_s.downcase == cur.downcase })
+    dist = ((n - 1) - idx) % total
+    respond ";perfume: #{dist} rub#{dist == 1 ? '' : 's'} away (~#{(dist * GOTO_DELAY).round}s)..." if dist > 5
+    dist.times { advance_scent; sleep GOTO_DELAY }
+    now = scent_summary_sniff
+    return true if now && now.downcase == target.downcase
+  end
+  # Fallback search around the whole wheel (handles a stale/out-of-order catalog).
+  (total + 2).times do
+    c = scent_summary_sniff
+    return true if c && c.downcase == target.downcase
+    advance_scent
+    sleep GOTO_DELAY
+  end
+  false
+end
+
+# Loud, bordered, monsterbold-highlighted low-applications warning.
+def perfume_low_warning(rem, max)
+  lines = [
+    'PERFUME RUNNING LOW',
+    "#{rem} of #{max} applications remaining",
+    "restock: #{VIAL}"
+  ]
+  inner  = lines.map(&:length).max + 6 # 3 spaces padding each side
+  border = '*' * (inner + 2)
+  begin
+    mb_s = monsterbold_start
+    mb_e = monsterbold_end
+  rescue StandardError
+    mb_s = ''
+    mb_e = ''
+  end
+  _respond ''
+  _respond "#{mb_s}#{border}#{mb_e}"
+  lines.each { |ln| _respond "#{mb_s}*#{ln.center(inner)}*#{mb_e}" }
+  _respond "#{mb_s}#{border}#{mb_e}"
+  _respond ''
+end
+
+# Best-effort application count + low warning. Skips MEASURE once we know the
+# item is bottomless (no point repeating it every cycle).
+def check_applications
+  return if UserVars.perfume_bottomless == true
+  result = measure_perfume
+  case result
+  when :bottomless
+    UserVars.perfume_bottomless = true
+    UserVars.perfume_apps_left  = nil
+  when Array
+    UserVars.perfume_bottomless = false
+    rem, max = result
+    UserVars.perfume_apps_left  = rem
+    perfume_low_warning(rem, max) if rem <= WARN_AT
+  end
+end
+
+# Bagged vial: needs a free hand; get it out, apply, (measure), put it back.
+def apply_from_bag
+  wait_for_free_hand
+  r = dothistimeout "get my #{VIAL} from my #{BAG}", 5,
+                    /^You remove|^Get what\?|^What were you|^I could not find|^You don't have|^There is nothing/i
+  unless r =~ /^You remove/i
+    echo "perfume: could not GET vial (game said: #{r ? r.strip : 'no response'})."
+    echo "perfume: set the right names with ';perfume set vial <name>' and ';perfume set bag <name>'."
+    echo "perfume: current vial='#{VIAL}', bag='#{BAG}'.  Try a name that works with 'get my <name>' by hand."
+    return false
+  end
+  applied = apply_on_self
+  check_applications # while it's still in hand
+  dothistimeout "put my #{VIAL} in my #{BAG}", 5,
+                /^You put|^Put what|^I could not find/i
+  applied
+end
+
+# Worn item: no free hand, no get/put -- just apply it in place.
+def apply_worn
+  applied = apply_on_self
+  check_applications # best effort (some worn items can't be measured)
+  applied
+end
+
+# Applies the perfume. On success it stamps UserVars.perfume_last_applied
+# (which both the timer and the wear-off hook rely on) and returns true.
+def refresh_perfume
+  $perfume_paused = pause_other_scripts(KEEP_SCRIPTS)
+  begin
+    applied = (MODE == 'worn') ? apply_worn : apply_from_bag
+    UserVars.perfume_last_applied = Time.now.to_i if applied
+    applied ? true : false
+  ensure
+    resume_scripts($perfume_paused)
+    $perfume_paused = []
+  end
+end
+
+if sub == 'check'
+  respond ''
+  case perfume_active?
+  when true  then respond ';perfume: ACTIVE -- a scent is currently on you.'
+  when false then respond ';perfume: NOT active -- no scent detected.'
+  else            respond ';perfume: could not tell (no SNIFF response in time).'
+  end
+  respond ''
+  exit
+end
+
+if sub == 'measure'
+  if VIAL.empty?
+    prompt_setup
+    exit
+  end
+  respond ''
+  paused  = pause_other_scripts(KEEP_SCRIPTS)
+  got_out = false
+  begin
+    if MODE == 'bag' && !BAG.empty?
+      wait_for_free_hand
+      r = dothistimeout "get my #{VIAL} from my #{BAG}", 5,
+                        /^You remove|^Get what\?|^What were you|^I could not find|^You don't have|^There is nothing/i
+      got_out = !!(r =~ /^You remove/i)
+      echo "perfume: could not GET vial (game said: #{r ? r.strip : 'no response'})." unless got_out
+    end
+    result = measure_perfume
+    case result
+    when :bottomless
+      UserVars.perfume_bottomless = true
+      UserVars.perfume_apps_left  = nil
+      respond ";perfume: #{VIAL} is bottomless (infinite applications)."
+    when Array
+      UserVars.perfume_bottomless = false
+      UserVars.perfume_apps_left  = result[0]
+      respond ";perfume: #{result[0]} of #{result[1]} applications left in #{VIAL}."
+      perfume_low_warning(result[0], result[1]) if result[0] <= WARN_AT
+    else
+      respond ";perfume: couldn't read an application count from MEASURE."
+    end
+  ensure
+    dothistimeout("put my #{VIAL} in my #{BAG}", 5, /^You put|^Put what|^I could not find/i) if got_out
+    resume_scripts(paused)
+  end
+  respond ''
+  exit
+end
+
+# Wipe the saved scent catalog so the next scan starts completely fresh.
+if sub == 'reset'
+  respond ''
+  if File.exist?(SCENT_FILE)
+    begin
+      File.delete(SCENT_FILE)
+      respond ";perfume: cleared the recorded scent catalog."
+      respond "  (#{SCENT_FILE})"
+      respond "  run ';perfume scan' to build a fresh one."
+    rescue StandardError => e
+      respond ";perfume: could not delete the catalog file -- #{e.message}"
+    end
+  else
+    respond ';perfume: no recorded scent catalog to clear -- nothing to reset.'
+  end
+  respond ''
+  exit
+end
+
+# Review the saved scent catalog -- numbered summaries (no game commands).
+if sub == 'scents' || sub == 'list'
+  data = load_scents
+  respond ''
+  if data.nil? || data['scents'].to_a.empty?
+    respond ";perfume: no scents recorded yet -- run ';perfume scan' while wearing/holding the vial."
+  else
+    respond "=== recorded scents for #{data['vial']} (#{data['scents'].size}) ==="
+    data['scents'].each { |h| respond format('  %3d. %s', h['n'].to_i, h['summary']) }
+    respond "  full detail for one: ;perfume scent <number>"
+    respond "  (scanned #{data['scanned_at']})"
+  end
+  respond ''
+  exit
+end
+
+# Full first/third-person detail for a single recorded scent number.
+if sub == 'scent'
+  n    = script.vars[2].to_i
+  data = load_scents
+  respond ''
+  if data.nil? || data['scents'].to_a.empty?
+    respond ";perfume: no scents recorded yet -- run ';perfume scan' first."
+  elsif n < 1 || n > data['scents'].size
+    respond ";perfume: pick a number from 1 to #{data['scents'].size} (see ;perfume scents)."
+  else
+    h = data['scents'][n - 1]
+    respond "=== #{data['vial']} -- scent ##{h['n']} of #{data['scents'].size} ==="
+    respond "  summary     : #{h['summary']}"
+    respond "  first-person: #{h['first'] || '(not recorded)'}"
+    respond "  third-person: #{h['third'] || '(not recorded)'}"
+  end
+  respond ''
+  exit
+end
+
+# Switch the vial to a recorded catalog scent by our number.
+if sub == 'goto' || sub == 'switch'
+  n    = script.vars[2].to_i
+  data = load_scents
+  respond ''
+  if data.nil? || data['scents'].to_a.empty?
+    respond ";perfume: no scents recorded yet -- run ';perfume scan' first."
+    respond ''
+    exit
+  end
+  if n < 1 || n > data['scents'].size
+    respond ";perfume: pick a number from 1 to #{data['scents'].size} (see ;perfume scents)."
+    respond ''
+    exit
+  end
+  if VIAL.empty?
+    prompt_setup
+    exit
+  end
+  respond ";perfume: switching to scent ##{n} (#{data['scents'][n - 1]['summary']})..."
+  paused  = pause_other_scripts(KEEP_SCRIPTS)
+  got_out = false
+  ok      = false
+  begin
+    if MODE == 'bag' && !BAG.empty?
+      wait_for_free_hand
+      r = dothistimeout "get my #{VIAL} from my #{BAG}", 5,
+                        /^You remove|^Get what\?|^What were you|^I could not find|^You don't have|^There is nothing/i
+      got_out = !!(r =~ /^You remove/i)
+      echo "perfume: could not GET vial (game said: #{r ? r.strip : 'no response'})." unless got_out
+    end
+    ok = goto_scent(data['scents'], n)
+  rescue StandardError => e
+    echo "perfume: goto error -- #{e.message}"
+  ensure
+    dothistimeout("put my #{VIAL} in my #{BAG}", 5, /^You put|^Put what|^I could not find/i) if got_out
+    resume_scripts(paused)
+  end
+  if ok
+    respond ";perfume: now wearing scent ##{n}: #{data['scents'][n - 1]['summary']}"
+  else
+    respond ";perfume: couldn't reach scent ##{n} -- the catalog may be out of date; try ';perfume scan' again."
+  end
+  respond ''
+  exit
+end
+
+# Scan a shifting vial: RUB through every scent once and record them.
+if sub == 'scan'
+  if VIAL.empty?
+    prompt_setup
+    exit
+  end
+  respond ''
+  respond ";perfume: scanning all scents on your #{VIAL} -- this RUBs through the whole"
+  respond '  wheel once, so do it somewhere quiet. Other scripts are paused meanwhile.'
+  scan_window_open
+  paused  = pause_other_scripts(KEEP_SCRIPTS)
+  got_out = false
+  scents  = []
+  begin
+    if MODE == 'bag' && !BAG.empty?
+      wait_for_free_hand
+      r = dothistimeout "get my #{VIAL} from my #{BAG}", 5,
+                        /^You remove|^Get what\?|^What were you|^I could not find|^You don't have|^There is nothing/i
+      got_out = !!(r =~ /^You remove/i)
+      echo "perfume: could not GET vial (game said: #{r ? r.strip : 'no response'})." unless got_out
+    end
+    scents = scan_scents
+  rescue StandardError => e
+    echo "perfume: scan error -- #{e.message}"
+  ensure
+    dothistimeout("put my #{VIAL} in my #{BAG}", 5, /^You put|^Put what|^I could not find/i) if got_out
+    resume_scripts(paused)
+  end
+  if scents.empty?
+    scan_window_close
+    respond ';perfume: scan found no scents.'
+    respond "  'sniff my #{VIAL}' returned: #{sniff_debug}"
+    respond "  the name must work with 'sniff my <name>' by hand -- e.g. ';perfume set vial vial'."
+  else
+    save_scents(scents)
+    scan_window_close("Done -- #{scents.size} scents recorded.\nClose this window.")
+    respond ";perfume: recorded #{scents.size} scents -> #{SCENT_FILE}"
+    respond "  use ';perfume scents' to review the list anytime."
+  end
+  respond ''
+  exit
+end
+
+# Everything past here applies the perfume, so it must be configured:
+# always a vial/item name, plus a bag when in bag mode.
+if VIAL.empty? || (MODE == 'bag' && BAG.empty?)
+  prompt_setup
+  exit
+end
+
+if sub == 'once'
+  refresh_perfume
+  exit
+end
+
+# Safety net: whatever happens (normal stop, ;perfume stop, error), make sure
+# we never leave a script paused that we paused.
+before_dying do
+  resume_scripts($perfume_paused)
+  $perfume_paused = []
+  DownstreamHook.remove('perfume_fade_watch') rescue nil
+end
+
+# Backup trigger: re-apply the instant the scent wears off. The first pattern
+# is the exact, confirmed perfume fade message; the rest are conservative
+# fallbacks in case a particular item ever uses custom wording.
+fade_patterns = [
+  /^The subtle scent which had been clinging to you dissipates\./i,
+  /^The (?:scent|fragrance|aroma|perfume|cologne|sillage) .*(?:fade|wane|dissipate|dies|worn off|wear off)/i,
+  /^You no longer (?:smell|reek|exude|carry the scent)/i,
+  /^Your (?:scent|fragrance|perfume|cologne|sillage) (?:has |finally )?(?:faded|dissipated|worn off|waned)/i,
+]
+DownstreamHook.add('perfume_fade_watch', proc { |line|
+  begin
+    if fade_patterns.any? { |pat| line =~ pat }
+      Thread.new { refresh_perfume rescue nil }
+    end
+  rescue StandardError
+    nil
+  end
+  line
+})
+
+respond ''
+respond ";perfume: monitoring -- re-applying every #{REAPPLY_HOURS}h (scent lasts 4h). Timer is saved across logins."
+respond ''
+
+# `;perfume now` forces an immediate application and resets the timer.
+refresh_perfume if sub == 'now'
+
+# Timer loop. Uses the saved timestamp so the schedule survives logout: it
+# computes how long is really left, waits that out (or applies right away if
+# the interval already elapsed while logged off). The wear-off hook may reset
+# the timestamp mid-wait; on wake we just recompute, so there's no double POUR.
+loop do
+  last      = UserVars.perfume_last_applied.to_i
+  remaining = REAPPLY_SECS - (Time.now.to_i - last)
+  if remaining > 0
+    sleep remaining
+  else
+    sleep 60 unless refresh_perfume # back off on failure to avoid a tight retry loop
+  end
+end

@@ -1,0 +1,1715 @@
+# encoding: utf-8
+=begin
+
+  LMAS - Lock Mastery assistant for GemStone IV
+
+  LMAS helps rogues manage Lock Mastery tools and lockpick sets.
+
+  Current implemented features:
+    - scan and appraise inventory lockpicks
+    - cache appraise data in per-character JSON
+    - sort the best lockpick of each type into a primary container
+    - move duplicate lockpicks into a duplicate container
+    - track broken lockpicks separately
+    - show readable status reports
+    - emit numbered log markers for testing
+
+  Planned modules:
+    - wedge
+    - keyring creation
+    - repair
+    - create lockpicks, locks, and keys
+
+  Helpful commands:
+    ;lmas setup
+        Open the setup window.
+    ;lmas scan
+        Wipe saved lockpick data and appraise every current lockpick.
+    ;lmas sort
+        Reuse saved scan data, appraise only new picks, then sort.
+    ;lmas status
+        Show the current character's saved lockpick inventory.
+    ;lmas clear
+        Clear the current character's saved lockpick data.
+    ;lmas marker on
+        Enable automatic numbered log markers.
+    ;lmas version
+        Show the version and build.
+
+       author: Mystienne
+  contributor: OpenAI Codex
+         game: gs
+      version: 0.1.0
+        build: 20260519.32
+         tags: lock mastery, rogue, lockpicks, locksmithing, sorting
+     required: Lich >= 5.11.0
+=end
+
+require 'json' unless defined?(JSON)
+require 'fileutils' unless defined?(FileUtils)
+
+LMAS_VERSION = "0.1.0"
+LMAS_BUILD = "20260519.32"
+LMAS_SCHEMA_VERSION = 1
+LMAS_OLD_SORT_SETTINGS = "Sort Lockpicks Settings.json"
+LMAS_DEFAULT_PRIMARY = "scrollworked mithril vambrace"
+LMAS_DEFAULT_DUPLICATES = "gear-etched leather toolkit"
+LMAS_DEFAULT_BROKEN = "stained buckskin sack"
+LMAS_INVENTORY_PATTERN = /^( {2,})([^<]*)<a exist="(-?\d+)" noun="([^"]*)">([^<]*)<\/a>(?: ([^(]*)(?:$|(?= \()))?(?: (\(.*\)))?$/
+
+LMAS_QUALITIES = [
+  "Detrimental", "Ineffectual", "Copper", "Steel", "Gold", "Silver", "Mithril", "Ora",
+  "Glaes", "Laje", "Mein", "Rolaren", "Accurate", "Veniom", "Invar", "Alum",
+  "Golvern", "Kelyn", "Vaalin"
+]
+
+LMAS_TYPES = [
+  "Copper", "Steel", "Gold", "Silver", "Mithril", "Ora", "Glaes", "Laje", "Mein",
+  "Rolaren", "Vultite", "Veniom", "Invar", "Alum", "Golvern", "Kelyn", "Vaalin"
+]
+
+LMAS_MATERIALS = {
+  "copper" => { "quality" => "Copper", "modifier" => -7, "precision" => "very inaccurate", "precision_range" => [-8, -6], "wire_order" => 2, "wire_cost" => 25 },
+  "brass" => { "quality" => "Copper", "modifier" => -6, "precision" => "very inaccurate", "precision_range" => [-8, -6], "wire_order" => 3, "wire_cost" => 45 },
+  "steel" => { "quality" => "Steel", "modifier" => -5, "precision" => "inaccurate", "precision_range" => [-5, -3], "wire_order" => 4, "wire_cost" => 85 },
+  "gold" => { "quality" => "Gold", "modifier" => -2, "precision" => "somewhat inaccurate", "precision_range" => [-2, -1], "wire_order" => 5, "wire_cost" => 350 },
+  "silver" => { "quality" => "Silver", "modifier" => 0, "precision" => "inefficient", "precision_range" => [0, 0], "wire_order" => 6, "wire_cost" => 425 },
+  "mithril" => { "quality" => "Mithril", "modifier" => 3, "precision" => "unreliable", "precision_range" => [1, 5], "wire_order" => 8, "wire_cost" => 1025 },
+  "ora" => { "quality" => "Ora", "modifier" => 6, "precision" => "below average", "precision_range" => [6, 9], "wire_order" => 7, "wire_cost" => 850 },
+  "glaes" => { "quality" => "Glaes", "modifier" => 10, "precision" => "average", "precision_range" => [10, 12] },
+  "laje" => { "quality" => "Laje", "modifier" => 13, "precision" => "above average", "precision_range" => [13, 15], "wire_order" => 9, "wire_cost" => 2900 },
+  "mein" => { "quality" => "Mein", "modifier" => 16, "precision" => "somewhat accurate", "precision_range" => [16, 18] },
+  "rolaren" => { "quality" => "Rolaren", "modifier" => 20, "precision" => "favorable", "precision_range" => [19, 21], "wire_order" => 12, "wire_cost" => 6500 },
+  "vultite" => { "quality" => "Vultite", "modifier" => 22, "precision" => "accurate", "precision_range" => [22, 24], "wire_order" => 11, "wire_cost" => 5100 },
+  "veniom" => { "quality" => "Veniom", "modifier" => 25, "precision" => "highly accurate", "precision_range" => [25, 27], "wire_order" => 13, "wire_cost" => 8500 },
+  "invar" => { "quality" => "Invar", "modifier" => 25, "precision" => "highly accurate", "precision_range" => [25, 27], "wire_order" => 15, "wire_cost" => 13000 },
+  "alum" => { "quality" => "Alum", "modifier" => 28, "precision" => "excellent", "precision_range" => [28, 29], "wire_order" => 10, "wire_cost" => 3900 },
+  "golvern" => { "quality" => "Golvern", "modifier" => 28, "precision" => "excellent", "precision_range" => [28, 29], "wire_order" => 16, "wire_cost" => 16000 },
+  "kelyn" => { "quality" => "Kelyn", "modifier" => 30, "precision" => "incredible", "precision_range" => [30, 30], "wire_order" => 14, "wire_cost" => 11000 },
+  "vaalin" => { "quality" => "Vaalin", "modifier" => 30, "precision" => "unsurpassed", "precision_range" => [30, 30], "wire_order" => 17, "wire_cost" => 21000 }
+}
+
+LMAS_BAR_ITEMS = {
+  "copper" => { "order" => 26, "observed_cost" => 80 },
+  "brass" => { "order" => 27, "observed_cost" => 200 },
+  "steel" => { "order" => 28, "observed_cost" => 400 },
+  "gold" => { "order" => 29, "observed_cost" => 1600 },
+  "silver" => { "order" => 30, "observed_cost" => 2000 },
+  "ora" => { "order" => 31, "observed_cost" => 4000 },
+  "mithril" => { "order" => 32, "observed_cost" => 4800 },
+  "laje" => { "order" => 33, "observed_cost" => 13600 },
+  "alum" => { "order" => 34, "observed_cost" => 18400 },
+  "vultite" => { "order" => 35, "observed_cost" => 24000 },
+  "rolaren" => { "order" => 36, "observed_cost" => 28800 },
+  "veniom" => { "order" => 37, "observed_cost" => 40000 },
+  "kelyn" => { "order" => 38, "observed_cost" => 49600 },
+  "invar" => { "order" => 39, "observed_cost" => 60000 },
+  "golvern" => { "order" => 40, "observed_cost" => 76000 },
+  "vaalin" => { "order" => 41, "observed_cost" => 100000 }
+}
+
+LMAS_WIRE_ITEMS = LMAS_MATERIALS.each_with_object({}) do |(material, data), table|
+  next unless data["wire_order"]
+  table[material] = { "order" => data["wire_order"], "observed_cost" => data["wire_cost"] }
+end
+
+LMAS_WORKSHOP_BASE_ITEMS = {
+  "wooden_block" => { "order" => 1, "observed_cost" => 300, "name" => "an uncarved wooden block" },
+  "steel_key_blank" => { "order" => 25, "observed_cost" => 200, "name" => "a steel key blank" }
+}
+
+LMAS_KEYRING_ITEMS = {
+  "chain" => { "observed_cost" => 200, "style" => "chain link", "name" => "a chain link keyring" },
+  "brass" => { "observed_cost" => 200, "style" => "tarnished brass", "name" => "a tarnished brass keyring" },
+  "steel" => { "observed_cost" => 200, "style" => "solid steel", "name" => "a solid steel keyring" },
+  "iron" => { "observed_cost" => 200, "style" => "sturdy iron", "name" => "a sturdy iron keyring" },
+  "copper" => { "observed_cost" => 200, "style" => "verdigris copper", "name" => "a verdigris copper keyring" },
+  "silver" => { "observed_cost" => 400, "style" => "braided silver", "name" => "a braided silver keyring" },
+  "gold" => { "observed_cost" => 600, "style" => "gold filigree", "name" => "a gold filigree keyring" },
+  "invar" => { "observed_cost" => 800, "style" => "twining invar", "name" => "a twining invar keyring" },
+  "mithril" => { "observed_cost" => 1000, "style" => "slim mithril", "name" => "a slim mithril keyring" },
+  "kelyn" => { "observed_cost" => 2500, "style" => "kelyn-clasped", "name" => "a kelyn-clasped keyring" },
+  "vaalin" => { "observed_cost" => 10000, "style" => "vaalin-laced", "name" => "a vaalin-laced keyring" }
+}
+
+LMAS_KEYRING_ALIASES = LMAS_KEYRING_ITEMS.each_with_object({}) do |(material, data), aliases|
+  aliases[material] = material
+  aliases[data["style"]] = material
+  aliases[data["style"].tr(" ", "-")] = material
+  aliases[data["name"].sub(/\Aa /, "").sub(/ keyring\z/, "")] = material
+end
+
+LMAS_WORKSHOP_REFERENCE = {
+  "travel" => {
+    "toolbench" => "rogue guild toolbench",
+    "shop" => "rogue guild shop"
+  },
+  "create_lockpick" => {
+    "source_script" => "lockpick-maker.lic",
+    "item_type" => "bar",
+    "command_flow" => ["order <bar order>", "buy", "hold bar", "lm create"],
+    "quality_goal" => "exceptional",
+    "retry_on" => ["average", "You carefully slice the ruined part of the bar"],
+    "customize_commands" => ["lmas cust dye <color>", "lmas cust edge <material>", "lmas cust inset <gem id>"],
+    "store_options" => ["keyring", "container"],
+    "notes" => "Bar identities should stay stable, but order numbers and observed prices should be learned from the workshop sign/catalog."
+  },
+  "create_wedge" => {
+    "source_script" => "wedges.lic",
+    "item_type" => "uncarved wooden block",
+    "command_flow" => ["order 1", "buy", "carve my block until ready", "carve my wedge until finished", "rub my wedge"],
+    "quality_goal" => "superior wooden wedge",
+    "notes" => "Legacy script is useful as flow reference only; LMAS should use go2 rogue guild toolbench instead of hardcoded workshop rooms."
+  },
+  "workshop_items" => {
+    "wires" => LMAS_WIRE_ITEMS,
+    "bars" => LMAS_BAR_ITEMS,
+    "clasps" => ["plain", "slate grey steel", "intricate jade", "smooth gold", "brilliant ruby-adorned", "rune-etched scarab", "sparkling diamond-dusted"],
+    "key_blanks" => { "steel" => LMAS_WORKSHOP_BASE_ITEMS["steel_key_blank"] },
+    "keyrings" => LMAS_KEYRING_ITEMS,
+    "wooden_block" => LMAS_WORKSHOP_BASE_ITEMS["wooden_block"]
+  }
+}
+
+LMAS_CONDITIONS = {
+  "excellent" => 5,
+  "good" => 4,
+  "neglected" => 3,
+  "damaged" => 2,
+  "poor" => 1,
+  "broken" => 0
+}
+
+LMAS_PRECISION_SCORES = {
+  "detrimental" => { "score" => -10, "range" => [-10, -9], "quality" => "Detrimental" },
+  "ineffectual" => { "score" => -9, "range" => [-9, -8], "quality" => "Ineffectual" },
+  "very inaccurate" => { "score" => -7, "range" => [-8, -6], "quality" => "Copper" },
+  "inaccurate" => { "score" => -5, "range" => [-5, -3], "quality" => "Steel" },
+  "somewhat inaccurate" => { "score" => -2, "range" => [-2, -1], "quality" => "Gold" },
+  "inefficient" => { "score" => 0, "range" => [0, 0], "quality" => "Silver" },
+  "unreliable" => { "score" => 3, "range" => [1, 5], "quality" => "Mithril" },
+  "below average" => { "score" => 6, "range" => [6, 9], "quality" => "Ora" },
+  "average" => { "score" => 10, "range" => [10, 12], "quality" => "Glaes" },
+  "above average" => { "score" => 13, "range" => [13, 15], "quality" => "Laje" },
+  "somewhat accurate" => { "score" => 16, "range" => [16, 18], "quality" => "Mein" },
+  "favorable" => { "score" => 20, "range" => [19, 21], "quality" => "Rolaren" },
+  "advantageous" => { "score" => 20, "range" => [19, 21], "quality" => "Rolaren" },
+  "accurate" => { "score" => 22, "range" => [22, 24], "quality" => "Accurate" },
+  "highly accurate" => { "score" => 25, "range" => [25, 27], "quality" => "Veniom" },
+  "excellent" => { "score" => 28, "range" => [28, 29], "quality" => "Alum" },
+  "incredible" => { "score" => 30, "range" => [30, 30], "quality" => "Kelyn" },
+  "unsurpassed" => { "score" => 30, "range" => [30, 30], "quality" => "Vaalin" }
+}
+
+def lmas_script_dir
+  if defined?(SCRIPT_DIR)
+    SCRIPT_DIR
+  else
+    File.dirname(__FILE__)
+  end
+end
+
+def lmas_root
+  File.expand_path('..', lmas_script_dir)
+end
+
+def lmas_data_dir
+  File.join(lmas_root, 'data', 'lmas')
+end
+
+def lmas_char_dir
+  File.join(lmas_data_dir, 'characters')
+end
+
+def lmas_global_file
+  File.join(lmas_data_dir, 'global.json')
+end
+
+def lmas_character_name
+  if defined?(Char) && Char.respond_to?(:name) && Char.name
+    Char.name.to_s
+  elsif defined?(XMLData) && XMLData.respond_to?(:name)
+    XMLData.name.to_s
+  else
+    'Unknown'
+  end
+end
+
+def lmas_char_file(name = lmas_character_name)
+  safe = name.to_s.gsub(/[^A-Za-z0-9_.-]/, '_')
+  File.join(lmas_char_dir, "#{safe}.json")
+end
+
+def lmas_read_json(file, fallback = {})
+  File.exist?(file) ? JSON.parse(File.read(file)) : fallback
+rescue => error
+  echo "LMAS: Unable to read #{file}: #{error.message}"
+  fallback
+end
+
+def lmas_write_json(file, data)
+  FileUtils.mkdir_p(File.dirname(file))
+  File.open(file, 'w') { |f| f.write(JSON.pretty_generate(data)) }
+rescue => error
+  echo "LMAS: Unable to write #{file}: #{error.message}"
+end
+
+def lmas_default_global
+  {
+    "schema_version" => LMAS_SCHEMA_VERSION,
+    "lmas_version" => LMAS_VERSION,
+    "lmas_build" => LMAS_BUILD,
+    "source" => {
+      "lockpick_url" => "https://gswiki.play.net/Lockpick",
+      "note" => "Static material data is seeded for LMAS sorting and can be refined as appraise text is collected."
+    },
+    "known_characters" => [],
+    "static" => {
+      "qualities" => LMAS_QUALITIES,
+      "types" => LMAS_TYPES,
+      "materials" => LMAS_MATERIALS,
+      "workshop_reference" => LMAS_WORKSHOP_REFERENCE,
+      "workshop_items" => {
+        "wires" => LMAS_WIRE_ITEMS,
+        "bars" => LMAS_BAR_ITEMS,
+        "base_items" => LMAS_WORKSHOP_BASE_ITEMS,
+        "keyrings" => LMAS_KEYRING_ITEMS
+      },
+      "conditions" => LMAS_CONDITIONS,
+      "precision_scores" => LMAS_PRECISION_SCORES,
+      "rank_requirements" => {
+        "scan" => 24,
+        "sort" => 24
+      }
+    }
+  }
+end
+
+def lmas_default_character
+  {
+    "schema_version" => LMAS_SCHEMA_VERSION,
+    "character" => lmas_character_name,
+    "settings" => {
+      "sort" => {
+        "primary_container" => LMAS_DEFAULT_PRIMARY,
+        "duplicates_container" => LMAS_DEFAULT_DUPLICATES,
+        "broken_container" => LMAS_DEFAULT_BROKEN
+      },
+      "repair" => {
+        "travel_target" => "rogue guild toolbench"
+      },
+      "wedge" => {
+        "travel_target" => "rogue guild toolbench",
+        "keep_quality" => "superior",
+        "store_non_superior" => false,
+        "container" => ""
+      },
+      "keyring" => {
+        "travel_target" => "rogue guild toolbench",
+        "style" => "solid steel"
+      },
+      "create" => {
+        "travel_target" => "rogue guild toolbench",
+        "lockpick_goal" => "exceptional",
+        "average_container" => "",
+        "exceptional_container" => "",
+        "store_exceptional_on_keyring" => false,
+        "customize" => {
+          "dye" => "",
+          "edge" => "",
+          "inset_container" => ""
+        }
+      }
+    },
+    "lockpicks" => [],
+    "missing_qualities" => [],
+    "log_marker" => {
+      "enabled" => false,
+      "detail" => true,
+      "last_number" => 0,
+      "active_number" => nil,
+      "active_started_at" => nil,
+      "last_command" => nil
+    },
+    "debug" => {
+      "enabled" => false
+    },
+    "last_scan_at" => nil,
+    "last_sort_at" => nil
+  }
+end
+
+def lmas_load_global
+  FileUtils.mkdir_p(lmas_char_dir)
+  data = lmas_read_json(lmas_global_file, lmas_default_global)
+  data["schema_version"] ||= LMAS_SCHEMA_VERSION
+  data["known_characters"] ||= []
+  data["static"] ||= {}
+  data["static"]["qualities"] ||= LMAS_QUALITIES
+  data["static"]["types"] ||= LMAS_TYPES
+  data["static"]["materials"] ||= LMAS_MATERIALS
+  data["static"]["workshop_reference"] ||= LMAS_WORKSHOP_REFERENCE
+  data["static"]["workshop_items"] ||= {
+    "wires" => LMAS_WIRE_ITEMS,
+    "bars" => LMAS_BAR_ITEMS,
+    "base_items" => LMAS_WORKSHOP_BASE_ITEMS,
+    "keyrings" => LMAS_KEYRING_ITEMS
+  }
+  data["static"]["conditions"] ||= LMAS_CONDITIONS
+  data["static"]["precision_scores"] ||= LMAS_PRECISION_SCORES
+  data
+end
+
+def lmas_load_character
+  data = lmas_read_json(lmas_char_file, lmas_default_character)
+  defaults = lmas_default_character
+  data["schema_version"] ||= LMAS_SCHEMA_VERSION
+  data["character"] ||= lmas_character_name
+  data["settings"] ||= defaults["settings"]
+  data["settings"]["sort"] ||= defaults["settings"]["sort"]
+  %w[repair wedge keyring create].each do |module_name|
+    data["settings"][module_name] ||= defaults["settings"][module_name]
+    defaults["settings"][module_name].each do |key, value|
+      data["settings"][module_name][key] ||= value
+    end
+  end
+  data["settings"]["create"]["customize"] ||= defaults["settings"]["create"]["customize"]
+  defaults["settings"]["create"]["customize"].each do |key, value|
+    data["settings"]["create"]["customize"][key] ||= value
+  end
+  data["lockpicks"] ||= []
+  data["missing_qualities"] ||= []
+  data["log_marker"] ||= defaults["log_marker"]
+  data["debug"] ||= defaults["debug"]
+  data["debug"]["enabled"] = false unless data["debug"].key?("enabled")
+  data
+end
+
+def lmas_save_character(data)
+  $lmas_current_character_data = data
+  $lmas_marker_cleanup_character = data if defined?($lmas_marker_cleanup_registered)
+  lmas_write_json(lmas_char_file(data["character"] || lmas_character_name), data)
+  global = lmas_load_global
+  name = data["character"] || lmas_character_name
+  global["known_characters"] ||= []
+  global["known_characters"] << name unless global["known_characters"].include?(name)
+  lmas_write_json(lmas_global_file, global)
+end
+
+def lmas_migrate_old_sort_settings(character_data)
+  old_file = File.join(lmas_root, LMAS_OLD_SORT_SETTINGS)
+  return character_data unless File.exist?(old_file)
+  current_file = lmas_char_file(character_data["character"] || lmas_character_name)
+  return character_data if File.exist?(current_file)
+
+  old = lmas_read_json(old_file, {})
+  old_char = old[lmas_character_name] || {}
+  sort = character_data["settings"]["sort"]
+  sort["primary_container"] = old_char["primary_container"] if old_char["primary_container"].to_s.strip.length > 0
+  sort["duplicates_container"] = old_char["duplicates_container"] if old_char["duplicates_container"].to_s.strip.length > 0
+  sort["broken_container"] = old_char["broken_container"] if old_char["broken_container"].to_s.strip.length > 0
+  character_data
+end
+
+def lmas_option_value(args, key)
+  args[/\b#{Regexp.escape(key)}=(.*?)(?=\s+\w+=|$)/, 1].to_s.strip
+end
+
+def lmas_show_help
+  echo "--- LMAS help ---"
+  echo "Version: #{LMAS_VERSION} build #{LMAS_BUILD}"
+  echo ";lmas help                 Show this help."
+  echo ";lmas setup                Open GTK setup, or print setup if GTK is unavailable."
+  echo ";lmas scan                 Wipe saved lockpick data and appraise every current lockpick."
+  echo ";lmas sort                 Reuse saved scan data, appraise only new picks, then sort."
+  echo ";lmas status               Show this character's saved lockpick inventory."
+  echo ";lmas status primary       Show primary-container lockpicks grouped by quality."
+  echo ";lmas primary quality      Same primary quality report."
+  echo ";lmas status global        Show lockpick coverage for all recorded characters."
+  echo ";lmas clear                Clear this character's saved lockpick scan/sort data."
+  echo ";lmas create lockpick      Show lockpick-making module skeleton."
+  echo ";lmas create wedge         Show wedge-making module skeleton."
+  echo ";lmas keyring              Show keyring-making reference."
+  echo ";lmas keyring <material>   Create a keyring, e.g. ;lmas keyring copper."
+  echo ";lmas repair               Show repair module skeleton."
+  echo ";lmas marker               Show marker status."
+  echo ";lmas marker on/off        Toggle automatic numbered command markers."
+  echo ";lmas marker detail on/off Toggle detailed parse logging inside markers."
+  echo ";lmas debug on/off         Toggle sort decision debug logging."
+  echo ";lmas version              Show version and build."
+  echo ";lmas wedge                Pending implementation."
+  echo ";lmas keyring              Pending implementation."
+  echo ";lmas repair               Pending implementation."
+  echo ";lmas create ...           Pending implementation."
+  echo ""
+  echo "Data folder: #{lmas_data_dir}"
+end
+
+def lmas_pending(name)
+  echo "LMAS #{name}: pending implementation. Sort, scan, status, and setup are available now."
+end
+
+def lmas_money(amount)
+  amount.to_i.to_s.reverse.gsub(/(\d{3})(?=\d)/, '\\1,').reverse
+end
+
+def lmas_module_header(title)
+  echo "--- LMAS #{title} module skeleton ---"
+  echo "Status: reference/planning only; this command does not spend silver or craft yet."
+end
+
+def lmas_active_module_header(title)
+  echo "--- LMAS #{title} module ---"
+end
+
+def lmas_show_workshop_item_table(title, items)
+  echo ""
+  echo "#{title}:"
+  items.each do |name, data|
+    order = data["order"] ? "order #{data["order"]}" : "order unknown"
+    cost = data["observed_cost"] ? "#{lmas_money(data["observed_cost"])} silver observed" : "price unknown"
+    item_name = data["name"] || name
+    echo "  #{name}: #{order}; #{cost}; #{item_name}"
+  end
+end
+
+def lmas_show_create_lockpick_module(character_data, args = [])
+  settings = character_data.dig("settings", "create") || {}
+  material = args.find { |arg| LMAS_BAR_ITEMS.key?(arg.to_s.downcase) }.to_s.downcase
+  lmas_module_header("create lockpick")
+  echo "Travel target: #{settings["travel_target"] || 'rogue guild toolbench'}"
+  echo "Goal quality: #{settings["lockpick_goal"] || 'exceptional'}"
+  echo "Average/extra container: #{settings["average_container"].to_s.empty? ? 'not configured' : settings["average_container"]}"
+  echo "Exceptional container: #{settings["exceptional_container"].to_s.empty? ? 'not configured' : settings["exceptional_container"]}"
+  echo "Store exceptional on keyring: #{settings["store_exceptional_on_keyring"] ? 'yes' : 'no'}"
+  echo ""
+  echo "Planned flow:"
+  echo "  1. ;go2 #{settings["travel_target"] || 'rogue guild toolbench'}"
+  echo "  2. Order the selected thin bar."
+  echo "  3. Buy and hold the bar."
+  echo "  4. Run lm create."
+  echo "  5. If average, store as extra and retry."
+  echo "  6. If exceptional, apply configured dye/edge/inset and store."
+  echo "  7. Track attempts, observed cost, result quality, and total time."
+  if material.empty?
+    lmas_show_workshop_item_table("Known bar references", LMAS_BAR_ITEMS)
+  else
+    data = LMAS_BAR_ITEMS[material]
+    echo ""
+    echo "Selected material: #{material}"
+    echo "  Bar order: #{data["order"]}"
+    echo "  Observed price: #{lmas_money(data["observed_cost"])} silver"
+  end
+end
+
+def lmas_show_wedge_module(character_data, args = [])
+  settings = character_data.dig("settings", "wedge") || {}
+  block = LMAS_WORKSHOP_BASE_ITEMS["wooden_block"]
+  lmas_module_header("wedge")
+  echo "Travel target: #{settings["travel_target"] || 'rogue guild toolbench'}"
+  echo "Target quality: #{settings["keep_quality"] || 'superior'}"
+  echo "Storage container: #{settings["container"].to_s.empty? ? 'not configured' : settings["container"]}"
+  echo "Store non-superior wedges: #{settings["store_non_superior"] ? 'yes' : 'no'}"
+  echo ""
+  echo "Workshop item: #{block["name"]}; order #{block["order"]}; observed #{lmas_money(block["observed_cost"])} silver."
+  echo ""
+  echo "Planned flow:"
+  echo "  1. ;go2 #{settings["travel_target"] || 'rogue guild toolbench'}"
+  echo "  2. order #{block["order"]}; buy"
+  echo "  3. carve my block until it is ready."
+  echo "  4. carve my wedge until finished."
+  echo "  5. rub my wedge."
+  echo "  6. Keep superior wedges; drop or store lower results based on settings."
+end
+
+def lmas_show_keyring_module(character_data, args = [])
+  settings = character_data.dig("settings", "keyring") || {}
+  style = args.join(" ").strip.downcase
+  style = settings["style"].to_s.downcase if style.empty?
+  lmas_module_header("keyring")
+  echo "Travel target: #{settings["travel_target"] || 'rogue guild toolbench'}"
+  echo "Configured style: #{settings["style"] || 'solid steel'}"
+  echo "Material/style appears cosmetic plus price unless testing proves otherwise."
+  material = lmas_resolve_keyring_material(style)
+  if material
+    data = LMAS_KEYRING_ITEMS[material]
+    echo ""
+    echo "Selected keyring: #{data["name"]}; command LMASTER KEYRING #{material.upcase}; observed #{lmas_money(data["observed_cost"])} silver."
+  else
+    lmas_show_keyring_table
+  end
+end
+
+def lmas_show_keyring_table
+  echo ""
+  echo "Known keyring references:"
+  LMAS_KEYRING_ITEMS.each do |material, data|
+    echo "  #{material.upcase.ljust(7)} #{lmas_money(data["observed_cost"]).rjust(6)} silver - #{data["name"]}"
+  end
+end
+
+def lmas_resolve_keyring_material(value)
+  text = value.to_s.strip.downcase
+  return nil if text.empty?
+  LMAS_KEYRING_ALIASES[text] || LMAS_KEYRING_ALIASES[text.tr("_", " ")] || LMAS_KEYRING_ALIASES[text.tr("_", "-")]
+end
+
+def lmas_go2(target)
+  destination = target.to_s.strip
+  return true if destination.empty?
+  echo "LMAS: traveling to #{destination}."
+  if defined?(start_script)
+    start_script("go2", [destination])
+    wait_while { running?("go2") } if defined?(running?)
+  else
+    fput ";go2 #{destination}"
+    wait_while { running?("go2") } if defined?(running?)
+  end
+  sleep 0.3
+  true
+end
+
+def lmas_clean_game_text(text)
+  text.to_s.gsub(/<[^>]+>/, "").gsub(/\s+/, " ").strip
+end
+
+def lmas_carried_silver
+  result = lmas_quiet_command("wealth", 6, /You have .*silver|You are broke|<prompt/i, /You are carrying|You have .*silver|You are broke|<prompt/i)
+  clean = lmas_clean_game_text(result)
+  if clean =~ /You have ([\d,]+) silver with you/i
+    $1.delete(",").to_i
+  elsif clean =~ /You are broke/i
+    0
+  else
+    nil
+  end
+end
+
+def lmas_bank_balance
+  result = lmas_quiet_command("check balance", 6, /balance is currently|don't have an account|<prompt/i, /balance is currently|don't have an account|<prompt/i)
+  clean = lmas_clean_game_text(result)
+  if clean =~ /balance is currently at ([\d,]+) silvers/i
+    $1.delete(",").to_i
+  else
+    nil
+  end
+end
+
+def lmas_ensure_silver(required, bank_target = "bank")
+  required = required.to_i
+  carried = lmas_carried_silver
+  if carried && carried >= required
+    echo "LMAS: carrying #{lmas_money(carried)} silver; no bank trip needed."
+    return true
+  end
+
+  needed = required - carried.to_i
+  echo "LMAS: need #{lmas_money(required)} silver; carrying #{lmas_money(carried.to_i)}."
+  lmas_go2(bank_target)
+
+  balance = lmas_bank_balance
+  if balance && balance < needed
+    echo "LMAS: bank balance is only #{lmas_money(balance)} silver; need #{lmas_money(needed)} more."
+    return false
+  end
+
+  echo "LMAS: withdrawing #{lmas_money(needed)} silver."
+  result = lmas_quiet_command("withdraw #{needed} silvers", 8, /hands you|don't seem to have|You withdraw|<prompt/i, /hands you|don't seem to have|You withdraw|<prompt/i)
+  clean = lmas_clean_game_text(result)
+  if result =~ /hands you|You withdraw/i
+    carried_after = lmas_carried_silver
+    echo "LMAS: carrying #{lmas_money(carried_after || required)} silver after withdrawal."
+    true
+  else
+    echo "LMAS: withdrawal failed."
+    echo clean unless clean.empty?
+    false
+  end
+end
+
+def lmas_create_keyring!(character_data, args = [])
+  settings = character_data.dig("settings", "keyring") || {}
+  requested = args.join(" ").strip
+  material = lmas_resolve_keyring_material(requested)
+  material ||= lmas_resolve_keyring_material(settings["style"])
+  unless material
+    echo "LMAS keyring: choose a material."
+    lmas_show_keyring_table
+    return false
+  end
+
+  data = LMAS_KEYRING_ITEMS[material]
+  lmas_active_module_header("keyring")
+  echo "Creating #{data["name"]}."
+  echo "Observed cost: #{lmas_money(data["observed_cost"])} silver."
+  echo "Command: LMASTER KEYRING #{material.upcase}"
+
+  return false unless lmas_ensure_silver(data["observed_cost"], "bank")
+  lmas_go2(settings["travel_target"] || "rogue guild toolbench")
+  return false unless lmas_empty_hands
+
+  first = lmas_quiet_command("lmaster keyring #{material}", 8, /ask me again|empty hands|that will be|don't seem|cannot|roundtime|<prompt/i, /ask me again|empty hands|that will be|don't seem|cannot|roundtime|<prompt/i)
+  if first =~ /empty hands/i
+    echo "LMAS keyring: your hands must be empty."
+    return false
+  end
+  if first =~ /creating .* keyring|Roundtime/i
+    waitrt? if defined?(waitrt?)
+    echo "LMAS keyring: created #{data["name"]}."
+    return true
+  end
+  unless first =~ /ask me again|that will be/i
+    echo "LMAS keyring: first confirmation did not look right."
+    echo first.to_s.gsub(/<[^>]+>/, "").gsub(/\s+/, " ").strip
+    return false
+  end
+
+  second = lmas_quiet_command("lmaster keyring #{material}", 12, /creating|handing over|don't seem|not enough|Roundtime|<prompt/i, /creating|handing over|don't seem|not enough|Roundtime|<prompt/i)
+  waitrt? if defined?(waitrt?)
+  clean = second.to_s.gsub(/<[^>]+>/, "").gsub(/\s+/, " ").strip
+  if second =~ /creating .* keyring|Roundtime/i
+    echo "LMAS keyring: created #{data["name"]}."
+    true
+  else
+    echo "LMAS keyring: creation may have failed."
+    echo clean unless clean.empty?
+    false
+  end
+end
+
+def lmas_show_repair_module(character_data, args = [])
+  settings = character_data.dig("settings", "repair") || {}
+  lmas_module_header("repair")
+  echo "Travel target: #{settings["travel_target"] || 'rogue guild toolbench'}"
+  echo "Rule: repair wire material must match broken lockpick material."
+  echo "Note: glaes lockpicks cannot be repaired through Lock Mastery."
+  lmas_show_workshop_item_table("Known wire references", LMAS_WIRE_ITEMS)
+end
+
+def lmas_wait_ready(action = nil)
+  waitrt? if defined?(waitrt?)
+  if defined?(running?) && running?("go2")
+    echo "LMAS: waiting for go2 to finish before #{action || 'continuing'}."
+    wait_while { running?("go2") }
+    sleep 0.2
+  end
+  waitrt? if defined?(waitrt?)
+end
+
+def lmas_big_warning(lines)
+  width = 66
+  echo "*" * width
+  lines.each do |line|
+    text = line.to_s
+    while text.length > (width - 4)
+      echo "* #{text.slice!(0, width - 4).center(width - 4)} *"
+    end
+    echo "* #{text.center(width - 4)} *"
+  end
+  echo "*" * width
+end
+
+def lmas_marker_box(text)
+  width = [text.to_s.length + 4, 24].max
+  echo "*" * width
+  echo "* #{text.to_s.center(width - 4)} *"
+  echo "*" * width
+end
+
+def lmas_print_marker(kind, number, label = nil)
+  title = "LMAS #{kind.to_s.upcase} MARKER ##{number}"
+  title = "#{title} - #{label}" if label.to_s.strip.length > 0
+  begin
+    data = $lmas_marker_cleanup_character || lmas_load_character
+    marker = lmas_marker_settings(data)
+    debug_state = lmas_debug_enabled?(data) ? "on" : "off"
+    detail_state = marker["detail"] ? "on" : "off"
+  rescue
+    debug_state = "unknown"
+    detail_state = "unknown"
+  end
+  echo "**********************"
+  echo "* #{title}"
+  echo "* Version: #{LMAS_VERSION} build #{LMAS_BUILD}"
+  echo "* Debug: #{debug_state}"
+  echo "* Marker detail: #{detail_state}"
+  echo "* Character: #{lmas_character_name}"
+  echo "* Time: #{Time.now}"
+  echo "**********************"
+end
+
+def lmas_show_version
+  echo "--- LMAS version ---"
+  echo "Version: #{LMAS_VERSION}"
+  echo "Build: #{LMAS_BUILD}"
+  echo "Data folder: #{lmas_data_dir}"
+end
+
+def lmas_marker_settings(character_data)
+  marker = character_data["log_marker"] ||= {}
+  marker["enabled"] = false unless marker.key?("enabled")
+  marker["detail"] = true unless marker.key?("detail")
+  marker["last_number"] ||= 0
+  marker["active_number"] ||= nil
+  marker["active_started_at"] ||= nil
+  marker["last_command"] ||= nil
+  marker
+end
+
+def lmas_marker_command!(character_data, args)
+  marker = lmas_marker_settings(character_data)
+  mode = args[1].to_s.downcase
+
+  case mode
+  when "on", "enable", "enabled"
+    marker["enabled"] = true
+    lmas_marker_box("LMAS MARKERS ON")
+  when "off", "disable", "disabled"
+    marker["enabled"] = false
+    marker["active_number"] = nil
+    marker["active_started_at"] = nil
+    lmas_marker_box("LMAS MARKERS OFF")
+  when "toggle"
+    marker["enabled"] = !marker["enabled"]
+    lmas_marker_box("LMAS MARKERS #{marker["enabled"] ? 'ON' : 'OFF'}")
+  when "detail", "details", "verbose"
+    value = args[2].to_s.downcase
+    marker["detail"] = !%w[off false no quiet].include?(value)
+    lmas_marker_box("LMAS MARKER DETAIL #{marker["detail"] ? 'ON' : 'OFF'}")
+  else
+    lmas_marker_box("LMAS MARKERS #{marker["enabled"] ? 'ON' : 'OFF'}")
+    echo "LMAS marker: last marker number #{marker["last_number"].to_i}."
+    echo "LMAS marker: detail logging is #{marker["detail"] ? 'enabled' : 'disabled'}."
+  end
+
+  character_data["log_marker"] = marker
+  character_data
+end
+
+def lmas_command_marker_start!(character_data, command)
+  marker = lmas_marker_settings(character_data)
+  return nil unless marker["enabled"]
+  number = marker["last_number"].to_i + 1
+  marker["last_number"] = number
+  marker["active_number"] = number
+  marker["active_started_at"] = Time.now.to_s
+  marker["last_command"] = command
+  character_data["log_marker"] = marker
+  lmas_print_marker("start", number, command)
+  number
+end
+
+def lmas_close_active_marker!(label_suffix = "canceled")
+  return if $lmas_marker_closing
+  $lmas_marker_closing = true
+  begin
+    data = $lmas_marker_cleanup_character || $lmas_current_character_data || lmas_load_character
+    marker = lmas_marker_settings(data)
+    if marker["enabled"] && marker["active_number"]
+      command = marker["last_command"] || "unknown"
+      label = [command, label_suffix].compact.join(" - ")
+      lmas_print_marker("end", marker["active_number"], label)
+      marker["active_number"] = nil
+      marker["active_started_at"] = nil
+      data["log_marker"] = marker
+      lmas_save_character(data)
+    end
+  rescue => error
+    echo "LMAS: marker cleanup failed: #{error.message}" if defined?(echo)
+  ensure
+    $lmas_marker_closing = false
+  end
+end
+
+def lmas_command_marker_end!(character_data, command, number)
+  marker = lmas_marker_settings(character_data)
+  return unless marker["enabled"] && number
+  lmas_print_marker("end", number, command)
+  marker["active_number"] = nil
+  marker["active_started_at"] = nil
+  character_data["log_marker"] = marker
+end
+
+def lmas_marker_detail_enabled?(character_data)
+  marker = lmas_marker_settings(character_data)
+  marker["enabled"] && marker["detail"]
+end
+
+def lmas_debug_enabled?(character_data)
+  character_data.dig("debug", "enabled") ? true : false
+end
+
+def lmas_debug_unsquelched?
+  defined?($lmas_current_character_data) && lmas_debug_enabled?($lmas_current_character_data)
+end
+
+def lmas_debug(character_data, message)
+  echo "LMAS debug: #{message}" if lmas_debug_enabled?(character_data)
+end
+
+def lmas_debug_command!(character_data, args)
+  character_data["debug"] ||= {}
+  mode = args[1].to_s.downcase
+  case mode
+  when "on", "enable", "enabled"
+    character_data["debug"]["enabled"] = true
+    lmas_marker_box("LMAS DEBUG ON")
+  when "off", "disable", "disabled"
+    character_data["debug"]["enabled"] = false
+    lmas_marker_box("LMAS DEBUG OFF")
+  when "toggle"
+    character_data["debug"]["enabled"] = !character_data["debug"]["enabled"]
+    lmas_marker_box("LMAS DEBUG #{character_data["debug"]["enabled"] ? 'ON' : 'OFF'}")
+  else
+    lmas_marker_box("LMAS DEBUG #{character_data["debug"]["enabled"] ? 'ON' : 'OFF'}")
+  end
+  character_data
+end
+
+def lmas_log_scan_detail(record)
+  return unless record
+  modifier = record["modifier"].nil? ? "?" : "%+d" % record["modifier"].to_i
+  range = record["precision_range"].is_a?(Array) ? "#{record["precision_range"][0]}..#{record["precision_range"][1]}" : "?"
+  repairs = record["repair_count"].nil? ? "?" : record["repair_count"]
+  echo "LMAS detail: ##{record["id"]} #{record["name"]}"
+  echo "LMAS detail: Type #{record["type"] || 'Unknown'}; appraised #{record["appraised_quality"] || record["quality"] || 'Unknown'}; modifier #{modifier}; range #{range}."
+  echo "LMAS detail: Precision #{record["precision"] || 'unknown'}; strength #{record["strength"] || 'unknown'}; condition #{record["condition"] || 'unknown'}; repairs #{repairs}."
+  clean_raw = record["raw_appraise"].to_s.gsub(/<[^>]+>/, "").gsub(/\s+/, " ").strip
+  echo "LMAS detail raw: #{clean_raw}"
+end
+
+def lmas_register_marker_cleanup(character_data)
+  return if $lmas_marker_cleanup_registered
+  $lmas_marker_cleanup_character = character_data
+  before_dying do
+    lmas_close_active_marker!("canceled")
+  end if defined?(before_dying)
+  at_exit do
+    lmas_close_active_marker!("canceled")
+  end
+  $lmas_marker_cleanup_registered = true
+rescue
+  nil
+end
+
+def lmas_container_by_name(name)
+  text = name.to_s.strip
+  return nil if text.empty?
+  GameObj.inv.find { |obj| obj.name == text } ||
+    GameObj.inv.find { |obj| obj.name =~ /#{Regexp.escape(text)}/i } ||
+    GameObj[text]
+end
+
+def lmas_empty_hands
+  lmas_wait_ready("emptying hands")
+  fput "stow right" unless checkright.nil?
+  fput "stow left" unless checkleft.nil?
+  waitrt? if defined?(waitrt?)
+  sleep 0.4
+  return true if checkright.nil? && checkleft.nil?
+  echo "LMAS: Could not empty your hands."
+  echo "Right hand: #{checkright}" unless checkright.nil?
+  echo "Left hand: #{checkleft}" unless checkleft.nil?
+  false
+end
+
+def lmas_scan_inventory_ids
+  lmas_wait_ready("checking inventory")
+  lmas_empty_hands
+  lines = Lich::Util.quiet_command_xml(
+    "inventory full",
+    /You are currently (?:wearing|holding)|You are carrying nothing at this time/,
+    /items? displayed|<prompt/,
+    true,
+    8,
+    true
+  )
+
+  container_id = nil
+  container_name = nil
+  picks = []
+
+  lines.each do |line|
+    next unless line =~ LMAS_INVENTORY_PATTERN
+    indent = $1.length
+    id = $3
+    noun = $4
+    name = $5
+    postname = $6.to_s
+
+    if indent == 2
+      container_id = id
+      container_name = name
+    elsif indent == 6 && container_id
+      next unless noun =~ /lockpick/i || name =~ /lockpick|hook|key/i || postname =~ /lockpick/i
+      picks << {
+        "id" => id,
+        "noun" => noun,
+        "name" => name.strip,
+        "container_id" => container_id,
+        "container" => container_name.to_s.strip
+      }
+    end
+  end
+
+  picks
+end
+
+def lmas_eta(seconds)
+  seconds = seconds.to_i
+  minutes = seconds / 60
+  remainder = seconds % 60
+  minutes > 0 ? "#{minutes}m #{remainder}s" : "#{remainder}s"
+end
+
+def lmas_quiet_command(command, timeout, *patterns)
+  wait_pattern = patterns.compact.last || /<prompt|Roundtime|R>/i
+  start_pattern = patterns[0] || /./
+  end_pattern = patterns[1] || /<prompt|Roundtime|R>/
+  if lmas_debug_unsquelched?
+    unless defined?(Lich::Util) && Lich::Util.respond_to?(:issue_command)
+      return dothistimeout(command, timeout, wait_pattern)
+    end
+    lines = Lich::Util.issue_command(command, start_pattern, end_pattern, include_end: true, timeout: timeout, silent: false, usexml: true, quiet: false)
+    return Array(lines).join("\n")
+  end
+
+  undo_silence = nil
+  begin
+    undo_silence = silence_me if defined?(silence_me)
+    return dothistimeout(command, timeout, wait_pattern) unless defined?(Lich::Util)
+    lines = Lich::Util.quiet_command_xml(command, start_pattern, end_pattern, true, timeout, true)
+    lines.join("\n")
+  ensure
+    silence_me if defined?(silence_me) && undo_silence
+  end
+rescue
+  dothistimeout(command, timeout, wait_pattern)
+end
+
+def lmas_force_quiet_command(command, timeout, *patterns)
+  wait_pattern = patterns.compact.last || /<prompt|Roundtime|R>/i
+  start_pattern = patterns[0] || /./
+  end_pattern = patterns[1] || /<prompt|Roundtime|R>/
+  undo_silence = nil
+  begin
+    undo_silence = silence_me if defined?(silence_me)
+    return dothistimeout(command, timeout, wait_pattern) unless defined?(Lich::Util)
+    lines = Lich::Util.quiet_command_xml(command, start_pattern, end_pattern, true, timeout, true)
+    lines.join("\n")
+  ensure
+    silence_me if defined?(silence_me) && undo_silence
+  end
+rescue
+  dothistimeout(command, timeout, wait_pattern)
+end
+
+def lmas_material_from_name(name)
+  lowered = name.to_s.downcase
+  LMAS_MATERIALS.keys.sort_by { |m| -m.length }.find { |material| lowered =~ /\b#{Regexp.escape(material)}\b/ }
+end
+
+def lmas_quality_from_precision(precision, strength)
+  precision = precision.to_s.downcase.strip
+  strength = strength.to_s.downcase.strip
+  case precision
+  when 'detrimental' then 'Detrimental'
+  when 'ineffectual' then 'Ineffectual'
+  when 'very inaccurate' then 'Copper'
+  when 'inaccurate' then 'Steel'
+  when 'somewhat inaccurate' then 'Gold'
+  when 'inefficient' then 'Silver'
+  when 'unreliable' then 'Mithril'
+  when 'below average' then 'Ora'
+  when 'average' then 'Glaes'
+  when 'above average' then 'Laje'
+  when 'somewhat accurate' then 'Mein'
+  when 'favorable', 'advantageous' then 'Rolaren'
+  when 'accurate' then 'Accurate'
+  when 'highly accurate'
+    strength =~ /^incredibly strong/ ? 'Invar' : 'Veniom'
+  when 'excellent'
+    strength =~ /^astonishingly strong/ ? 'Golvern' : 'Alum'
+  when 'incredible' then 'Kelyn'
+  when 'unsurpassed' then 'Vaalin'
+  else nil
+  end
+end
+
+def lmas_parse_appraise(text, name)
+  result = {
+    "raw_appraise" => text.to_s,
+    "material" => lmas_material_from_name(name),
+    "type" => nil,
+    "quality" => nil,
+    "appraised_quality" => nil,
+    "precision" => nil,
+    "precision_range" => nil,
+    "strength" => nil,
+    "condition" => nil,
+    "condition_rank" => nil,
+    "repair_count" => nil,
+    "modifier" => nil,
+    "broken" => false
+  }
+
+  if text =~ /completely broken|new tip|broken|refuses to break free/i
+    result["broken"] = true
+    result["condition"] = "broken"
+    result["condition_rank"] = LMAS_CONDITIONS["broken"]
+  end
+
+  if text =~ /It seems to have an? (.*?) level of precision and (?:is|has) (.*?)(?:\.|\n)/i
+    result["precision"] = $1.to_s.strip
+    result["strength"] = $2.to_s.strip
+    result["appraised_quality"] = lmas_quality_from_precision(result["precision"], result["strength"])
+    result["quality"] = result["appraised_quality"]
+    precision_data = LMAS_PRECISION_SCORES[result["precision"].downcase]
+    if precision_data
+      result["modifier"] = precision_data["score"]
+      result["precision_range"] = precision_data["range"]
+    end
+  end
+
+  if text =~ /condition (?:is|appears to be|looks) (excellent|good|neglected|damaged|poor|broken)/i ||
+     text =~ /\b(excellent|good|neglected|damaged|poor|broken) condition\b/i ||
+     text =~ /appears to be in an? (excellent|good|neglected|damaged|poor|broken) state/i
+    result["condition"] = $1.downcase
+    result["condition_rank"] = LMAS_CONDITIONS[result["condition"]]
+    result["broken"] = true if result["condition"] == "broken"
+  end
+
+  if text =~ /has been repaired about (\d+) times?/i
+    result["repair_count"] = $1.to_i
+  elsif text =~ /has never been repaired/i
+    result["repair_count"] = 0
+  end
+
+  material_data = result["material"] ? LMAS_MATERIALS[result["material"]] : nil
+  if material_data
+    result["type"] = material_data["quality"]
+    result["quality"] ||= material_data["quality"]
+    result["precision_range"] ||= material_data["precision_range"]
+    result["modifier"] = material_data["modifier"] if result["modifier"].nil?
+  end
+  result["type"] ||= result["quality"]
+  result["quality"] ||= "Unknown"
+  result["condition"] ||= (result["broken"] ? "broken" : "unknown")
+  result
+end
+
+def lmas_appraise_pick(pick)
+  return nil unless lmas_empty_hands
+  lmas_wait_ready("getting #{pick["name"]}")
+  get_result = lmas_quiet_command("get ##{pick["id"]}", 5, /You remove|You get|You need a free hand|What were you trying/i, /<prompt|You remove|You get|You need a free hand|What were you trying/i)
+  if get_result =~ /need a free hand|What were you trying/i
+    echo "LMAS: Could not pick up #{pick["name"]} from #{pick["container"]}. Skipping."
+    return nil
+  end
+
+  lmas_wait_ready("appraising #{pick["name"]}")
+  held = checkright || checkleft
+  info = lmas_quiet_command("lmas appraise my #{held}", 8, /You examine|It seems to have|broken|new tip|needs? repair|bent|That's not a lockpick|Please rephrase/i, /Roundtime|<prompt|R>/i)
+  waitrt? if defined?(waitrt?)
+  parsed = lmas_parse_appraise(info.to_s, pick["name"])
+  record = pick.merge(parsed)
+  record["scanned_at"] = Time.now.to_s
+
+  lmas_wait_ready("returning #{pick["name"]}")
+  if pick["container_id"].to_s.length > 0
+    put_result = lmas_quiet_command("put ##{pick["id"]} in ##{pick["container_id"]}", 8, /You put|slide .* into|cannot hold any more|won't fit|There is no room|What were you trying|\.\.\.wait/i, /<prompt|You put|slide .* into|cannot hold any more|won't fit|There is no room|What were you trying|\.\.\.wait/i)
+    if put_result =~ /\.\.\.wait/i
+      lmas_wait_ready("retrying return of #{pick["name"]}")
+      lmas_quiet_command("put ##{pick["id"]} in ##{pick["container_id"]}", 8, /You put|slide .* into|cannot hold any more|won't fit|There is no room|What were you trying/i, /<prompt|You put|slide .* into|cannot hold any more|won't fit|There is no room|What were you trying/i)
+    end
+    sleep 0.3
+  else
+    lmas_quiet_command("stow ##{pick["id"]}", 5, /You put|Stow what|What were you trying/i, /<prompt|You put|Stow what|What were you trying/i)
+  end
+  record
+end
+
+def lmas_rank_ok?(command)
+  unless defined?(Stats) && Stats.respond_to?(:prof) && Stats.prof.to_s == "Rogue"
+    detected = defined?(Stats) && Stats.respond_to?(:prof) ? Stats.prof.to_s : "unknown"
+    lmas_big_warning([
+      "LMAS #{command.upcase} BLOCKED",
+      "This command requires a Rogue with Lock Mastery access.",
+      "Detected profession: #{detected}.",
+      "Setup, status, help, and marker commands can still be used."
+    ])
+    return false
+  end
+  result = lmas_quiet_command("gld", 4, /You have no guild affiliation\.|You are an inactive member|You have \d+ ranks in|You are a Master of Lock Mastery\.|Click GLD MENU/i, /Click GLD MENU|<prompt/i)
+  ranks = if result =~ /You are a Master of Lock Mastery/i
+    63
+  elsif result =~ /You have (\d+) ranks in the Lock Mastery skill/i
+    $1.to_i
+  else
+    0
+  end
+  needed = command.to_s == "sort" ? 24 : 24
+  if ranks < needed
+    lmas_big_warning([
+      "LMAS #{command.upcase} BLOCKED",
+      "This command requires Lock Mastery rank #{needed}.",
+      "Detected Lock Mastery ranks: #{ranks}.",
+      "Setup, status, help, and marker commands can still be used."
+    ])
+    return false
+  end
+  true
+end
+
+def lmas_refresh_scan!(character_data, full_scan)
+  current = lmas_scan_inventory_ids
+  existing = {}
+  character_data["lockpicks"].to_a.each { |record| existing[record["id"].to_s] = record }
+  records = []
+
+  if full_scan
+    echo "LMAS: scanning #{current.length} lockpicks from scratch."
+    echo "LMAS: estimated scan time #{lmas_eta(current.length * 5)} at about 5 seconds per lockpick."
+  else
+    missing = current.select { |pick| existing[pick["id"].to_s].nil? }
+    echo "LMAS: #{current.length} current lockpicks; #{missing.length} need appraise data."
+    echo "LMAS: estimated appraise time #{lmas_eta(missing.length * 5)} at about 5 seconds per new lockpick." if missing.length > 0
+  end
+
+  appraised = 0
+  total_to_appraise = full_scan ? current.length : current.count { |pick| existing[pick["id"].to_s].nil? }
+  current.each do |pick|
+    if !full_scan && existing[pick["id"].to_s]
+      record = existing[pick["id"].to_s].merge(
+        "name" => pick["name"],
+        "noun" => pick["noun"],
+        "container_id" => pick["container_id"],
+        "container" => pick["container"]
+      )
+      records << record
+      next
+    end
+
+    echo "LMAS: scanning lockpick #{appraised + 1} of #{total_to_appraise}: #{pick["name"]}."
+    record = lmas_appraise_pick(pick)
+    lmas_log_scan_detail(record) if lmas_marker_detail_enabled?(character_data)
+    appraised += 1
+    remaining = total_to_appraise - appraised
+    echo "LMAS: estimated remaining #{lmas_eta(remaining * 5)}." if total_to_appraise > 1 && remaining > 0
+    records << record if record
+  end
+
+  character_data["lockpicks"] = records
+  character_data["last_scan_at"] = Time.now.to_s if full_scan
+  character_data["missing_qualities"] = LMAS_TYPES - records.map { |r| r["type"] || r["quality"] }.compact.uniq
+  character_data
+end
+
+def lmas_sort_key(record, primary = nil)
+  quality_index = LMAS_QUALITIES.index(record["quality"].to_s) || -1
+  precision_range = record["precision_range"].is_a?(Array) ? record["precision_range"] : [record["modifier"].to_i, record["modifier"].to_i]
+  repairs = record["repair_count"].nil? ? 999 : record["repair_count"].to_i
+  in_primary = primary && record["container_id"].to_s == primary.id.to_s ? 1 : 0
+  [
+    record["modifier"].to_i,
+    precision_range[1].to_i,
+    precision_range[0].to_i,
+    record["condition_rank"].to_i,
+    -repairs,
+    in_primary,
+    quality_index,
+    -record["id"].to_i
+  ]
+end
+
+def lmas_short_pick(record)
+  "##{record["id"]} #{record["name"]} (#{record["type"] || record["quality"]}/#{record["appraised_quality"] || record["quality"]}, mod #{record["modifier"] || '?'}, cond #{record["condition"] || '?'}, repairs #{record["repair_count"].nil? ? '?' : record["repair_count"]})"
+end
+
+def lmas_sort_reason(candidate, winner, primary = nil)
+  reasons = [
+    ["higher modifier", "lower modifier"],
+    ["higher precision ceiling", "lower precision ceiling"],
+    ["higher precision floor", "lower precision floor"],
+    ["better condition", "worse condition"],
+    ["fewer repairs", "more repairs"],
+    ["already in primary", "winner already in primary"],
+    ["higher appraised quality tier", "lower appraised quality tier"],
+    ["stable tie-breaker", "stable tie-breaker"]
+  ]
+  candidate_key = lmas_sort_key(candidate, primary)
+  winner_key = lmas_sort_key(winner, primary)
+  reasons.each_with_index do |(win_reason, lose_reason), index|
+    next if candidate_key[index] == winner_key[index]
+    return "lost: #{lose_reason}" if candidate_key[index] < winner_key[index]
+    return "would win: #{win_reason}"
+  end
+  "tied exactly"
+end
+
+def lmas_debug_sort_report(character_data, keepers, records, primary = nil)
+  return unless lmas_debug_enabled?(character_data)
+  echo "LMAS debug: sort comparison by type"
+  keepers.keys.sort_by { |type| -(lmas_sort_key(keepers[type], primary)[0]) }.each do |type|
+    contenders = records.reject { |r| r["broken"] }.select { |record| (record["type"] || record["quality"]).to_s == type }
+    winner = keepers[type]
+    echo "LMAS debug: #{type}"
+    echo "LMAS debug:   winner: #{lmas_short_pick(winner)}"
+    contenders.sort_by { |record| lmas_sort_key(record, primary).map { |value| -value.to_i } }.each do |record|
+      next if record["id"].to_s == winner["id"].to_s
+      echo "LMAS debug:   contender: #{lmas_short_pick(record)}"
+      echo "LMAS debug:      #{lmas_sort_reason(record, winner, primary)}"
+    end
+  end
+end
+
+def lmas_move_record(record, destination)
+  return true if destination.nil?
+  return true if record["container_id"].to_s == destination.id.to_s
+  return true unless lmas_empty_hands
+
+  lmas_wait_ready("getting #{record["name"]}")
+  get_result = lmas_quiet_command("get ##{record["id"]}", 5, /You remove|You get|You need a free hand|What were you trying/i, /<prompt|You remove|You get|You need a free hand|What were you trying/i)
+  if get_result =~ /need a free hand|What were you trying/i
+    echo "LMAS: could not get #{record["name"]}; leaving it where it is."
+    return false
+  end
+
+  lmas_wait_ready("moving #{record["name"]}")
+  put_result = lmas_quiet_command("put ##{record["id"]} in ##{destination.id}", 8, /You put|slide .* into|cannot hold any more|won't fit|There is no room|What were you trying|\.\.\.wait/i, /<prompt|You put|slide .* into|cannot hold any more|won't fit|There is no room|What were you trying|\.\.\.wait/i)
+  if put_result =~ /\.\.\.wait/i
+    lmas_wait_ready("retrying move of #{record["name"]}")
+    put_result = lmas_quiet_command("put ##{record["id"]} in ##{destination.id}", 8, /You put|slide .* into|cannot hold any more|won't fit|There is no room|What were you trying/i, /<prompt|You put|slide .* into|cannot hold any more|won't fit|There is no room|What were you trying/i)
+  end
+  if put_result =~ /cannot hold any more|won't fit|There is no room|What were you trying/i
+    echo "LMAS: could not put #{record["name"]} in #{destination.name}: #{put_result}"
+    lmas_quiet_command("stow ##{record["id"]}", 5, /You put|Stow what|What were you trying/i, /<prompt|You put|Stow what|What were you trying/i)
+    return false
+  end
+
+  record["container_id"] = destination.id.to_s
+  record["container"] = destination.name
+  true
+end
+
+def lmas_sort!(character_data)
+  sort_settings = character_data["settings"]["sort"]
+  primary = lmas_container_by_name(sort_settings["primary_container"])
+  duplicates = lmas_container_by_name(sort_settings["duplicates_container"])
+  broken = lmas_container_by_name(sort_settings["broken_container"])
+
+  unless primary && duplicates && broken
+    echo "LMAS: missing sort containers."
+    echo "Primary: #{sort_settings["primary_container"]} #{primary ? '(found)' : '(not found)'}"
+    echo "Duplicates: #{sort_settings["duplicates_container"]} #{duplicates ? '(found)' : '(not found)'}"
+    echo "Broken: #{sort_settings["broken_container"]} #{broken ? '(found)' : '(not found)'}"
+    echo "Run ;lmas setup to configure containers."
+    return character_data
+  end
+
+  records = character_data["lockpicks"].to_a
+  keepers = {}
+  records.reject { |r| r["broken"] }.each do |record|
+    type = (record["type"] || record["quality"]).to_s
+    next if type.empty? || type == "Unknown"
+    current = keepers[type]
+    if current.nil?
+      keepers[type] = record
+    elsif (lmas_sort_key(record, primary) <=> lmas_sort_key(current, primary)) == 1
+      keepers[type] = record
+    end
+  end
+  lmas_debug_sort_report(character_data, keepers, records, primary)
+
+  records.each do |record|
+    destination = if record["broken"]
+      broken
+    elsif keepers[(record["type"] || record["quality"]).to_s] && keepers[(record["type"] || record["quality"]).to_s]["id"].to_s == record["id"].to_s
+      primary
+    else
+      duplicates
+    end
+    record["bucket"] = destination == primary ? "primary" : destination == broken ? "broken" : "duplicates"
+    lmas_move_record(record, destination)
+  end
+
+  character_data["lockpicks"] = records
+  character_data["missing_qualities"] = LMAS_TYPES - records.reject { |r| r["broken"] }.map { |r| r["type"] || r["quality"] }.compact.uniq
+  character_data["last_sort_at"] = Time.now.to_s
+  character_data
+end
+
+def lmas_show_status(character_data)
+  sort = character_data["settings"]["sort"]
+  classify = proc do |record|
+    next record["bucket"] if ["primary", "duplicates", "broken"].include?(record["bucket"].to_s)
+    next "broken" if record["broken"] || record["condition"].to_s.downcase == "broken"
+    container = record["container"].to_s.downcase
+    if container == sort["primary_container"].to_s.downcase
+      "primary"
+    elsif container == sort["duplicates_container"].to_s.downcase
+      "duplicates"
+    elsif container == sort["broken_container"].to_s.downcase
+      "broken"
+    else
+      "other"
+    end
+  end
+  describe = proc do |record|
+    type = record["type"] || record["quality"] || "Unknown"
+    appraised_quality = record["appraised_quality"] || record["quality"] || "Unknown"
+    modifier = record["modifier"].nil? ? "?" : "%+d" % record["modifier"].to_i
+    range = record["precision_range"].is_a?(Array) ? "#{record["precision_range"][0]}..#{record["precision_range"][1]}" : "?"
+    precision = record["precision"] || "unknown precision"
+    strength = record["strength"] || "unknown strength"
+    condition = record["condition"] || "unknown"
+    condition_rank = record["condition_rank"].nil? ? "?" : record["condition_rank"].to_s
+    repair_count = record["repair_count"].nil? ? "?" : record["repair_count"].to_s
+    repair_note = repair_count == "?" || repair_count == "0" ? "" : " - modifier degraded"
+    {
+      "type" => type,
+      "appraised_quality" => appraised_quality,
+      "modifier" => modifier,
+      "range" => range,
+      "precision" => precision,
+      "strength" => strength,
+      "condition" => condition,
+      "condition_rank" => condition_rank,
+      "repair_count" => repair_count,
+      "repair_note" => repair_note
+    }
+  end
+  status_sort_key = proc do |record|
+    repairs = record["repair_count"].nil? ? 999 : record["repair_count"].to_i
+    [
+      -(record["modifier"] || -999).to_i,
+      -(record["precision_range"].is_a?(Array) ? record["precision_range"][1].to_i : -999),
+      -(record["condition_rank"] || -1).to_i,
+      repairs,
+      record["name"].to_s
+    ]
+  end
+  print_record = proc do |record, index|
+    detail = describe.call(record)
+    echo "  #{index}. Lockpick: ##{record["id"]} #{record["name"]}"
+    echo "      Type: #{detail["type"]}  Appraised quality: #{detail["appraised_quality"]}  Modifier: #{detail["modifier"]}  Precision range: #{detail["range"]}"
+    echo "      Precision: #{detail["precision"]}  Strength: #{detail["strength"]}"
+    echo "      Condition: #{detail["condition"]} (#{detail["condition_rank"]})  Repairs: #{detail["repair_count"]}#{detail["repair_note"]}"
+  end
+
+  echo "--- LMAS status for #{character_data["character"]} ---"
+  echo "Last scan: #{character_data["last_scan_at"] || 'never'}"
+  echo "Last sort: #{character_data["last_sort_at"] || 'never'}"
+  grouped = character_data["lockpicks"].to_a.group_by { |record| classify.call(record) }
+  labels = {
+    "primary" => [sort["primary_container"], "Primary"],
+    "duplicates" => [sort["duplicates_container"], "Duplicates"],
+    "broken" => [sort["broken_container"], "Broken"]
+  }
+  ["primary", "duplicates", "broken"].each do |bucket|
+    echo ""
+    container_name, role = labels[bucket]
+    echo "#{container_name.to_s.empty? ? role : container_name} - #{role}:"
+    items = grouped[bucket].to_a
+    if items.empty?
+      echo "  none recorded"
+    else
+      items.sort_by { |r| status_sort_key.call(r) }.each_with_index do |record, index|
+        print_record.call(record, index + 1)
+      end
+    end
+  end
+  other = grouped["other"].to_a
+  unless other.empty?
+    echo ""
+    echo "Unconfigured containers:"
+    other.group_by { |record| record["container"].to_s }.sort.each do |container, records|
+      echo "  #{container.empty? ? 'unknown container' : container}: #{records.length} lockpicks"
+      records.sort_by { |r| status_sort_key.call(r) }.each_with_index do |record, index|
+        print_record.call(record, index + 1)
+      end
+    end
+  end
+  echo ""
+  missing = character_data["missing_qualities"].to_a
+  echo "Missing qualities: #{missing.empty? ? 'none' : missing.join(', ')}"
+  echo "Data file: #{lmas_char_file(character_data["character"])}"
+end
+
+def lmas_show_global_status
+  global = lmas_load_global
+  echo "--- LMAS global status ---"
+  echo "Data folder: #{lmas_data_dir}"
+  names = global["known_characters"].to_a
+  if names.empty?
+    echo "No recorded characters yet."
+    return
+  end
+  names.each do |name|
+    data = lmas_read_json(lmas_char_file(name), {})
+    picks = data["lockpicks"].to_a
+    qualities = picks.reject { |r| r["broken"] }.map { |r| r["type"] || r["quality"] }.compact.uniq
+    missing = LMAS_TYPES - qualities
+    echo "#{name}: #{qualities.length}/#{LMAS_TYPES.length} types recorded; missing #{missing.empty? ? 'none' : missing.join(', ')}"
+  end
+end
+
+def lmas_show_primary_quality_status(character_data)
+  sort = character_data["settings"]["sort"]
+  primary_name = sort["primary_container"].to_s
+  records = character_data["lockpicks"].to_a.select do |record|
+    record["bucket"].to_s == "primary" || record["container"].to_s.downcase == primary_name.downcase
+  end
+
+  echo "--- LMAS primary lockpicks by appraised quality for #{character_data["character"]} ---"
+  echo "Primary container: #{primary_name.empty? ? 'not configured' : primary_name}"
+  echo "Last scan: #{character_data["last_scan_at"] || 'never'}"
+  echo "Last sort: #{character_data["last_sort_at"] || 'never'}"
+
+  if records.empty?
+    echo "No primary-container lockpicks recorded."
+    echo "Run ;lmas scan or ;lmas sort after setup if this looks wrong."
+    return
+  end
+
+  quality_rank = proc do |quality|
+    index = LMAS_QUALITIES.index(quality.to_s)
+    index.nil? ? -1 : index
+  end
+  status_sort_key = proc do |record|
+    repairs = record["repair_count"].nil? ? 999 : record["repair_count"].to_i
+    [
+      -(record["modifier"] || -999).to_i,
+      -(record["precision_range"].is_a?(Array) ? record["precision_range"][1].to_i : -999),
+      -(record["condition_rank"] || -1).to_i,
+      repairs,
+      record["name"].to_s
+    ]
+  end
+
+  grouped = records.group_by { |record| record["appraised_quality"] || record["quality"] || "Unknown" }
+  grouped.keys.sort_by { |quality| -quality_rank.call(quality) }.each do |quality|
+    picks = grouped[quality].sort_by { |record| status_sort_key.call(record) }
+    echo ""
+    types = picks.map { |record| record["type"] || "Unknown" }.uniq.sort.join(", ")
+    echo "Appraised quality: #{quality} - #{picks.length} lockpick#{picks.length == 1 ? '' : 's'}"
+    echo "  Material/type#{picks.length == 1 ? '' : 's'} here: #{types}"
+    picks.each_with_index do |record, index|
+      modifier = record["modifier"].nil? ? "?" : "%+d" % record["modifier"].to_i
+      range = record["precision_range"].is_a?(Array) ? "#{record["precision_range"][0]}..#{record["precision_range"][1]}" : "?"
+      repairs = record["repair_count"].nil? ? "?" : record["repair_count"].to_s
+      repair_note = repairs == "?" || repairs == "0" ? "" : " - modifier degraded"
+      echo "  #{index + 1}. Lockpick: ##{record["id"]} #{record["name"]}"
+      echo "      Type: #{record["type"] || 'Unknown'}  Modifier: #{modifier}  Precision range: #{range}"
+      echo "      Precision: #{record["precision"] || 'unknown'}  Strength: #{record["strength"] || 'unknown'}"
+      echo "      Condition: #{record["condition"] || 'unknown'} (#{record["condition_rank"] || '?'})  Repairs: #{repairs}#{repair_note}"
+    end
+  end
+end
+
+def lmas_clear_lockpick_data!(character_data)
+  character_data["lockpicks"] = []
+  character_data["missing_qualities"] = []
+  character_data["last_scan_at"] = nil
+  character_data["last_sort_at"] = nil
+  echo "LMAS: cleared saved lockpick data for #{character_data["character"]}."
+  echo "LMAS: setup, marker, and debug settings were not changed."
+  character_data
+end
+
+def lmas_show_setup_text(character_data)
+  sort = character_data["settings"]["sort"]
+  echo "--- LMAS setup ---"
+  echo "Data folder: #{lmas_data_dir}"
+  echo "Primary container: #{sort["primary_container"]}"
+  echo "Duplicate container: #{sort["duplicates_container"]}"
+  echo "Broken container: #{sort["broken_container"]}"
+  echo "Set from command line:"
+  echo ";lmas setup primary=<container> duplicates=<container> broken=<container>"
+end
+
+def lmas_setup_gtk(character_data)
+  unless defined?(Gtk)
+    lmas_show_setup_text(character_data)
+    return
+  end
+
+  Gtk.queue do
+    if defined?($lmas_setup_window) && $lmas_setup_window
+      $lmas_setup_window.present
+      next
+    end
+
+    sort = character_data["settings"]["sort"]
+    window = Gtk::Window.new
+    window.title = "LMAS Setup"
+    window.set_default_size(520, 320) if window.respond_to?(:set_default_size)
+    notebook = Gtk::Notebook.new
+
+    make_box = proc do
+      defined?(Gtk::Box) ? Gtk::Box.new(:vertical, 8) : Gtk::VBox.new(false, 8)
+    end
+
+    general_box = make_box.call
+    general_box.pack_start(Gtk::Label.new("Character: #{character_data["character"]}"), false, false, 4)
+    general_box.pack_start(Gtk::Label.new("Data folder: #{lmas_data_dir}"), false, false, 4)
+    general_box.pack_start(Gtk::Label.new("Known characters: #{lmas_load_global["known_characters"].to_a.join(', ')}"), false, false, 4)
+    notebook.append_page(general_box, Gtk::Label.new("General"))
+
+    sort_box = make_box.call
+    entries = {}
+    [["primary_container", "Primary container"], ["duplicates_container", "Duplicate/extras container"], ["broken_container", "Broken lockpick container"]].each do |key, label_text|
+      row = defined?(Gtk::Box) ? Gtk::Box.new(:horizontal, 8) : Gtk::HBox.new(false, 8)
+      label = Gtk::Label.new(label_text)
+      entry = Gtk::Entry.new
+      entry.text = sort[key].to_s
+      row.pack_start(label, false, false, 4)
+      row.pack_start(entry, true, true, 4)
+      sort_box.pack_start(row, false, false, 4)
+      entries[key] = entry
+    end
+    save_button = Gtk::Button.new(:label => "Save Sort Settings")
+    save_button.signal_connect("clicked") do
+      fresh = lmas_load_character
+      fresh["settings"]["sort"] ||= {}
+      entries.each { |key, entry| fresh["settings"]["sort"][key] = entry.text.to_s.strip }
+      lmas_save_character(fresh)
+      echo "LMAS: saved sort settings."
+    end
+    sort_box.pack_start(save_button, false, false, 6)
+    notebook.append_page(sort_box, Gtk::Label.new("Sort"))
+
+    ["Repair", "Wedge", "Keyring", "Create"].each do |name|
+      box = make_box.call
+      box.pack_start(Gtk::Label.new("#{name} settings are pending implementation."), false, false, 8)
+      notebook.append_page(box, Gtk::Label.new(name))
+    end
+
+    window.add(notebook)
+    window.signal_connect("destroy") { $lmas_setup_window = nil }
+    $lmas_setup_window = window
+    window.show_all
+  end
+end
+
+character_data = lmas_migrate_old_sort_settings(lmas_load_character)
+$lmas_current_character_data = character_data
+lmas_save_character(character_data)
+lmas_register_marker_cleanup(character_data)
+
+arg_text = script.vars.join(" ")
+args = arg_text.strip.split(/\s+/)
+command = args[0].to_s.downcase
+command = "help" if command.empty?
+
+case command
+when "help", "h", "?"
+  lmas_show_help
+when "version", "ver", "v"
+  lmas_show_version
+when "setup"
+  sort = character_data["settings"]["sort"]
+  changed = false
+  { "primary" => "primary_container", "duplicates" => "duplicates_container", "duplicate" => "duplicates_container", "broken" => "broken_container" }.each do |option, key|
+    value = lmas_option_value(arg_text, option)
+    next if value.empty?
+    sort[key] = value
+    changed = true
+  end
+  if changed
+    lmas_save_character(character_data)
+    lmas_show_setup_text(character_data)
+  else
+    lmas_setup_gtk(character_data)
+  end
+when "scan"
+  exit unless lmas_rank_ok?("scan")
+  marker_number = lmas_command_marker_start!(character_data, "scan")
+  lmas_save_character(character_data) if marker_number
+  character_data = lmas_refresh_scan!(character_data, true)
+  lmas_save_character(character_data)
+  lmas_show_status(character_data)
+  lmas_command_marker_end!(character_data, "scan", marker_number)
+  lmas_save_character(character_data)
+when "sort"
+  exit unless lmas_rank_ok?("sort")
+  marker_number = lmas_command_marker_start!(character_data, "sort")
+  lmas_save_character(character_data) if marker_number
+  character_data = lmas_refresh_scan!(character_data, false)
+  character_data = lmas_sort!(character_data)
+  lmas_save_character(character_data)
+  lmas_show_status(character_data)
+  lmas_command_marker_end!(character_data, "sort", marker_number)
+  lmas_save_character(character_data)
+when "status"
+  if args[1].to_s.downcase == "global"
+    lmas_show_global_status
+  elsif ["primary", "qualities", "quality"].include?(args[1].to_s.downcase)
+    lmas_show_primary_quality_status(character_data)
+  else
+    lmas_show_status(character_data)
+  end
+when "primary"
+  if ["quality", "qualities", "status", ""].include?(args[1].to_s.downcase)
+    lmas_show_primary_quality_status(character_data)
+  else
+    echo "LMAS: unknown primary command '#{args[1]}'."
+    echo "Use ;lmas primary quality."
+  end
+when "quality", "qualities"
+  lmas_show_primary_quality_status(character_data)
+when "clear", "reset"
+  character_data = lmas_clear_lockpick_data!(character_data)
+  lmas_save_character(character_data)
+when "marker", "mark", "logmark"
+  character_data = lmas_marker_command!(character_data, args)
+  lmas_save_character(character_data)
+when "debug"
+  character_data = lmas_debug_command!(character_data, args)
+  lmas_save_character(character_data)
+when "wedge"
+  lmas_show_wedge_module(character_data, args[1..-1].to_a)
+when "keyring"
+  keyring_args = args[1..-1].to_a
+  if keyring_args.empty? || %w[help list info reference].include?(keyring_args[0].to_s.downcase)
+    lmas_show_keyring_module(character_data, keyring_args[0].to_s.downcase == "help" ? [] : keyring_args)
+  else
+    exit unless lmas_rank_ok?("keyring")
+    marker_number = lmas_command_marker_start!(character_data, "keyring")
+    lmas_save_character(character_data) if marker_number
+    lmas_create_keyring!(character_data, keyring_args)
+    lmas_command_marker_end!(character_data, "keyring", marker_number)
+    lmas_save_character(character_data)
+  end
+when "repair"
+  lmas_show_repair_module(character_data, args[1..-1].to_a)
+when "create"
+  subcommand = args[1].to_s.downcase
+  case subcommand
+  when "lockpick", "lockpicks", "pick", "picks"
+    lmas_show_create_lockpick_module(character_data, args[2..-1].to_a)
+  when "wedge", "wedges"
+    lmas_show_wedge_module(character_data, args[2..-1].to_a)
+  when "keyring", "keyrings"
+    keyring_args = args[2..-1].to_a
+    if keyring_args.empty?
+      lmas_show_keyring_module(character_data, [])
+    else
+      exit unless lmas_rank_ok?("keyring")
+      marker_number = lmas_command_marker_start!(character_data, "keyring")
+      lmas_save_character(character_data) if marker_number
+      lmas_create_keyring!(character_data, keyring_args)
+      lmas_command_marker_end!(character_data, "keyring", marker_number)
+      lmas_save_character(character_data)
+    end
+  when "lock", "locks", "key", "keys"
+    lmas_pending("create #{subcommand}")
+    echo "LMAS create #{subcommand}: workshop bars/key blanks are recorded; creation flow still needs testing."
+  else
+    echo "LMAS create: choose lockpick, wedge, keyring, lock, or key."
+    lmas_show_create_lockpick_module(character_data, [])
+  end
+else
+  echo "LMAS: unknown command '#{command}'."
+  lmas_show_help
+end

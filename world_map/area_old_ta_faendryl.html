@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Old Ta'Faendryl - mapdb render</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #2a261e; overflow: hidden;
+                font-family: Georgia, serif; color: #ddd; }
+  #stage { position: absolute; inset: 0; cursor: grab; }
+  #stage:active { cursor: grabbing; }
+  #stage svg { width: 100%; height: 100%; display: block; }
+  #hint { position: absolute; top: 8px; right: 12px; font-size: 11px; color: #aaa;
+          background: rgba(0,0,0,0.4); padding: 4px 8px; border-radius: 3px; pointer-events: none; }
+  #tip { position: absolute; pointer-events: none; background: rgba(20,15,5,0.95);
+         border: 1px solid #6b5a30; padding: 4px 8px; font-size: 12px; border-radius: 3px;
+         color: #f0e8c8; display: none; max-width: 320px; }
+</style></head><body>
+<div id="stage"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3620 1506" font-family="Georgia, 'Times New Roman', serif">
+<defs>
+  <linearGradient id="parchment" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#f6efd9"/>
+    <stop offset="100%" stop-color="#ece1bd"/>
+  </linearGradient>
+</defs>
+<rect width="100%" height="100%" fill="url(#parchment)"/>
+<text x="1810" y="40" text-anchor="middle" font-size="28" font-style="italic" fill="#1a1a1a">Old Ta'Faendryl</text>
+<text x="1810" y="60" text-anchor="middle" font-size="11" fill="#555">rendered from Lich5 mapdb &#183; 358 rooms</text>
+<g stroke="#333" fill="none" stroke-width="1">
+<circle cx="3570" cy="100" r="22"/>
+<line x1="3570" y1="78" x2="3570" y2="122"/>
+<line x1="3548" y1="100" x2="3592" y2="100"/>
+</g>
+<text x="3570" y="74" text-anchor="middle" font-size="11" fill="#333">N</text>
+<text x="3570" y="134" text-anchor="middle" font-size="11" fill="#333">S</text>
+<text x="3600" y="104" font-size="11" fill="#333">E</text>
+<text x="3534" y="104" font-size="11" fill="#333">W</text>
+<rect x="495" y="201" width="810" height="922" rx="6" fill="#dfeed7" fill-opacity="0.6" stroke="#bca97a" stroke-dasharray="3,3" stroke-width="0.7"/>
+<rect x="607" y="201" width="110" height="82" rx="6" fill="#ddebf0" fill-opacity="0.6" stroke="#bca97a" stroke-dasharray="3,3" stroke-width="0.7"/>
+<rect x="887" y="201" width="82" height="138" rx="6" fill="#f1e0d6" fill-opacity="0.6" stroke="#bca97a" stroke-dasharray="3,3" stroke-width="0.7"/>
+<rect x="2315" y="985" width="1174" height="362" rx="6" fill="#ece3da" fill-opacity="0.6" stroke="#bca97a" stroke-dasharray="3,3" stroke-width="0.7"/>
+<rect x="47" y="341" width="110" height="54" rx="6" fill="#dde6dc" fill-opacity="0.6" stroke="#bca97a" stroke-dasharray="3,3" stroke-width="0.7"/>
+<rect x="999" y="257" width="2070" height="782" rx="6" fill="#ebd9e0" fill-opacity="0.6" stroke="#bca97a" stroke-dasharray="3,3" stroke-width="0.7"/>
+<rect x="467" y="173" width="194" height="82" rx="6" fill="#e6e0c8" fill-opacity="0.6" stroke="#bca97a" stroke-dasharray="3,3" stroke-width="0.7"/>
+<rect x="187" y="117" width="2826" height="1286" rx="6" fill="#dadeeb" fill-opacity="0.6" stroke="#bca97a" stroke-dasharray="3,3" stroke-width="0.7"/>
+<rect x="523" y="733" width="2070" height="726" rx="6" fill="#dfeed7" fill-opacity="0.6" stroke="#bca97a" stroke-dasharray="3,3" stroke-width="0.7"/>
+<rect x="75" y="369" width="82" height="82" rx="6" fill="#ddebf0" fill-opacity="0.6" stroke="#bca97a" stroke-dasharray="3,3" stroke-width="0.7"/>
+<rect x="159" y="425" width="306" height="138" rx="6" fill="#f1e0d6" fill-opacity="0.6" stroke="#bca97a" stroke-dasharray="3,3" stroke-width="0.7"/>
+<g stroke="#3a2f1c" stroke-width="0.9" fill="none">
+<line x1="1124" y1="410" x2="1012" y2="298"/>
+<line x1="1124" y1="410" x2="2860" y2="1138"/>
+<line x1="1012" y1="298" x2="1040" y2="326"/>
+<line x1="1012" y1="298" x2="1040" y2="270"/>
+<line x1="2776" y1="1082" x2="2804" y2="1110"/>
+<line x1="2776" y1="1082" x2="2748" y2="1082"/>
+<line x1="2916" y1="1138" x2="2888" y2="1166"/>
+<line x1="2916" y1="1138" x2="2916" y2="1110"/>
+<line x1="2916" y1="1138" x2="2944" y2="1138"/>
+<line x1="2888" y1="1166" x2="2888" y2="1194"/>
+<line x1="2888" y1="1194" x2="2888" y2="1222"/>
+<line x1="536" y1="858" x2="564" y2="886"/>
+<line x1="564" y1="886" x2="592" y2="886"/>
+<line x1="592" y1="886" x2="620" y2="858"/>
+<line x1="620" y1="858" x2="648" y2="858"/>
+<line x1="648" y1="858" x2="676" y2="830"/>
+<line x1="676" y1="830" x2="704" y2="802"/>
+<line x1="704" y1="802" x2="732" y2="774"/>
+<line x1="732" y1="774" x2="760" y2="746"/>
+<line x1="760" y1="746" x2="2552" y2="1446"/>
+<line x1="2552" y1="1446" x2="2524" y2="1446"/>
+<line x1="2552" y1="1446" x2="2580" y2="1418"/>
+<line x1="2580" y1="1418" x2="2608" y2="1390"/>
+<line x1="2608" y1="1390" x2="2636" y2="1362"/>
+<line x1="2636" y1="1362" x2="2636" y2="1334"/>
+<line x1="2636" y1="1334" x2="2636" y2="1306"/>
+<line x1="2636" y1="1306" x2="2636" y2="1278"/>
+<line x1="2636" y1="1278" x2="2636" y2="1250"/>
+<line x1="2636" y1="1250" x2="2608" y2="1250"/>
+<line x1="2636" y1="1250" x2="2664" y2="1250"/>
+<line x1="2636" y1="1250" x2="2636" y2="1222"/>
+<line x1="2608" y1="1250" x2="2580" y2="1222"/>
+<line x1="2580" y1="1222" x2="2552" y2="1194"/>
+<line x1="2552" y1="1194" x2="2524" y2="1194"/>
+<line x1="2552" y1="1194" x2="2580" y2="1166"/>
+<line x1="2524" y1="1194" x2="2496" y2="1166"/>
+<line x1="2496" y1="1166" x2="2496" y2="1138"/>
+<line x1="2496" y1="1166" x2="2524" y2="1166"/>
+<line x1="2496" y1="1138" x2="2524" y2="1138"/>
+<line x1="2524" y1="1138" x2="2552" y2="1138"/>
+<line x1="2552" y1="1138" x2="2580" y2="1138"/>
+<line x1="2580" y1="1138" x2="2608" y2="1138"/>
+<line x1="2524" y1="1166" x2="2552" y2="1166"/>
+<line x1="2552" y1="1166" x2="2580" y2="1166"/>
+<line x1="2580" y1="1166" x2="2580" y2="1138"/>
+<line x1="2664" y1="1250" x2="2692" y2="1250"/>
+<line x1="2692" y1="1250" x2="2720" y2="1250"/>
+<line x1="2692" y1="1250" x2="2692" y2="1222"/>
+<line x1="2720" y1="1250" x2="1012" y2="634"/>
+<line x1="2720" y1="1250" x2="2748" y2="1250"/>
+<line x1="1012" y1="634" x2="1040" y2="606"/>
+<line x1="1012" y1="634" x2="984" y2="606"/>
+<line x1="1012" y1="634" x2="984" y2="634"/>
+<line x1="1040" y1="606" x2="1012" y2="578"/>
+<line x1="1012" y1="578" x2="984" y2="606"/>
+<line x1="1012" y1="578" x2="984" y2="550"/>
+<line x1="1012" y1="578" x2="2720" y2="1194"/>
+<line x1="984" y1="634" x2="984" y2="550"/>
+<line x1="2720" y1="1194" x2="2692" y2="1222"/>
+<line x1="2720" y1="1194" x2="2692" y2="1194"/>
+<line x1="2720" y1="1194" x2="2748" y2="1194"/>
+<line x1="2692" y1="1222" x2="2692" y2="1194"/>
+<line x1="2692" y1="1194" x2="2636" y2="1166"/>
+<line x1="2692" y1="1194" x2="844" y2="438"/>
+<line x1="2636" y1="1222" x2="2636" y2="1194"/>
+<line x1="2636" y1="1194" x2="2636" y2="1166"/>
+<line x1="844" y1="438" x2="844" y2="410"/>
+<line x1="844" y1="438" x2="872" y2="438"/>
+<line x1="2748" y1="1194" x2="2776" y2="1194"/>
+<line x1="2776" y1="1194" x2="2804" y2="1194"/>
+<line x1="2776" y1="1194" x2="2748" y2="1166"/>
+<line x1="2804" y1="1194" x2="2776" y2="1222"/>
+<line x1="2804" y1="1194" x2="2832" y2="1166"/>
+<line x1="2776" y1="1222" x2="2748" y2="1250"/>
+<line x1="2832" y1="1166" x2="2776" y2="1166"/>
+<line x1="2832" y1="1166" x2="2804" y2="1166"/>
+<line x1="2776" y1="1166" x2="1684" y2="1166"/>
+<line x1="2776" y1="1166" x2="2748" y2="1166"/>
+<line x1="1684" y1="1166" x2="1684" y2="1138"/>
+<line x1="1684" y1="1166" x2="1656" y2="1166"/>
+<line x1="1684" y1="1166" x2="1656" y2="1138"/>
+<line x1="1684" y1="1166" x2="872" y2="298"/>
+<line x1="1684" y1="1138" x2="1684" y2="1110"/>
+<line x1="1684" y1="1138" x2="1656" y2="1166"/>
+<line x1="1684" y1="1138" x2="1656" y2="1138"/>
+<line x1="1684" y1="1138" x2="1656" y2="1110"/>
+<line x1="1684" y1="1110" x2="1684" y2="1082"/>
+<line x1="1684" y1="1110" x2="1656" y2="1138"/>
+<line x1="1656" y1="1166" x2="1656" y2="1138"/>
+<line x1="1656" y1="1138" x2="1656" y2="1110"/>
+<line x1="1656" y1="1110" x2="1656" y2="1082"/>
+<line x1="872" y1="298" x2="872" y2="270"/>
+<line x1="872" y1="298" x2="844" y2="298"/>
+<line x1="872" y1="270" x2="872" y2="242"/>
+<line x1="844" y1="298" x2="816" y2="270"/>
+<line x1="844" y1="298" x2="844" y2="326"/>
+<line x1="844" y1="326" x2="816" y2="326"/>
+<line x1="816" y1="326" x2="788" y2="354"/>
+<line x1="816" y1="326" x2="788" y2="326"/>
+<line x1="788" y1="354" x2="760" y2="382"/>
+<line x1="760" y1="382" x2="732" y2="382"/>
+<line x1="732" y1="382" x2="704" y2="410"/>
+<line x1="732" y1="382" x2="704" y2="354"/>
+<line x1="704" y1="410" x2="676" y2="410"/>
+<line x1="676" y1="410" x2="648" y2="410"/>
+<line x1="648" y1="410" x2="620" y2="382"/>
+<line x1="788" y1="326" x2="760" y2="298"/>
+<line x1="760" y1="298" x2="732" y2="326"/>
+<line x1="760" y1="298" x2="760" y2="270"/>
+<line x1="732" y1="326" x2="704" y2="354"/>
+<line x1="704" y1="354" x2="676" y2="354"/>
+<line x1="676" y1="354" x2="648" y2="354"/>
+<line x1="648" y1="354" x2="620" y2="354"/>
+<line x1="620" y1="354" x2="592" y2="326"/>
+<line x1="760" y1="270" x2="732" y2="270"/>
+<line x1="760" y1="270" x2="760" y2="242"/>
+<line x1="760" y1="270" x2="732" y2="242"/>
+<line x1="732" y1="270" x2="704" y2="242"/>
+<line x1="760" y1="242" x2="788" y2="214"/>
+<line x1="732" y1="242" x2="704" y2="214"/>
+<line x1="704" y1="214" x2="676" y2="242"/>
+<line x1="676" y1="242" x2="676" y2="214"/>
+<line x1="676" y1="242" x2="648" y2="242"/>
+<line x1="648" y1="242" x2="648" y2="214"/>
+<line x1="648" y1="242" x2="648" y2="270"/>
+<line x1="648" y1="242" x2="620" y2="242"/>
+<line x1="620" y1="242" x2="900" y2="270"/>
+<line x1="2804" y1="1166" x2="2776" y2="1138"/>
+<line x1="2804" y1="1166" x2="2804" y2="1138"/>
+<line x1="2776" y1="1138" x2="2804" y2="1138"/>
+<line x1="2776" y1="1138" x2="2804" y2="1110"/>
+<line x1="2804" y1="1138" x2="2804" y2="1110"/>
+<line x1="2804" y1="1138" x2="2832" y2="1138"/>
+<line x1="2832" y1="1138" x2="2860" y2="1138"/>
+<line x1="2860" y1="1138" x2="2888" y2="1110"/>
+<line x1="2860" y1="1138" x2="1124" y2="466"/>
+<line x1="2888" y1="1110" x2="2916" y2="1110"/>
+<line x1="2916" y1="1110" x2="2944" y2="1082"/>
+<line x1="2916" y1="1110" x2="2944" y2="1138"/>
+<line x1="2944" y1="1082" x2="2944" y2="1054"/>
+<line x1="2944" y1="1054" x2="2916" y2="1026"/>
+<line x1="2944" y1="1054" x2="2972" y2="1026"/>
+<line x1="2916" y1="1026" x2="2888" y2="1026"/>
+<line x1="2916" y1="1026" x2="2972" y2="1026"/>
+<line x1="2888" y1="1026" x2="2860" y2="1026"/>
+<line x1="2860" y1="1026" x2="2832" y2="1026"/>
+<line x1="2972" y1="1026" x2="3000" y2="998"/>
+<line x1="2972" y1="1026" x2="3000" y2="1054"/>
+<line x1="3000" y1="998" x2="3028" y2="998"/>
+<line x1="3028" y1="998" x2="3056" y2="998"/>
+<line x1="3000" y1="1054" x2="2972" y2="1110"/>
+<line x1="2972" y1="1110" x2="2972" y2="1138"/>
+<line x1="2972" y1="1110" x2="2944" y2="1138"/>
+<line x1="2972" y1="1138" x2="2944" y2="1166"/>
+<line x1="2944" y1="1166" x2="2916" y2="1194"/>
+<line x1="2916" y1="1194" x2="1208" y2="522"/>
+<line x1="1208" y1="522" x2="2916" y2="1222"/>
+<line x1="2916" y1="1222" x2="2944" y2="1166"/>
+<line x1="2916" y1="1222" x2="2888" y2="1250"/>
+<line x1="2888" y1="1250" x2="2860" y2="1278"/>
+<line x1="2888" y1="1250" x2="2888" y2="1222"/>
+<line x1="2860" y1="1278" x2="2832" y2="1278"/>
+<line x1="2832" y1="1278" x2="2804" y2="1250"/>
+<line x1="2804" y1="1250" x2="2832" y2="1250"/>
+<line x1="2832" y1="1250" x2="2832" y2="1222"/>
+<line x1="2832" y1="1222" x2="1740" y2="1194"/>
+<line x1="2832" y1="1222" x2="2860" y2="1222"/>
+<line x1="1740" y1="1194" x2="1712" y2="1222"/>
+<line x1="2860" y1="1222" x2="2888" y2="1222"/>
+<line x1="844" y1="410" x2="816" y2="410"/>
+<line x1="844" y1="410" x2="844" y2="382"/>
+<line x1="844" y1="410" x2="900" y2="298"/>
+<line x1="816" y1="410" x2="788" y2="410"/>
+<line x1="788" y1="410" x2="760" y2="410"/>
+<line x1="760" y1="410" x2="732" y2="410"/>
+<line x1="732" y1="410" x2="620" y2="522"/>
+<line x1="620" y1="522" x2="620" y2="550"/>
+<line x1="620" y1="522" x2="592" y2="522"/>
+<line x1="620" y1="522" x2="620" y2="494"/>
+<line x1="620" y1="550" x2="592" y2="550"/>
+<line x1="592" y1="550" x2="564" y2="578"/>
+<line x1="592" y1="522" x2="564" y2="522"/>
+<line x1="564" y1="522" x2="536" y2="522"/>
+<line x1="536" y1="522" x2="508" y2="522"/>
+<line x1="508" y1="522" x2="480" y2="522"/>
+<line x1="480" y1="522" x2="452" y2="550"/>
+<line x1="480" y1="522" x2="452" y2="494"/>
+<line x1="452" y1="550" x2="424" y2="550"/>
+<line x1="424" y1="550" x2="396" y2="550"/>
+<line x1="396" y1="550" x2="368" y2="522"/>
+<line x1="368" y1="522" x2="340" y2="494"/>
+<line x1="340" y1="494" x2="312" y2="494"/>
+<line x1="312" y1="494" x2="312" y2="466"/>
+<line x1="312" y1="466" x2="312" y2="438"/>
+<line x1="312" y1="438" x2="312" y2="410"/>
+<line x1="312" y1="410" x2="312" y2="382"/>
+<line x1="312" y1="410" x2="284" y2="410"/>
+<line x1="312" y1="382" x2="312" y2="354"/>
+<line x1="312" y1="354" x2="284" y2="326"/>
+<line x1="284" y1="410" x2="256" y2="410"/>
+<line x1="256" y1="410" x2="256" y2="438"/>
+<line x1="256" y1="410" x2="228" y2="410"/>
+<line x1="228" y1="410" x2="200" y2="438"/>
+<line x1="200" y1="438" x2="200" y2="466"/>
+<line x1="200" y1="466" x2="172" y2="438"/>
+<line x1="172" y1="438" x2="144" y2="410"/>
+<line x1="172" y1="438" x2="144" y2="438"/>
+<line x1="144" y1="410" x2="116" y2="382"/>
+<line x1="116" y1="382" x2="88" y2="382"/>
+<line x1="116" y1="382" x2="144" y2="382"/>
+<line x1="88" y1="382" x2="60" y2="354"/>
+<line x1="144" y1="382" x2="116" y2="354"/>
+<line x1="116" y1="354" x2="88" y2="326"/>
+<line x1="452" y1="494" x2="452" y2="466"/>
+<line x1="452" y1="466" x2="424" y2="438"/>
+<line x1="424" y1="438" x2="424" y2="410"/>
+<line x1="424" y1="410" x2="396" y2="382"/>
+<line x1="396" y1="382" x2="396" y2="354"/>
+<line x1="396" y1="354" x2="424" y2="326"/>
+<line x1="424" y1="326" x2="452" y2="298"/>
+<line x1="452" y1="298" x2="480" y2="298"/>
+<line x1="620" y1="494" x2="592" y2="466"/>
+<line x1="620" y1="494" x2="620" y2="466"/>
+<line x1="592" y1="466" x2="592" y2="438"/>
+<line x1="592" y1="438" x2="620" y2="410"/>
+<line x1="620" y1="410" x2="620" y2="438"/>
+<line x1="620" y1="438" x2="620" y2="466"/>
+<line x1="620" y1="438" x2="452" y2="270"/>
+<line x1="620" y1="466" x2="592" y2="494"/>
+<line x1="592" y1="494" x2="564" y2="466"/>
+<line x1="564" y1="466" x2="536" y2="438"/>
+<line x1="564" y1="466" x2="536" y2="466"/>
+<line x1="536" y1="466" x2="508" y2="438"/>
+<line x1="508" y1="438" x2="1236" y2="1026"/>
+<line x1="1236" y1="1026" x2="1208" y2="998"/>
+<line x1="1236" y1="1026" x2="1264" y2="998"/>
+<line x1="1236" y1="1026" x2="1208" y2="1026"/>
+<line x1="1236" y1="1026" x2="1264" y2="1026"/>
+<line x1="1236" y1="1026" x2="1208" y2="1054"/>
+<line x1="1236" y1="1026" x2="1264" y2="1054"/>
+<line x1="1264" y1="998" x2="3280" y2="1194"/>
+<line x1="1264" y1="1026" x2="1292" y2="1026"/>
+<line x1="1208" y1="1054" x2="1208" y2="1082"/>
+<line x1="1208" y1="1082" x2="1208" y2="1110"/>
+<line x1="1208" y1="1082" x2="1236" y2="1082"/>
+<line x1="1236" y1="1082" x2="508" y2="410"/>
+<line x1="508" y1="410" x2="536" y2="410"/>
+<line x1="1264" y1="1054" x2="1264" y2="1082"/>
+<line x1="1264" y1="1082" x2="1264" y2="1110"/>
+<line x1="1264" y1="1110" x2="1236" y2="1110"/>
+<line x1="872" y1="438" x2="900" y2="438"/>
+<line x1="900" y1="438" x2="928" y2="438"/>
+<line x1="928" y1="438" x2="928" y2="410"/>
+<line x1="928" y1="410" x2="956" y2="270"/>
+<line x1="928" y1="410" x2="956" y2="438"/>
+<line x1="928" y1="410" x2="928" y2="382"/>
+<line x1="956" y1="270" x2="984" y2="298"/>
+<line x1="956" y1="270" x2="984" y2="270"/>
+<line x1="956" y1="270" x2="956" y2="242"/>
+<line x1="956" y1="270" x2="984" y2="242"/>
+<line x1="984" y1="298" x2="984" y2="270"/>
+<line x1="984" y1="298" x2="956" y2="438"/>
+<line x1="984" y1="270" x2="956" y2="242"/>
+<line x1="984" y1="270" x2="984" y2="242"/>
+<line x1="984" y1="270" x2="984" y2="410"/>
+<line x1="984" y1="214" x2="956" y2="242"/>
+<line x1="984" y1="214" x2="984" y2="242"/>
+<line x1="984" y1="214" x2="956" y2="354"/>
+<line x1="956" y1="242" x2="984" y2="242"/>
+<line x1="956" y1="242" x2="928" y2="382"/>
+<line x1="984" y1="242" x2="984" y2="382"/>
+<line x1="956" y1="438" x2="984" y2="410"/>
+<line x1="984" y1="410" x2="984" y2="382"/>
+<line x1="984" y1="410" x2="2748" y2="1166"/>
+<line x1="984" y1="382" x2="956" y2="354"/>
+<line x1="984" y1="382" x2="2720" y2="1082"/>
+<line x1="956" y1="354" x2="928" y2="382"/>
+<line x1="928" y1="382" x2="928" y2="354"/>
+<line x1="928" y1="354" x2="900" y2="354"/>
+<line x1="900" y1="354" x2="872" y2="354"/>
+<line x1="872" y1="354" x2="844" y2="354"/>
+<line x1="844" y1="354" x2="844" y2="382"/>
+<line x1="844" y1="382" x2="900" y2="298"/>
+<line x1="900" y1="298" x2="928" y2="326"/>
+<line x1="900" y1="298" x2="928" y2="270"/>
+<line x1="900" y1="298" x2="900" y2="242"/>
+<line x1="928" y1="326" x2="844" y2="410"/>
+<line x1="928" y1="326" x2="956" y2="298"/>
+<line x1="928" y1="326" x2="928" y2="242"/>
+<line x1="956" y1="298" x2="928" y2="410"/>
+<line x1="956" y1="298" x2="928" y2="270"/>
+<line x1="956" y1="298" x2="928" y2="214"/>
+<line x1="928" y1="270" x2="928" y2="382"/>
+<line x1="928" y1="270" x2="900" y2="214"/>
+<line x1="900" y1="242" x2="928" y2="242"/>
+<line x1="900" y1="242" x2="900" y2="214"/>
+<line x1="928" y1="242" x2="928" y2="214"/>
+<line x1="928" y1="242" x2="900" y2="270"/>
+<line x1="928" y1="214" x2="900" y2="214"/>
+<line x1="900" y1="214" x2="900" y2="270"/>
+<line x1="2748" y1="1166" x2="2748" y2="1138"/>
+<line x1="2748" y1="1138" x2="2748" y2="1110"/>
+<line x1="2748" y1="1110" x2="2748" y2="1082"/>
+<line x1="2748" y1="1082" x2="2720" y2="1082"/>
+<line x1="452" y1="270" x2="424" y2="270"/>
+<line x1="452" y1="270" x2="480" y2="242"/>
+<line x1="424" y1="270" x2="396" y2="270"/>
+<line x1="424" y1="270" x2="424" y2="214"/>
+<line x1="396" y1="270" x2="368" y2="270"/>
+<line x1="396" y1="270" x2="368" y2="298"/>
+<line x1="368" y1="270" x2="368" y2="242"/>
+<line x1="368" y1="242" x2="396" y2="242"/>
+<line x1="368" y1="242" x2="368" y2="214"/>
+<line x1="368" y1="214" x2="396" y2="214"/>
+<line x1="424" y1="214" x2="424" y2="186"/>
+<line x1="424" y1="214" x2="452" y2="186"/>
+<line x1="424" y1="214" x2="452" y2="214"/>
+<line x1="424" y1="186" x2="452" y2="186"/>
+<line x1="424" y1="186" x2="452" y2="214"/>
+<line x1="452" y1="186" x2="480" y2="186"/>
+<line x1="452" y1="186" x2="452" y2="214"/>
+<line x1="452" y1="186" x2="480" y2="214"/>
+<line x1="480" y1="186" x2="508" y2="186"/>
+<line x1="480" y1="186" x2="452" y2="214"/>
+<line x1="480" y1="186" x2="480" y2="214"/>
+<line x1="480" y1="186" x2="508" y2="214"/>
+<line x1="508" y1="186" x2="536" y2="186"/>
+<line x1="508" y1="186" x2="508" y2="214"/>
+<line x1="508" y1="186" x2="536" y2="214"/>
+<line x1="536" y1="186" x2="508" y2="214"/>
+<line x1="536" y1="186" x2="536" y2="214"/>
+<line x1="536" y1="186" x2="564" y2="186"/>
+<line x1="452" y1="214" x2="480" y2="214"/>
+<line x1="452" y1="214" x2="480" y2="242"/>
+<line x1="480" y1="214" x2="508" y2="214"/>
+<line x1="480" y1="214" x2="508" y2="242"/>
+<line x1="480" y1="214" x2="480" y2="242"/>
+<line x1="508" y1="214" x2="508" y2="242"/>
+<line x1="508" y1="214" x2="480" y2="242"/>
+<line x1="508" y1="242" x2="480" y2="242"/>
+<line x1="508" y1="242" x2="536" y2="214"/>
+<line x1="536" y1="214" x2="564" y2="214"/>
+<line x1="536" y1="214" x2="536" y2="242"/>
+<line x1="564" y1="186" x2="592" y2="158"/>
+<line x1="564" y1="186" x2="536" y2="158"/>
+<line x1="564" y1="214" x2="592" y2="214"/>
+<line x1="564" y1="214" x2="564" y2="242"/>
+<line x1="564" y1="214" x2="592" y2="158"/>
+<line x1="592" y1="214" x2="592" y2="242"/>
+<line x1="592" y1="214" x2="592" y2="158"/>
+<line x1="536" y1="242" x2="564" y2="242"/>
+<line x1="564" y1="242" x2="592" y2="242"/>
+<line x1="592" y1="158" x2="620" y2="130"/>
+<line x1="620" y1="130" x2="648" y2="130"/>
+<line x1="620" y1="130" x2="620" y2="158"/>
+<line x1="620" y1="130" x2="648" y2="158"/>
+<line x1="648" y1="130" x2="620" y2="158"/>
+<line x1="620" y1="158" x2="648" y2="158"/>
+<line x1="620" y1="158" x2="648" y2="186"/>
+<line x1="620" y1="158" x2="620" y2="186"/>
+<line x1="648" y1="158" x2="648" y2="186"/>
+<line x1="648" y1="158" x2="620" y2="186"/>
+<line x1="648" y1="158" x2="676" y2="186"/>
+<line x1="648" y1="158" x2="676" y2="158"/>
+<line x1="648" y1="186" x2="620" y2="186"/>
+<line x1="648" y1="186" x2="676" y2="186"/>
+<line x1="648" y1="186" x2="676" y2="158"/>
+<line x1="676" y1="186" x2="676" y2="158"/>
+<line x1="676" y1="186" x2="704" y2="186"/>
+<line x1="676" y1="158" x2="704" y2="158"/>
+<line x1="704" y1="158" x2="732" y2="158"/>
+<line x1="704" y1="158" x2="704" y2="186"/>
+<line x1="732" y1="158" x2="732" y2="186"/>
+<line x1="732" y1="158" x2="760" y2="158"/>
+<line x1="732" y1="186" x2="704" y2="186"/>
+<line x1="732" y1="186" x2="760" y2="186"/>
+<line x1="760" y1="158" x2="732" y2="130"/>
+<line x1="3280" y1="1194" x2="3308" y2="1166"/>
+<line x1="3308" y1="1166" x2="3280" y2="1138"/>
+<line x1="3308" y1="1166" x2="3336" y2="1194"/>
+<line x1="3308" y1="1166" x2="3336" y2="1138"/>
+<line x1="1040" y1="326" x2="1068" y2="354"/>
+<line x1="1040" y1="326" x2="1068" y2="326"/>
+<line x1="1040" y1="326" x2="1068" y2="298"/>
+<line x1="1040" y1="270" x2="1068" y2="270"/>
+<line x1="1068" y1="354" x2="1096" y2="382"/>
+<line x1="1068" y1="326" x2="1096" y2="326"/>
+<line x1="1068" y1="298" x2="1096" y2="270"/>
+<line x1="1096" y1="326" x2="1096" y2="298"/>
+<line x1="144" y1="438" x2="116" y2="410"/>
+<line x1="88" y1="410" x2="116" y2="410"/>
+<line x1="3280" y1="1138" x2="3252" y2="1110"/>
+<line x1="3280" y1="1138" x2="3252" y2="1166"/>
+<line x1="3280" y1="1138" x2="3308" y2="1110"/>
+<line x1="3252" y1="1110" x2="3224" y2="1082"/>
+<line x1="3252" y1="1110" x2="3224" y2="1138"/>
+<line x1="3252" y1="1110" x2="3280" y2="1082"/>
+<line x1="3224" y1="1082" x2="3392" y2="1250"/>
+<line x1="3224" y1="1082" x2="3196" y2="1110"/>
+<line x1="3224" y1="1082" x2="3252" y2="1054"/>
+<line x1="3392" y1="1250" x2="3364" y2="1222"/>
+<line x1="3392" y1="1250" x2="3364" y2="1278"/>
+<line x1="3392" y1="1250" x2="3420" y2="1222"/>
+<line x1="3364" y1="1222" x2="3336" y2="1194"/>
+<line x1="3364" y1="1222" x2="3336" y2="1250"/>
+<line x1="3364" y1="1222" x2="3392" y2="1194"/>
+<line x1="3336" y1="1194" x2="3308" y2="1222"/>
+<line x1="3336" y1="1194" x2="3364" y2="1166"/>
+<line x1="3308" y1="1222" x2="2328" y2="1250"/>
+<line x1="3308" y1="1222" x2="3336" y2="1250"/>
+<line x1="3308" y1="1222" x2="3280" y2="1250"/>
+<line x1="2328" y1="1250" x2="3308" y2="1166"/>
+<line x1="2328" y1="1250" x2="3252" y2="1166"/>
+<line x1="2328" y1="1250" x2="3252" y2="1222"/>
+<line x1="3252" y1="1166" x2="3224" y2="1138"/>
+<line x1="3252" y1="1166" x2="3224" y2="1194"/>
+<line x1="3224" y1="1138" x2="3196" y2="1110"/>
+<line x1="3224" y1="1138" x2="3196" y2="1166"/>
+<line x1="3196" y1="1110" x2="3364" y2="1278"/>
+<line x1="3196" y1="1110" x2="3168" y2="1138"/>
+<line x1="3364" y1="1278" x2="3336" y2="1250"/>
+<line x1="3364" y1="1278" x2="3336" y2="1306"/>
+<line x1="3336" y1="1250" x2="3308" y2="1278"/>
+<line x1="3280" y1="1250" x2="3252" y2="1222"/>
+<line x1="3280" y1="1250" x2="3308" y2="1278"/>
+<line x1="3280" y1="1250" x2="3252" y2="1278"/>
+<line x1="3252" y1="1222" x2="3224" y2="1194"/>
+<line x1="3252" y1="1222" x2="3420" y2="1054"/>
+<line x1="3224" y1="1194" x2="3196" y2="1166"/>
+<line x1="3224" y1="1194" x2="3196" y2="1222"/>
+<line x1="3196" y1="1166" x2="3168" y2="1138"/>
+<line x1="3196" y1="1166" x2="3168" y2="1194"/>
+<line x1="3168" y1="1138" x2="3336" y2="1306"/>
+<line x1="3168" y1="1138" x2="3140" y2="1166"/>
+<line x1="3336" y1="1306" x2="3308" y2="1278"/>
+<line x1="3336" y1="1306" x2="3308" y2="1334"/>
+<line x1="3308" y1="1278" x2="3280" y2="1306"/>
+<line x1="3252" y1="1278" x2="3420" y2="1054"/>
+<line x1="3252" y1="1278" x2="3280" y2="1306"/>
+<line x1="3252" y1="1278" x2="3420" y2="1110"/>
+<line x1="3420" y1="1054" x2="3196" y2="1222"/>
+<line x1="3420" y1="1054" x2="3392" y2="1082"/>
+<line x1="3196" y1="1222" x2="3168" y2="1194"/>
+<line x1="3196" y1="1222" x2="3364" y2="1054"/>
+<line x1="3168" y1="1194" x2="3140" y2="1166"/>
+<line x1="3168" y1="1194" x2="3336" y2="1026"/>
+<line x1="3140" y1="1166" x2="3308" y2="1334"/>
+<line x1="3140" y1="1166" x2="3308" y2="998"/>
+<line x1="3308" y1="1334" x2="3280" y2="1306"/>
+<line x1="3308" y1="1334" x2="3476" y2="1166"/>
+<line x1="3280" y1="1306" x2="3448" y2="1138"/>
+<line x1="3420" y1="1110" x2="3392" y2="1082"/>
+<line x1="3420" y1="1110" x2="3448" y2="1138"/>
+<line x1="3420" y1="1110" x2="3392" y2="1138"/>
+<line x1="3392" y1="1082" x2="3364" y2="1054"/>
+<line x1="3392" y1="1082" x2="3364" y2="1110"/>
+<line x1="3364" y1="1054" x2="3336" y2="1026"/>
+<line x1="3364" y1="1054" x2="3336" y2="1082"/>
+<line x1="3336" y1="1026" x2="3308" y2="998"/>
+<line x1="3336" y1="1026" x2="3308" y2="1054"/>
+<line x1="3308" y1="998" x2="3476" y2="1166"/>
+<line x1="3308" y1="998" x2="3280" y2="1026"/>
+<line x1="3476" y1="1166" x2="3448" y2="1138"/>
+<line x1="3476" y1="1166" x2="3448" y2="1194"/>
+<line x1="3448" y1="1138" x2="3420" y2="1166"/>
+<line x1="3392" y1="1138" x2="3364" y2="1110"/>
+<line x1="3392" y1="1138" x2="3420" y2="1166"/>
+<line x1="3392" y1="1138" x2="3364" y2="1166"/>
+<line x1="3364" y1="1110" x2="3336" y2="1082"/>
+<line x1="3364" y1="1110" x2="3336" y2="1138"/>
+<line x1="3336" y1="1082" x2="3308" y2="1054"/>
+<line x1="3336" y1="1082" x2="3308" y2="1110"/>
+<line x1="3308" y1="1054" x2="3280" y2="1026"/>
+<line x1="3308" y1="1054" x2="3280" y2="1082"/>
+<line x1="3280" y1="1026" x2="3448" y2="1194"/>
+<line x1="3280" y1="1026" x2="3252" y2="1054"/>
+<line x1="3448" y1="1194" x2="3420" y2="1166"/>
+<line x1="3448" y1="1194" x2="3420" y2="1222"/>
+<line x1="3420" y1="1166" x2="3392" y2="1194"/>
+<line x1="3364" y1="1166" x2="3336" y2="1138"/>
+<line x1="3364" y1="1166" x2="3392" y2="1194"/>
+<line x1="3336" y1="1138" x2="3308" y2="1110"/>
+<line x1="3308" y1="1110" x2="3280" y2="1082"/>
+<line x1="3280" y1="1082" x2="3252" y2="1054"/>
+<line x1="3252" y1="1054" x2="3420" y2="1222"/>
+<line x1="3420" y1="1222" x2="3392" y2="1194"/>
+</g>
+<text x="1068.0" y="352.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">;e fput 'kneel…</text>
+<text x="1992.0" y="772.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">up</text>
+<text x="1656.0" y="1094.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go flickering …</text>
+<text x="1866.0" y="940.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go steps</text>
+<text x="998.0" y="632.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go space</text>
+<text x="998.0" y="562.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go entrance</text>
+<text x="1866.0" y="884.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go walkway</text>
+<text x="984.0" y="590.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go vines</text>
+<text x="1768.0" y="814.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go steps</text>
+<text x="1278.0" y="730.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go well</text>
+<text x="802.0" y="324.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go breach</text>
+<text x="746.0" y="254.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go hole</text>
+<text x="718.0" y="226.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go stairway</text>
+<text x="690.0" y="226.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go staircase</text>
+<text x="676.0" y="226.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">up</text>
+<text x="760.0" y="254.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">out</text>
+<text x="1992.0" y="800.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">;e move 'crawl…</text>
+<text x="830.0" y="408.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go spear</text>
+<text x="872.0" y="352.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb steps</text>
+<text x="676.0" y="464.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go foot</text>
+<text x="186.0" y="450.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go door</text>
+<text x="158.0" y="422.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go arch</text>
+<text x="158.0" y="436.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go curtain</text>
+<text x="130.0" y="394.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go door</text>
+<text x="74.0" y="366.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go niche</text>
+<text x="130.0" y="366.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go barn</text>
+<text x="102.0" y="338.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb ladder</text>
+<text x="536.0" y="352.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go path</text>
+<text x="606.0" y="478.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb steps</text>
+<text x="578.0" y="478.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go entrance</text>
+<text x="550.0" y="450.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">up</text>
+<text x="550.0" y="464.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">down</text>
+<text x="522.0" y="450.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb steps</text>
+<text x="872.0" y="730.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb hole</text>
+<text x="2272.0" y="1094.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go panel</text>
+<text x="942.0" y="338.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go benches</text>
+<text x="970.0" y="366.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb benches</text>
+<text x="984.0" y="338.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb benches</text>
+<text x="970.0" y="282.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb blocks</text>
+<text x="942.0" y="310.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb benches</text>
+<text x="984.0" y="310.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb benches</text>
+<text x="1866.0" y="786.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go stairs</text>
+<text x="1852.0" y="730.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb steps</text>
+<text x="872.0" y="338.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb steps</text>
+<text x="900.0" y="268.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb steps</text>
+<text x="886.0" y="366.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">down</text>
+<text x="928.0" y="282.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb steps</text>
+<text x="942.0" y="352.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">down</text>
+<text x="942.0" y="254.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb steps</text>
+<text x="928.0" y="324.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">down</text>
+<text x="914.0" y="240.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb steps</text>
+<text x="914.0" y="254.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb steps</text>
+<text x="900.0" y="240.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb steps</text>
+<text x="382.0" y="282.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb tree</text>
+<text x="536.0" y="226.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go lake</text>
+<text x="550.0" y="170.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb tree</text>
+<text x="564.0" y="226.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go lake</text>
+<text x="592.0" y="226.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">go lake</text>
+<text x="746.0" y="142.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb tree</text>
+<text x="130.0" y="422.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">climb ladder</text>
+<text x="102.0" y="408.0" text-anchor="middle" font-size="8" fill="#5b4724" font-family="sans-serif">;e fput 'kneel…</text>
+<g fill="#fdfaf0" stroke="#1f1a10" stroke-width="0.9">
+<rect x="1203.5" y="517.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11923)</title></rect>
+<rect x="2911.5" y="1189.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11922)</title></rect>
+<rect x="2911.5" y="1217.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11924)</title></rect>
+<rect x="2939.5" y="1161.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11921)</title></rect>
+<rect x="2883.5" y="1245.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11925)</title></rect>
+<rect x="2967.5" y="1133.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11920)</title></rect>
+<rect x="2855.5" y="1273.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11926)</title></rect>
+<rect x="2883.5" y="1217.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11934)</title></rect>
+<rect x="2967.5" y="1105.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11919)</title></rect>
+<rect x="2827.5" y="1273.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11927)</title></rect>
+<rect x="2883.5" y="1189.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11755)</title></rect>
+<rect x="2855.5" y="1217.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11933)</title></rect>
+<rect x="2939.5" y="1133.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11935)</title></rect>
+<rect x="2799.5" y="1245.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11928)</title></rect>
+<rect x="2883.5" y="1161.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#6409)</title></rect>
+<rect x="2827.5" y="1217.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11930)</title></rect>
+<rect x="2911.5" y="1133.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#1769)</title></rect>
+<rect x="2911.5" y="1105.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11908)</title></rect>
+<rect x="2827.5" y="1245.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11929)</title></rect>
+<rect x="1735.5" y="1189.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11931)</title></rect>
+<rect x="2883.5" y="1105.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11907)</title></rect>
+<rect x="2939.5" y="1077.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11909)</title></rect>
+<rect x="1707.5" y="1217.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11932)</title></rect>
+<rect x="2855.5" y="1133.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11906)</title></rect>
+<rect x="2939.5" y="1049.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11910)</title></rect>
+<rect x="2827.5" y="1133.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11905)</title></rect>
+<rect x="2911.5" y="1021.5" width="9" height="9"><title>East Woods, River Bank (#11911)</title></rect>
+<rect x="2967.5" y="1021.5" width="9" height="9"><title>East Woods, River Bank (#11915)</title></rect>
+<rect x="2799.5" y="1133.5" width="9" height="9"><title>Old Ta'Faendryl, East Entrance (#11903)</title></rect>
+<rect x="2883.5" y="1021.5" width="9" height="9"><title>East Woods, River Bank (#11912)</title></rect>
+<rect x="2995.5" y="993.5" width="9" height="9"><title>East Woods, River Bank (#11916)</title></rect>
+<rect x="2995.5" y="1049.5" width="9" height="9"><title>Old Ta'Faendryl, East Woods (#11918)</title></rect>
+<rect x="2799.5" y="1161.5" width="9" height="9"><title>Old Ta'Faendryl, East (#11901)</title></rect>
+<rect x="2771.5" y="1133.5" width="9" height="9"><title>Execution Square (#11902)</title></rect>
+<rect x="2799.5" y="1105.5" width="9" height="9"><title>Old Ta'Faendryl, East (#11904)</title></rect>
+<rect x="2855.5" y="1021.5" width="9" height="9"><title>East Woods, River Bank (#11913)</title></rect>
+<rect x="3023.5" y="993.5" width="9" height="9"><title>East Woods, River Bank (#11917)</title></rect>
+<rect x="2827.5" y="1161.5" width="9" height="9"><title>Old Ta'Faendryl, East (#11856)</title></rect>
+<rect x="2771.5" y="1077.5" width="9" height="9"><title>Old Ta'Faendryl, East (#1452)</title></rect>
+<rect x="2827.5" y="1021.5" width="9" height="9"><title>East Woods, River Bank (#11914)</title></rect>
+<rect x="3051.5" y="993.5" width="9" height="9"><title>East Woods, River Bank (#34530)</title></rect>
+<rect x="2799.5" y="1189.5" width="9" height="9"><title>Old Ta'Faendryl, Southeast (#11853)</title></rect>
+<rect x="2771.5" y="1161.5" width="9" height="9"><title>Old Ta'Faendryl, Southeast (#11857)</title></rect>
+<rect x="2743.5" y="1077.5" width="9" height="9"><title>Old Ta'Faendryl, River Bank (#12044)</title></rect>
+<rect x="2771.5" y="1189.5" width="9" height="9"><title>Old Ta'Faendryl, East (#11852)</title></rect>
+<rect x="2771.5" y="1217.5" width="9" height="9"><title>Old Ta'Faendryl, Southeast (#11854)</title></rect>
+<rect x="1679.5" y="1161.5" width="9" height="9"><title>Old Ta'Faendryl, The Palestra (#11858)</title></rect>
+<rect x="2743.5" y="1161.5" width="9" height="9"><title>Old Ta'Faendryl, Southeast (#12041)</title></rect>
+<rect x="2743.5" y="1105.5" width="9" height="9"><title>Old Ta'Faendryl, Alley (#12043)</title></rect>
+<rect x="2715.5" y="1077.5" width="9" height="9"><title>Old Ta'Faendryl, River Edge (#12045)</title></rect>
+<rect x="2743.5" y="1189.5" width="9" height="9"><title>Old Ta'Faendryl, East (#11851)</title></rect>
+<rect x="2743.5" y="1245.5" width="9" height="9"><title>Old Ta'Faendryl, Southeast (#11855)</title></rect>
+<rect x="1679.5" y="1133.5" width="9" height="9"><title>Old Ta'Faendryl, The Palestra (#11859)</title></rect>
+<rect x="1651.5" y="1161.5" width="9" height="9"><title>Old Ta'Faendryl, The Palestra (#11862)</title></rect>
+<rect x="1651.5" y="1133.5" width="9" height="9"><title>Old Ta'Faendryl, The Palestra (#11863)</title></rect>
+<rect x="2715.5" y="1189.5" width="9" height="9"><title>Old Ta'Faendryl, East (#11844)</title></rect>
+<rect x="2715.5" y="1245.5" width="9" height="9"><title>Old Ta'Faendryl, South (#11837)</title></rect>
+<rect x="1651.5" y="1105.5" width="9" height="9"><title>Old Ta'Faendryl, The Palestra (#11864)</title></rect>
+<rect x="2687.5" y="1217.5" width="9" height="9"><title>Old Ta'Faendryl, East Market (#11845)</title></rect>
+<rect x="2687.5" y="1189.5" width="9" height="9"><title>Old Ta'Faendryl, Market Road (#11846)</title></rect>
+<rect x="2687.5" y="1245.5" width="9" height="9"><title>Old Ta'Faendryl, East Market (#11836)</title></rect>
+<rect x="2659.5" y="1245.5" width="9" height="9"><title>Old Ta'Faendryl, East Market (#11835)</title></rect>
+<rect x="2631.5" y="1245.5" width="9" height="9"><title>Old Ta'Faendryl, Market Road (#11821)</title></rect>
+<rect x="2631.5" y="1273.5" width="9" height="9"><title>Old Ta'Faendryl, Market Road (#11820)</title></rect>
+<rect x="2603.5" y="1245.5" width="9" height="9"><title>Old Ta'Faendryl, West Market (#11822)</title></rect>
+<rect x="2631.5" y="1217.5" width="9" height="9"><title>Old Ta'Faendryl, Market Road (#11847)</title></rect>
+<rect x="2631.5" y="1301.5" width="9" height="9"><title>Old Ta'Faendryl, Southern Road (#11819)</title></rect>
+<rect x="2575.5" y="1217.5" width="9" height="9"><title>Old Ta'Faendryl, West Market (#11823)</title></rect>
+<rect x="2631.5" y="1189.5" width="9" height="9"><title>Old Ta'Faendryl, Market Road (#11848)</title></rect>
+<rect x="2631.5" y="1329.5" width="9" height="9"><title>Old Ta'Faendryl, Southern Road (#11818)</title></rect>
+<rect x="2547.5" y="1189.5" width="9" height="9"><title>Old Ta'Faendryl, West (#11824)</title></rect>
+<rect x="2631.5" y="1161.5" width="9" height="9"><title>Old Ta'Faendryl, Market Road (#11849)</title></rect>
+<rect x="2631.5" y="1357.5" width="9" height="9"><title>Old Ta'Faendryl, Southern Road (#11817)</title></rect>
+<rect x="2519.5" y="1189.5" width="9" height="9"><title>Old Ta'Faendryl, West (#11825)</title></rect>
+<rect x="2575.5" y="1161.5" width="9" height="9"><title>Old Ta'Faendryl, West Market (#11834)</title></rect>
+<rect x="2603.5" y="1385.5" width="9" height="9"><title>Old Ta'Faendryl, Southern Road (#11816)</title></rect>
+<rect x="2491.5" y="1161.5" width="9" height="9"><title>Old Ta'Faendryl, West (#11826)</title></rect>
+<rect x="2575.5" y="1133.5" width="9" height="9"><title>Old Ta'Faendryl, River Bend (#11830)</title></rect>
+<rect x="2547.5" y="1161.5" width="9" height="9"><title>Old Ta'Faendryl, West (#11833)</title></rect>
+<rect x="2575.5" y="1413.5" width="9" height="9"><title>Ta'Faendryl Approach (#11815)</title></rect>
+<rect x="2491.5" y="1133.5" width="9" height="9"><title>Old Ta'Faendryl, River Edge (#11827)</title></rect>
+<rect x="2519.5" y="1161.5" width="9" height="9"><title>Old Ta'Faendryl, West (#11832)</title></rect>
+<rect x="2547.5" y="1133.5" width="9" height="9"><title>Old Ta'Faendryl, River Edge (#11829)</title></rect>
+<rect x="2603.5" y="1133.5" width="9" height="9"><title>Old Ta'Faendryl, River Bend (#11831)</title></rect>
+<rect x="2547.5" y="1441.5" width="9" height="9"><title>Ta'Faendryl Approach (#11813)</title></rect>
+<rect x="2519.5" y="1133.5" width="9" height="9"><title>Old Ta'Faendryl, River Edge (#11828)</title></rect>
+<rect x="2519.5" y="1441.5" width="9" height="9"><title>Ta'Faendryl Approach (#11814)</title></rect>
+<rect x="1119.5" y="405.5" width="9" height="9"><title>East Woods, Tunnel (#627)</title></rect>
+<rect x="727.5" y="769.5" width="9" height="9"><title>Ta'Faendryl Approach (#11811)</title></rect>
+<rect x="699.5" y="797.5" width="9" height="9"><title>Ta'Faendryl Approach (#11810)</title></rect>
+<rect x="755.5" y="741.5" width="9" height="9"><title>Ta'Faendryl Approach (#11812)</title></rect>
+<rect x="671.5" y="825.5" width="9" height="9"><title>Ta'Faendryl Approach (#11809)</title></rect>
+<rect x="643.5" y="853.5" width="9" height="9"><title>Ta'Faendryl Approach (#11808)</title></rect>
+<rect x="615.5" y="853.5" width="9" height="9"><title>Ta'Faendryl Approach (#11807)</title></rect>
+<rect x="587.5" y="881.5" width="9" height="9"><title>Ta'Faendryl Approach (#11806)</title></rect>
+<rect x="559.5" y="881.5" width="9" height="9"><title>Ta'Faendryl Approach (#11805)</title></rect>
+<rect x="531.5" y="853.5" width="9" height="9"><title>Ta'Faendryl Approach (#11804)</title></rect>
+<rect x="979.5" y="601.5" width="9" height="9"><title>Old Ta'Faendryl, Asylum Square (#11841)</title></rect>
+<rect x="1007.5" y="629.5" width="9" height="9"><title>Old Ta'Faendryl, Asylum Square (#11838)</title></rect>
+<rect x="1007.5" y="573.5" width="9" height="9"><title>Old Ta'Faendryl, Asylum Square (#11840)</title></rect>
+<rect x="1035.5" y="601.5" width="9" height="9"><title>Old Ta'Faendryl, Asylum Square (#11839)</title></rect>
+<rect x="923.5" y="377.5" width="9" height="9"><title>Old Ta'Faendryl, Basilica Plaza (#12026)</title></rect>
+<rect x="923.5" y="405.5" width="9" height="9"><title>Old Ta'Faendryl, Basilica Plaza (#12015)</title></rect>
+<rect x="951.5" y="349.5" width="9" height="9"><title>Old Ta'Faendryl, Amphitheatre (#12025)</title></rect>
+<rect x="923.5" y="349.5" width="9" height="9"><title>Old Ta'Faendryl, Basilica Plaza (#12027)</title></rect>
+<rect x="923.5" y="433.5" width="9" height="9"><title>Old Ta'Faendryl, Basilica Plaza (#12014)</title></rect>
+<rect x="951.5" y="433.5" width="9" height="9"><title>Old Ta'Faendryl, Amphitheatre (#12022)</title></rect>
+<rect x="979.5" y="377.5" width="9" height="9"><title>Old Ta'Faendryl, Amphitheatre (#12024)</title></rect>
+<rect x="895.5" y="349.5" width="9" height="9"><title>Old Ta'Faendryl, Basilica Plaza (#12028)</title></rect>
+<rect x="895.5" y="433.5" width="9" height="9"><title>Old Ta'Faendryl, Basilica Plaza (#12013)</title></rect>
+<rect x="979.5" y="405.5" width="9" height="9"><title>Old Ta'Faendryl, Amphitheatre (#12023)</title></rect>
+<rect x="867.5" y="349.5" width="9" height="9"><title>Old Ta'Faendryl, Basilica Plaza (#12029)</title></rect>
+<rect x="867.5" y="433.5" width="9" height="9"><title>Old Ta'Faendryl, Basilica Plaza (#12012)</title></rect>
+<rect x="839.5" y="349.5" width="9" height="9"><title>Old Ta'Faendryl, Basilica Plaza (#12030)</title></rect>
+<rect x="839.5" y="433.5" width="9" height="9"><title>Old Ta'Faendryl, Basilica Plaza (#11850)</title></rect>
+<rect x="839.5" y="377.5" width="9" height="9"><title>Old Ta'Faendryl, Basilica Plaza (#12031)</title></rect>
+<rect x="839.5" y="405.5" width="9" height="9"><title>Old Ta'Faendryl, Basilica Plaza (#11936)</title></rect>
+<rect x="755.5" y="293.5" width="9" height="9"><title>Aqueduct (#11881)</title></rect>
+<rect x="783.5" y="321.5" width="9" height="9"><title>Aqueduct (#11880)</title></rect>
+<rect x="727.5" y="321.5" width="9" height="9"><title>Aqueduct (#11882)</title></rect>
+<rect x="755.5" y="265.5" width="9" height="9"><title>Aqueduct (#11888)</title></rect>
+<rect x="699.5" y="349.5" width="9" height="9"><title>Aqueduct (#11883)</title></rect>
+<rect x="727.5" y="265.5" width="9" height="9"><title>Aqueduct (#11889)</title></rect>
+<rect x="755.5" y="237.5" width="9" height="9"><title>Aqueduct (#11891)</title></rect>
+<rect x="727.5" y="377.5" width="9" height="9"><title>Aqueduct (#11875)</title></rect>
+<rect x="671.5" y="349.5" width="9" height="9"><title>Aqueduct (#11884)</title></rect>
+<rect x="699.5" y="237.5" width="9" height="9"><title>Aqueduct (#11890)</title></rect>
+<rect x="783.5" y="209.5" width="9" height="9"><title>Aqueduct (#11892)</title></rect>
+<rect x="755.5" y="377.5" width="9" height="9"><title>Aqueduct (#11874)</title></rect>
+<rect x="699.5" y="405.5" width="9" height="9"><title>Aqueduct (#11876)</title></rect>
+<rect x="643.5" y="349.5" width="9" height="9"><title>Aqueduct (#11885)</title></rect>
+<rect x="783.5" y="349.5" width="9" height="9"><title>Aqueduct (#11873)</title></rect>
+<rect x="671.5" y="405.5" width="9" height="9"><title>Aqueduct (#11877)</title></rect>
+<rect x="615.5" y="349.5" width="9" height="9"><title>Aqueduct (#11886)</title></rect>
+<rect x="811.5" y="321.5" width="9" height="9"><title>Aqueduct (#11872)</title></rect>
+<rect x="643.5" y="405.5" width="9" height="9"><title>Aqueduct (#11878)</title></rect>
+<rect x="587.5" y="321.5" width="9" height="9"><title>Aqueduct (#11887)</title></rect>
+<rect x="839.5" y="321.5" width="9" height="9"><title>Aqueduct (#11871)</title></rect>
+<rect x="615.5" y="377.5" width="9" height="9"><title>Aqueduct (#11879)</title></rect>
+<rect x="839.5" y="293.5" width="9" height="9"><title>Aqueduct (#11869)</title></rect>
+<rect x="867.5" y="293.5" width="9" height="9"><title>Aqueduct (#11866)</title></rect>
+<rect x="811.5" y="265.5" width="9" height="9"><title>Aqueduct (#11870)</title></rect>
+<rect x="867.5" y="265.5" width="9" height="9"><title>Aqueduct (#11867)</title></rect>
+<rect x="867.5" y="237.5" width="9" height="9"><title>Aqueduct (#11868)</title></rect>
+<rect x="1119.5" y="461.5" width="9" height="9"><title>East Woods, Hollow Tree (#12259)</title></rect>
+<rect x="1035.5" y="321.5" width="9" height="9"><title>East Woods, Tunnel (#13447)</title></rect>
+<rect x="1007.5" y="293.5" width="9" height="9"><title>East Woods, Tunnel (#628)</title></rect>
+<rect x="1063.5" y="349.5" width="9" height="9"><title>East Woods, Tunnel (#15570)</title></rect>
+<rect x="1063.5" y="321.5" width="9" height="9"><title>East Woods, Tunnel (#15573)</title></rect>
+<rect x="1063.5" y="293.5" width="9" height="9"><title>East Woods, Tunnel (#15579)</title></rect>
+<rect x="1035.5" y="265.5" width="9" height="9"><title>East Woods, Tunnel (#13449)</title></rect>
+<rect x="1091.5" y="377.5" width="9" height="9"><title>East Woods, Tunnel (#15588)</title></rect>
+<rect x="1091.5" y="321.5" width="9" height="9"><title>East Woods, Tunnel (#15593)</title></rect>
+<rect x="1091.5" y="265.5" width="9" height="9"><title>East Woods, Tunnel (#15592)</title></rect>
+<rect x="1063.5" y="265.5" width="9" height="9"><title>East Woods, Tunnel (#15597)</title></rect>
+<rect x="1091.5" y="293.5" width="9" height="9"><title>East Woods, Tunnel (#15594)</title></rect>
+<rect x="979.5" y="629.5" width="9" height="9"><title>Asylum, Small Chamber (#11842)</title></rect>
+<rect x="979.5" y="545.5" width="9" height="9"><title>Asylum, Central Hall (#11843)</title></rect>
+<rect x="783.5" y="405.5" width="9" height="9"><title>Old Ta'Faendryl, Colossus Torso (#11938)</title></rect>
+<rect x="811.5" y="405.5" width="9" height="9"><title>Old Ta'Faendryl, Colossus Arm (#11937)</title></rect>
+<rect x="755.5" y="405.5" width="9" height="9"><title>Old Ta'Faendryl, Colossus Hip (#11939)</title></rect>
+<rect x="727.5" y="405.5" width="9" height="9"><title>Old Ta'Faendryl, Colossus Leg (#11940)</title></rect>
+<rect x="923.5" y="265.5" width="9" height="9"><title>Basilica Platform, First Level (#12035)</title></rect>
+<rect x="895.5" y="293.5" width="9" height="9"><title>Basilica Platform, First Level (#12032)</title></rect>
+<rect x="951.5" y="293.5" width="9" height="9"><title>Basilica Platform, First Level (#12034)</title></rect>
+<rect x="923.5" y="321.5" width="9" height="9"><title>Basilica Platform, First Level (#12033)</title></rect>
+<rect x="951.5" y="265.5" width="9" height="9"><title>Old Ta'Faendryl, Amphitheater (#12016)</title></rect>
+<rect x="979.5" y="293.5" width="9" height="9"><title>Old Ta'Faendryl, Amphitheater (#12017)</title></rect>
+<rect x="979.5" y="265.5" width="9" height="9"><title>Old Ta'Faendryl, Amphitheater (#12018)</title></rect>
+<rect x="951.5" y="237.5" width="9" height="9"><title>Old Ta'Faendryl, Amphitheater (#12020)</title></rect>
+<rect x="979.5" y="237.5" width="9" height="9"><title>Old Ta'Faendryl, Amphitheater (#12021)</title></rect>
+<rect x="979.5" y="209.5" width="9" height="9"><title>Old Ta'Faendryl, Amphitheater (#12019)</title></rect>
+<rect x="727.5" y="237.5" width="9" height="9"><title>Dry Ring Pool (#11893)</title></rect>
+<rect x="615.5" y="489.5" width="9" height="9"><title>Old Ta'Faendryl, West (#11985)</title></rect>
+<rect x="615.5" y="517.5" width="9" height="9"><title>Old Ta'Faendryl, Glory Road (#11941)</title></rect>
+<rect x="587.5" y="461.5" width="9" height="9"><title>Old Ta'Faendryl, Foothill (#11986)</title></rect>
+<rect x="615.5" y="461.5" width="9" height="9"><title>Old Ta'Faendryl, Foothill (#11990)</title></rect>
+<rect x="615.5" y="545.5" width="9" height="9"><title>Old Ta'Faendryl, West (#11942)</title></rect>
+<rect x="587.5" y="517.5" width="9" height="9"><title>Old Ta'Faendryl, Glory Road (#11945)</title></rect>
+<rect x="587.5" y="433.5" width="9" height="9"><title>Old Ta'Faendryl, Foothill (#11987)</title></rect>
+<rect x="615.5" y="433.5" width="9" height="9"><title>Old Ta'Faendryl, Foothill (#11989)</title></rect>
+<rect x="587.5" y="545.5" width="9" height="9"><title>Old Ta'Faendryl, West (#11943)</title></rect>
+<rect x="559.5" y="517.5" width="9" height="9"><title>Old Ta'Faendryl, Glory Road (#11946)</title></rect>
+<rect x="615.5" y="405.5" width="9" height="9"><title>Old Ta'Faendryl, Foothill (#11988)</title></rect>
+<rect x="559.5" y="573.5" width="9" height="9"><title>Old Ta'Faendryl, West (#11944)</title></rect>
+<rect x="531.5" y="517.5" width="9" height="9"><title>Old Ta'Faendryl, Glory Road (#11947)</title></rect>
+<rect x="503.5" y="517.5" width="9" height="9"><title>Old Ta'Faendryl, Glory Gate (#11948)</title></rect>
+<rect x="475.5" y="517.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11949)</title></rect>
+<rect x="447.5" y="545.5" width="9" height="9"><title>West Woods, River Edge (#11950)</title></rect>
+<rect x="447.5" y="489.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11976)</title></rect>
+<rect x="419.5" y="545.5" width="9" height="9"><title>West Woods, River Edge (#11951)</title></rect>
+<rect x="447.5" y="461.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11977)</title></rect>
+<rect x="391.5" y="545.5" width="9" height="9"><title>West Woods, River Edge (#11952)</title></rect>
+<rect x="419.5" y="433.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11978)</title></rect>
+<rect x="363.5" y="517.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11953)</title></rect>
+<rect x="419.5" y="405.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11979)</title></rect>
+<rect x="335.5" y="489.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11954)</title></rect>
+<rect x="391.5" y="377.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11980)</title></rect>
+<rect x="307.5" y="489.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11955)</title></rect>
+<rect x="391.5" y="349.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11981)</title></rect>
+<rect x="307.5" y="461.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11956)</title></rect>
+<rect x="419.5" y="321.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11982)</title></rect>
+<rect x="307.5" y="433.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11957)</title></rect>
+<rect x="447.5" y="293.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11983)</title></rect>
+<rect x="307.5" y="405.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11958)</title></rect>
+<rect x="475.5" y="293.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11984)</title></rect>
+<rect x="307.5" y="377.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11959)</title></rect>
+<rect x="279.5" y="405.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11962)</title></rect>
+<rect x="307.5" y="349.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11960)</title></rect>
+<rect x="251.5" y="405.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11963)</title></rect>
+<rect x="279.5" y="321.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11961)</title></rect>
+<rect x="251.5" y="433.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11964)</title></rect>
+<rect x="223.5" y="405.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11965)</title></rect>
+<rect x="195.5" y="433.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11966)</title></rect>
+<rect x="195.5" y="461.5" width="9" height="9"><title>Old Ta'Faendryl, West Woods (#11967)</title></rect>
+<rect x="895.5" y="237.5" width="9" height="9"><title>Basilica Platform, Second Level (#12036)</title></rect>
+<rect x="923.5" y="237.5" width="9" height="9"><title>Basilica Platform, Second Level (#12037)</title></rect>
+<rect x="895.5" y="209.5" width="9" height="9"><title>Basilica Platform, Second Level (#12039)</title></rect>
+<rect x="923.5" y="209.5" width="9" height="9"><title>Basilica Platform, Second Level (#12038)</title></rect>
+<rect x="699.5" y="209.5" width="9" height="9"><title>Basilica, Lower Level (#11894)</title></rect>
+<rect x="167.5" y="433.5" width="9" height="9"><title>West Woods, Tiny Cottage (#11968)</title></rect>
+<rect x="503.5" y="209.5" width="9" height="9"><title>Old Ta'Faendryl, North (#12063)</title></rect>
+<rect x="475.5" y="181.5" width="9" height="9"><title>Old Ta'Faendryl, North (#12058)</title></rect>
+<rect x="503.5" y="181.5" width="9" height="9"><title>Old Ta'Faendryl, North Gate (#12059)</title></rect>
+<rect x="531.5" y="181.5" width="9" height="9"><title>Old Ta'Faendryl, North (#12060)</title></rect>
+<rect x="475.5" y="209.5" width="9" height="9"><title>Old Ta'Faendryl, North (#12062)</title></rect>
+<rect x="503.5" y="237.5" width="9" height="9"><title>Lake, North Shore (#12064)</title></rect>
+<rect x="475.5" y="237.5" width="9" height="9"><title>Lake, North Shore (#12065)</title></rect>
+<rect x="447.5" y="181.5" width="9" height="9"><title>Old Ta'Faendryl, North (#12057)</title></rect>
+<rect x="447.5" y="209.5" width="9" height="9"><title>Old Ta'Faendryl, North (#12061)</title></rect>
+<rect x="531.5" y="209.5" width="9" height="9"><title>Lake, North Shore (#12066)</title></rect>
+<rect x="559.5" y="181.5" width="9" height="9"><title>Old Ta'Faendryl, North (#12067)</title></rect>
+<rect x="447.5" y="265.5" width="9" height="9"><title>Old Ta' Faendryl, Foothill Base (#12046)</title></rect>
+<rect x="419.5" y="209.5" width="9" height="9"><title>Old Ta'Faendryl, North (#12055)</title></rect>
+<rect x="419.5" y="181.5" width="9" height="9"><title>Old Ta'Faendryl, North (#12056)</title></rect>
+<rect x="559.5" y="209.5" width="9" height="9"><title>Lake, North Shore (#12068)</title></rect>
+<rect x="587.5" y="153.5" width="9" height="9"><title>Old Ta'Faendryl, North (#12073)</title></rect>
+<rect x="419.5" y="265.5" width="9" height="9"><title>Old Ta'Faendryl, North Valley (#12047)</title></rect>
+<rect x="587.5" y="209.5" width="9" height="9"><title>Lake, North Shore (#12069)</title></rect>
+<rect x="615.5" y="125.5" width="9" height="9"><title>Old Ta'Faendryl, North (#12074)</title></rect>
+<rect x="391.5" y="265.5" width="9" height="9"><title>Old Ta'Faendryl, North Valley (#12048)</title></rect>
+<rect x="643.5" y="125.5" width="9" height="9"><title>Old Ta'Faendryl, Northeast (#12075)</title></rect>
+<rect x="615.5" y="153.5" width="9" height="9"><title>Old Ta'Faendryl, North (#12076)</title></rect>
+<rect x="643.5" y="153.5" width="9" height="9"><title>Old Ta'Faendryl, North (#12077)</title></rect>
+<rect x="363.5" y="265.5" width="9" height="9"><title>Old Ta'Faendryl, North Valley (#12049)</title></rect>
+<rect x="643.5" y="181.5" width="9" height="9"><title>Lake, North Shore (#12078)</title></rect>
+<rect x="615.5" y="181.5" width="9" height="9"><title>Lake, North Shore (#12079)</title></rect>
+<rect x="671.5" y="181.5" width="9" height="9"><title>Old Ta'Faendryl, River Bank (#12080)</title></rect>
+<rect x="671.5" y="153.5" width="9" height="9"><title>Old Ta'Faendryl, Northeast (#12081)</title></rect>
+<rect x="363.5" y="237.5" width="9" height="9"><title>Old Ta'Faendryl, North Valley (#12050)</title></rect>
+<rect x="699.5" y="181.5" width="9" height="9"><title>Old Ta'Faendryl, River Bank (#12085)</title></rect>
+<rect x="699.5" y="153.5" width="9" height="9"><title>Old Ta'Faendryl, Northeast (#12082)</title></rect>
+<rect x="391.5" y="237.5" width="9" height="9"><title>Old Ta'Faendryl, Northwest (#12051)</title></rect>
+<rect x="363.5" y="209.5" width="9" height="9"><title>Old Ta'Faendryl, North Valley (#12052)</title></rect>
+<rect x="727.5" y="181.5" width="9" height="9"><title>Old Ta'Faendryl, River Bank (#12084)</title></rect>
+<rect x="727.5" y="153.5" width="9" height="9"><title>Old Ta'Faendryl, Northeast (#12083)</title></rect>
+<rect x="391.5" y="209.5" width="9" height="9"><title>Old Ta'Faendryl, North Valley (#12053)</title></rect>
+<rect x="755.5" y="181.5" width="9" height="9"><title>Old Ta'Faendryl, River Bank (#12087)</title></rect>
+<rect x="755.5" y="153.5" width="9" height="9"><title>Old Ta'Faendryl, Northeast (#12086)</title></rect>
+<rect x="587.5" y="489.5" width="9" height="9"><title>Old Ta'Faendryl, Observatory (#11991)</title></rect>
+<rect x="895.5" y="265.5" width="9" height="9"><title>Basilica Platform, Third Level (#12040)</title></rect>
+<rect x="643.5" y="237.5" width="9" height="9"><title>Basilica, Central Nave (#11897)</title></rect>
+<rect x="671.5" y="237.5" width="9" height="9"><title>Basilica, East Apse (#11895)</title></rect>
+<rect x="643.5" y="209.5" width="9" height="9"><title>Basilica, North Anteroom (#11898)</title></rect>
+<rect x="643.5" y="265.5" width="9" height="9"><title>Basilica, South Anteroom (#11899)</title></rect>
+<rect x="615.5" y="237.5" width="9" height="9"><title>Basilica, Narthex (#11900)</title></rect>
+<rect x="139.5" y="405.5" width="9" height="9"><title>Tiny Cottage, Kitchen (#11969)</title></rect>
+<rect x="139.5" y="433.5" width="9" height="9"><title>Tiny Cottage, Bedroom (#15650)</title></rect>
+<rect x="363.5" y="293.5" width="9" height="9"><title>Old Ta'Faendryl, Treetop (#12054)</title></rect>
+<rect x="559.5" y="237.5" width="9" height="9"><title>Lake, Shallows (#12071)</title></rect>
+<rect x="531.5" y="237.5" width="9" height="9"><title>Lake, North Shore (#12070)</title></rect>
+<rect x="587.5" y="237.5" width="9" height="9"><title>Lake, Shallows (#12072)</title></rect>
+<rect x="531.5" y="153.5" width="9" height="9"><title>Old Ta'Faendryl, Treetop (#30584)</title></rect>
+<rect x="727.5" y="125.5" width="9" height="9"><title>Old Ta'Faendryl, Treetop (#30585)</title></rect>
+<rect x="559.5" y="461.5" width="9" height="9"><title>Observatory Entrance (#11992)</title></rect>
+<rect x="671.5" y="209.5" width="9" height="9"><title>Basilica, Obsidian Sphere (#11896)</title></rect>
+<rect x="111.5" y="377.5" width="9" height="9"><title>Tiny Cottage, Back Garden (#11970)</title></rect>
+<rect x="83.5" y="377.5" width="9" height="9"><title>Tiny Cottage, Back Garden (#11971)</title></rect>
+<rect x="139.5" y="377.5" width="9" height="9"><title>Cottage Garden, Brick Path (#11973)</title></rect>
+<rect x="111.5" y="405.5" width="9" height="9"><title>Tiny Cottage, Attic (#15651)</title></rect>
+<rect x="531.5" y="433.5" width="9" height="9"><title>Observatory, Upper Level (#11993)</title></rect>
+<rect x="531.5" y="461.5" width="9" height="9"><title>Observatory, Lower Level (#11994)</title></rect>
+<rect x="55.5" y="349.5" width="9" height="9"><title>Cottage Garden, Niche (#11972)</title></rect>
+<rect x="111.5" y="349.5" width="9" height="9"><title>Cottage Garden, Stone Building (#11974)</title></rect>
+<rect x="83.5" y="405.5" width="9" height="9"><title>Tiny Cottage, Attic Corner (#24516)</title></rect>
+<rect x="503.5" y="433.5" width="9" height="9"><title>Forgotten Pool (#11995)</title></rect>
+<rect x="83.5" y="321.5" width="9" height="9"><title>Stone Building, Attic Loft (#11975)</title></rect>
+<rect x="503.5" y="405.5" width="9" height="9"><title>Aqueduct (#12006)</title></rect>
+<rect x="1231.5" y="1077.5" width="9" height="9"><title>Aqueduct (#12005)</title></rect>
+<rect x="531.5" y="405.5" width="9" height="9"><title>Aqueduct (#12007)</title></rect>
+<rect x="1203.5" y="1077.5" width="9" height="9"><title>Aqueduct (#12003)</title></rect>
+<rect x="1203.5" y="1049.5" width="9" height="9"><title>Aqueduct (#12002)</title></rect>
+<rect x="1203.5" y="1105.5" width="9" height="9"><title>Aqueduct (#12004)</title></rect>
+<rect x="1231.5" y="1021.5" width="9" height="9"><title>Aqueduct (#11996)</title></rect>
+<rect x="1203.5" y="993.5" width="9" height="9"><title>Aqueduct (#11997)</title></rect>
+<rect x="1259.5" y="993.5" width="9" height="9"><title>Aqueduct (#11998)</title></rect>
+<rect x="1203.5" y="1021.5" width="9" height="9"><title>Aqueduct (#11999)</title></rect>
+<rect x="1259.5" y="1021.5" width="9" height="9"><title>Aqueduct (#12000)</title></rect>
+<rect x="1259.5" y="1049.5" width="9" height="9"><title>Aqueduct (#12008)</title></rect>
+<rect x="1287.5" y="1021.5" width="9" height="9"><title>Aqueduct (#12001)</title></rect>
+<rect x="1259.5" y="1077.5" width="9" height="9"><title>Aqueduct (#12009)</title></rect>
+<rect x="1259.5" y="1105.5" width="9" height="9"><title>Aqueduct (#12010)</title></rect>
+<rect x="1231.5" y="1105.5" width="9" height="9"><title>Aqueduct (#12011)</title></rect>
+<rect x="1679.5" y="1105.5" width="9" height="9"><title>Old Ta'Faendryl, The Palestra (#11860)</title></rect>
+<rect x="1679.5" y="1077.5" width="9" height="9"><title>Old Ta'Faendryl, Barracks (#11861)</title></rect>
+<rect x="1651.5" y="1077.5" width="9" height="9"><title>Old Ta'Faendryl, Barracks (#11865)</title></rect>
+<rect x="3191.5" y="1105.5" width="9" height="9"><title>Cavern Home, Junction (#32628)</title></rect>
+<rect x="3219.5" y="1077.5" width="9" height="9"><title>Cavern Home, Junction (#32620)</title></rect>
+<rect x="3219.5" y="1133.5" width="9" height="9"><title>Cavern Home, Stable (#32627)</title></rect>
+<rect x="3359.5" y="1273.5" width="9" height="9"><title>Cavern Home, Junction (#32629)</title></rect>
+<rect x="3163.5" y="1133.5" width="9" height="9"><title>Cavern Home, Junction (#32635)</title></rect>
+<rect x="3247.5" y="1105.5" width="9" height="9"><title>Cavern Home, Junction (#32619)</title></rect>
+<rect x="3387.5" y="1245.5" width="9" height="9"><title>Cavern Home, Junction (#32621)</title></rect>
+<rect x="3247.5" y="1049.5" width="9" height="9"><title>Cavern Home, Junction (#32663)</title></rect>
+<rect x="3247.5" y="1161.5" width="9" height="9"><title>Cavern Home, Junction (#32626)</title></rect>
+<rect x="3191.5" y="1161.5" width="9" height="9"><title>Cavern Home, Junction (#32634)</title></rect>
+<rect x="3331.5" y="1245.5" width="9" height="9"><title>Cavern Home, Junction (#32630)</title></rect>
+<rect x="3331.5" y="1301.5" width="9" height="9"><title>Cavern Home, Junction (#32636)</title></rect>
+<rect x="3135.5" y="1161.5" width="9" height="9"><title>Cavern Home, Barracks (#32642)</title></rect>
+<rect x="3275.5" y="1133.5" width="9" height="9"><title>Cavern Home, Junction (#32618)</title></rect>
+<rect x="3275.5" y="1077.5" width="9" height="9"><title>Cavern Home, Junction (#32662)</title></rect>
+<rect x="3359.5" y="1217.5" width="9" height="9"><title>Cavern Home, Junction (#32622)</title></rect>
+<rect x="3415.5" y="1217.5" width="9" height="9"><title>Cavern Home, Storage (#32664)</title></rect>
+<rect x="3275.5" y="1021.5" width="9" height="9"><title>Cavern Home, Junction (#32656)</title></rect>
+<rect x="2323.5" y="1245.5" width="9" height="9"><title>Cavern Home, Junction (#32625)</title></rect>
+<rect x="3219.5" y="1189.5" width="9" height="9"><title>Cavern Home, Waste Pits (#32633)</title></rect>
+<rect x="3163.5" y="1189.5" width="9" height="9"><title>Cavern Home, Junction (#32641)</title></rect>
+<rect x="3303.5" y="1217.5" width="9" height="9"><title>Cavern Home, Junction (#32624)</title></rect>
+<rect x="3303.5" y="1273.5" width="9" height="9"><title>Cavern Home, Ventilation (#32637)</title></rect>
+<rect x="3303.5" y="1329.5" width="9" height="9"><title>Cavern Home, Junction (#32643)</title></rect>
+<rect x="3303.5" y="993.5" width="9" height="9"><title>Cavern Home, Junction (#32649)</title></rect>
+<rect x="3303.5" y="1161.5" width="9" height="9"><title>Cavern Home, Junction (#13210)</title></rect>
+<rect x="3303.5" y="1105.5" width="9" height="9"><title>Cavern Home, Junction (#32661)</title></rect>
+<rect x="3303.5" y="1049.5" width="9" height="9"><title>Cavern Home, Junction (#32655)</title></rect>
+<rect x="3331.5" y="1189.5" width="9" height="9"><title>Cavern Home, Exhaust (#32623)</title></rect>
+<rect x="3387.5" y="1189.5" width="9" height="9"><title>Cavern Home, Junction (#32665)</title></rect>
+<rect x="3443.5" y="1189.5" width="9" height="9"><title>Cavern Home, Armory (#32657)</title></rect>
+<rect x="3247.5" y="1217.5" width="9" height="9"><title>Cavern Home, Junction (#32632)</title></rect>
+<rect x="3191.5" y="1217.5" width="9" height="9"><title>Cavern Home, Junction (#32640)</title></rect>
+<rect x="3331.5" y="1021.5" width="9" height="9"><title>Cavern Home, Lighting (#32648)</title></rect>
+<rect x="3275.5" y="1245.5" width="9" height="9"><title>Cavern Home, Junction (#32631)</title></rect>
+<rect x="3275.5" y="1301.5" width="9" height="9"><title>Cavern Home, Junction (#32644)</title></rect>
+<rect x="3471.5" y="1161.5" width="9" height="9"><title>Cavern Home, Junction (#32650)</title></rect>
+<rect x="3331.5" y="1133.5" width="9" height="9"><title>Cavern Home, Junction (#32660)</title></rect>
+<rect x="3331.5" y="1077.5" width="9" height="9"><title>Cavern Home, Junction (#32654)</title></rect>
+<rect x="3359.5" y="1161.5" width="9" height="9"><title>Cavern Home, Refuse (#32659)</title></rect>
+<rect x="3415.5" y="1161.5" width="9" height="9"><title>Cavern Home, Junction (#32658)</title></rect>
+<rect x="3415.5" y="1049.5" width="9" height="9"><title>Cavern Home, Junction (#32639)</title></rect>
+<rect x="3359.5" y="1049.5" width="9" height="9"><title>Cavern Home, Junction (#32647)</title></rect>
+<rect x="3247.5" y="1273.5" width="9" height="9"><title>Cavern Home, Junction (#32638)</title></rect>
+<rect x="3443.5" y="1133.5" width="9" height="9"><title>Cavern Home, Junction (#32651)</title></rect>
+<rect x="3359.5" y="1105.5" width="9" height="9"><title>Cavern Home, Eating Area (#32653)</title></rect>
+<rect x="3387.5" y="1133.5" width="9" height="9"><title>Cavern Home, Junction (#32652)</title></rect>
+<rect x="3387.5" y="1077.5" width="9" height="9"><title>Cavern Home, Food Prep (#32646)</title></rect>
+<rect x="3415.5" y="1105.5" width="9" height="9"><title>Cavern Home, Junction (#32645)</title></rect>
+<rect x="2743.5" y="1133.5" width="9" height="9"><title>Old Ta'Faendryl, Alley (#12042)</title></rect>
+<rect x="3275.5" y="1189.5" width="9" height="9"><title>Cavern Home, Outlet (#12977)</title></rect>
+<rect x="3555.5" y="993.5" width="9" height="9"><title>In Flight (#15629)</title></rect>
+</g>
+<text x="896.0930232558139" y="199" text-anchor="middle" font-size="13" font-style="italic" font-weight="bold" fill="#3a2c10">Aqueduct</text>
+<text x="660.0" y="199" text-anchor="middle" font-size="13" font-style="italic" font-weight="bold" fill="#3a2c10">Basilica</text>
+<text x="918.6666666666666" y="199" text-anchor="middle" font-size="13" font-style="italic" font-weight="bold" fill="#3a2c10">Basilica Platform</text>
+<text x="3292.3199999999997" y="983" text-anchor="middle" font-size="13" font-style="italic" font-weight="bold" fill="#3a2c10">Cavern Home</text>
+<text x="106.66666666666652" y="339" text-anchor="middle" font-size="13" font-style="italic" font-weight="bold" fill="#3a2c10">Cottage Garden</text>
+<text x="1788.0" y="255" text-anchor="middle" font-size="13" font-style="italic" font-weight="bold" fill="#3a2c10">East Woods</text>
+<text x="564.0" y="171" text-anchor="middle" font-size="13" font-style="italic" font-weight="bold" fill="#3a2c10">Lake</text>
+<text x="1472.7692307692307" y="115" text-anchor="middle" font-size="13" font-style="italic" font-weight="bold" fill="#3a2c10">Old Ta'Faendryl</text>
+<text x="1124.0" y="731" text-anchor="middle" font-size="13" font-style="italic" font-weight="bold" fill="#3a2c10">Ta'Faendryl Approach</text>
+<text x="116.0" y="367" text-anchor="middle" font-size="13" font-style="italic" font-weight="bold" fill="#3a2c10">Tiny Cottage</text>
+<text x="361.0" y="423" text-anchor="middle" font-size="13" font-style="italic" font-weight="bold" fill="#3a2c10">West Woods</text>
+</svg></div>
+<div id="hint">drag to pan &middot; scroll to zoom</div>
+<div id="tip"></div>
+<script>
+(function() {
+  const stage = document.getElementById('stage');
+  const svg = stage.querySelector('svg');
+  const tip = document.getElementById('tip');
+  const vb = svg.viewBox.baseVal;
+  const orig = { x: vb.x, y: vb.y, w: vb.width, h: vb.height };
+  function setVB(x, y, w, h) { svg.setAttribute('viewBox', x + ' ' + y + ' ' + w + ' ' + h); vb.x=x; vb.y=y; vb.width=w; vb.height=h; }
+  let dragging = false, lastX = 0, lastY = 0;
+  stage.addEventListener('mousedown', e => { dragging = true; lastX = e.clientX; lastY = e.clientY; });
+  window.addEventListener('mouseup', () => { dragging = false; });
+  stage.addEventListener('mousemove', e => {
+    if (dragging) {
+      const rect = svg.getBoundingClientRect();
+      const sx = vb.width / rect.width, sy = vb.height / rect.height;
+      setVB(vb.x - (e.clientX - lastX) * sx, vb.y - (e.clientY - lastY) * sy, vb.width, vb.height);
+      lastX = e.clientX; lastY = e.clientY;
+      tip.style.display = 'none';
+    } else {
+      const t = e.target.closest('rect[width="9"]');
+      if (t) {
+        const ttl = t.querySelector('title');
+        if (ttl) {
+          tip.textContent = ttl.textContent;
+          tip.style.display = 'block';
+          tip.style.left = (e.clientX + 12) + 'px';
+          tip.style.top  = (e.clientY + 12) + 'px';
+        }
+      } else { tip.style.display = 'none'; }
+    }
+  });
+  stage.addEventListener('wheel', e => {
+    e.preventDefault();
+    const factor = Math.pow(1.0015, -e.deltaY);
+    const rect = svg.getBoundingClientRect();
+    // mouse position in viewBox coords
+    const mx = vb.x + (e.clientX - rect.left) * (vb.width / rect.width);
+    const my = vb.y + (e.clientY - rect.top)  * (vb.height / rect.height);
+    const nw = vb.width / factor, nh = vb.height / factor;
+    setVB(mx - (mx - vb.x) / factor, my - (my - vb.y) / factor, nw, nh);
+    tip.style.display = 'none';
+  }, { passive: false });
+  window.addEventListener('keydown', e => {
+    if (e.key === '0' || e.key === 'r' || e.key === 'R') { setVB(orig.x, orig.y, orig.w, orig.h); }
+  });
+})();
+</script>
+</body></html>

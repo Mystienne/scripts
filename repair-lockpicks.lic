@@ -1,0 +1,236 @@
+=begin
+
+Repairs all of your lockpicks found in tpick's broken_lockpick_container value.
+
+When successful, will put the lockpick into tpick's lockpick_container value.
+Suggest starting with empty hands.
+
+Assuming you have the LMAS REPAIR ability.
+
+by: Daedeus
+
+|  2.) a thin copper wire                                 20 |
+|  3.) a thin brass wire                                  45 |
+|  4.) a thin steel wire                                  85 |
+|  5.) a thin gold wire                                  350 |
+|  6.) a thin silver wire                                425 |
+|  7.) a thin ora wire                                   850 |
+|  8.) a thin mithril wire                              1025 |
+|  9.) a thin laje wire                                 2900 |
+| 10.) a thin alum wire                                 3900 |
+| 11.) a thin vultite wire                              5100 |
+| 12.) a thin rolaren wire                              6500 |
+| 13.) a thin veniom wire                               8500 |
+| 14.) a thin kelyn wire                               11000 |
+| 15.) a thin invar wire                               13000 |
+| 16.) a thin golvern wire                             16000 |
+| 17.) a thin vaalin wire                              21000 
+=end
+
+Wires = {
+    "vaalin" => { :cost => 21000, :order => 17 },
+    "golvern" => { :cost => 16000, :order => 16 },
+    "invar" => { :cost => 13000, :order => 15 },
+    "kelyn" => { :cost => 11000, :order => 14 },
+    "veniom" => { :cost => 8500, :order => 13 },
+    "rolaren" => { :cost => 6500, :order => 12 },
+    "vultite" => { :cost => 5100, :order => 11 },
+    "alum" => { :cost => 3900, :order => 10 },
+    "laje" => { :cost => 2900, :order => 9 },
+    "mithril" => { :cost => 1025, :order => 8 },
+    "ora" => { :cost => 850, :order => 7 },
+    "silver" => { :cost => 425, :order => 6 },
+    "gold" => { :cost => 350, :order => 5 },
+    "steel" => { :cost => 85, :order => 4 },
+    "brass" => { :cost => 45, :order => 3 },
+    "copper" => { :cost => 25, :order => 2 }
+}
+UserVars.tpick ||= {}
+sack = UserVars.tpick["broken_lockpick_container"]
+picksack = UserVars.tpick["lockpick_container"]
+
+if sack.to_s.strip.empty? || picksack.to_s.strip.empty?
+    begin
+        require 'json' unless defined?(JSON)
+        settings_file = [
+            File.join(File.dirname(File.dirname(__FILE__)), "Tpick Settings.json"),
+            "Tpick Settings.json"
+        ].find { |file| File.exist?(file) }
+        if settings_file
+            tpick_settings = JSON.parse(File.read(settings_file))
+            character_settings = tpick_settings[Char.name] || tpick_settings[XMLData.name]
+            if character_settings
+                sack = character_settings["Broken Lockpick Container"] if sack.to_s.strip.empty?
+                picksack = character_settings["Lockpick Container"] if picksack.to_s.strip.empty?
+            end
+        end
+    rescue => error
+        echo "Unable to read Tpick Settings.json: #{error.message}"
+    end
+end
+
+if sack.to_s.strip.empty?
+    echo "I don't know where your broken lockpicks are."
+    echo "Try setting the broken lockpick container value in ;tpick setup."
+    exit
+end
+
+if picksack.to_s.strip.empty?
+    echo "I don't know where to put repaired lockpicks in."
+    echo "Try setting the lockpick container value in ;tpick setup."
+    exit
+end
+
+if GameObj[sack].nil?
+    echo "Could not find you broken lockpick container, #{sack}."
+    exit
+end
+if GameObj[picksack].nil?
+    echo "Could not find you lockpick container, #{picksack}."
+    exit
+end
+
+echo "Checking #{sack} for broken lockpicks..."
+
+lockpicks = Hash.new
+
+# if you have special lockpicks with really special names, may have to edit this regex
+gettype = proc { |name|
+    name =~ /(vaalin|kelyn|golvern|alum|invar|veniom|rolaren|vultite|laje|glaes|ora|mithril|silver|ivory|gold|steel|brass|copper) (?:lockpick|hook|key)/
+    $1
+}
+
+#lifted from useherbs
+check_silvers = proc {
+   action = proc { |server_string|
+      if server_string =~ /^\s*Name\:|^\s*Gender\:|^\s*Normal \(Bonus\)|^\s*Strength \(STR\)\:|^\s*Constitution \(CON\)\:|^\s*Dexterity \(DEX\)\:|^\s*Agility \(AGI\)\:|^\s*Discipline \(DIS\)\:|^\s*Aura \(AUR\)\:|^\s*Logic \(LOG\)\:|^\s*Intuition \(INT\)\:|^\s*Wisdom \(WIS\)\:|^\s*Influence \(INF\)\:/
+         nil
+      elsif server_string =~ /^\s*Mana\:\s+\-?[0-9,]+\s+Silver\:\s+[0-9,]+/
+         DownstreamHook.remove("#{script.name}_check_silvers")
+         nil
+      else
+         server_string
+      end
+   }
+   DownstreamHook.add("#{script.name}_check_silvers", action)
+   silence_me unless undo_silence = silence_me
+   clear
+   put 'info'
+   silence_me if undo_silence
+   while line = get
+      if line =~ /^\s*Mana\:\s+\-?[0-9,]+\s+Silver\:\s+([0-9,]+)/
+         silvers = $1.delete(',').to_i
+         break
+      end
+   end
+   silvers
+}
+
+withdraw = proc { |amount|
+    go('bank')
+   
+    result = dothistimeout "withdraw #{amount} silvers", 1, /debt collector/
+    if result =~ /debt collector/
+        fput "withdraw #{amount} silvers"
+    end
+}
+
+#RogueWorkshopRooms = [ 17978,16574,17960,17881 ]
+def go(dest)
+    start_room = Room.current.id
+    start_script "go2", [dest]
+    wait_while { running? "go2" }
+    if Room.current.id == start_room
+        echo "Could not travel to #{dest}. Aborting before repairing lockpicks."
+        exit
+    end
+end
+def goNearest(destArr)
+    go(Room.current.find_nearest(destArr))
+end
+
+needed_silver = 0
+lockpicks = Hash.new
+GameObj[sack].contents.each { |i| 
+    if i.type =~ /lockpick/
+        type = gettype.call(i.name)
+        echo "Found a #{i.name} - this is a #{type} lockpick"
+        needed_silver += Wires[type][:cost]
+
+        lockpicks[i.id] = Wires[type]
+    end
+}
+
+echo "You'll need #{needed_silver} silvers to repair these lockpicks."
+if needed_silver <= 0
+    echo "No broken lockpicks found in #{sack}."
+    exit
+end
+sleep 2
+silvers = check_silvers.call
+echo "You have #{silvers} silvers on hand."
+if needed_silver > silvers
+    withdraw_amount = needed_silver - silvers
+    echo "Withdrawing #{withdraw_amount} silvers for lockpick repairs."
+    withdraw.call(withdraw_amount)
+    silvers = check_silvers.call
+end
+if silvers < needed_silver
+    echo "You only have #{silvers} silvers, but repairs need #{needed_silver}. Aborting."
+    exit
+end
+
+empty_hands = proc {
+    fput "stow right" unless checkright.nil?
+    fput "stow left" unless checkleft.nil?
+    sleep 0.5
+    if !checkright.nil? || !checkleft.nil?
+        echo "Unable to empty your hands before repairing lockpicks."
+        echo "Right hand: #{checkright}" unless checkright.nil?
+        echo "Left hand: #{checkleft}" unless checkleft.nil?
+        exit
+    end
+}
+
+empty_hands.call
+
+go('rogue guild toolbench')
+lockpicks.each { |id,wire|
+    empty_hands.call
+    get_result = dothistimeout "get ##{id}", 5, /You remove|You get|You need a free hand|What were you trying/i
+    if get_result =~ /need a free hand|What were you trying/i
+        echo "Could not pick up lockpick ##{id}. Aborting."
+        fput "out"
+        exit
+    end
+    fput "order #{wire[:order]}"
+    buy_result = dothistimeout "buy", 5, /hands are full|You hand|You buy|You pay|You accept|don't have enough|cannot afford/i
+    if buy_result =~ /hands are full|don't have enough|cannot afford/i
+        echo "Could not buy the repair wire: #{buy_result}"
+        fput "put ##{id} in ##{GameObj[sack].id}" if GameObj[sack]
+        fput "out"
+        exit
+    end
+    result = dothistimeout "lmas repair ##{id}", 5, /cooling rapidly to form a tight bond|refuses to break free/
+    if result =~ /cooling rapidly/
+        echo "Successfully repaired #{GameObj.right_hand.name}."
+        waitrt?
+        put_result = dothistimeout "put ##{id} in ##{GameObj[picksack].id}", 5, /You put|cannot hold any more|won't fit|There is no room|What were you trying/i
+        if put_result =~ /cannot hold any more|won't fit|There is no room/i
+            echo "Your repaired lockpick container is full: #{picksack}."
+            echo "Putting #{GameObj.right_hand.name} back in #{sack} and stopping." if GameObj.right_hand
+            fput "put ##{id} in ##{GameObj[sack].id}" if GameObj[sack]
+            fput "stow wire" if checkleft
+            fput "out"
+            exit
+        end
+    elsif result =~ /refuses to break free/
+        echo "This pick cannot be repair; we will drop it."
+        waitrt?
+        fput "drop ##{id}"
+    end
+    waitrt?
+    fput "stow wire" if checkleft
+}
+
+fput "out"

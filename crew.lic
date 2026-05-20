@@ -1,0 +1,500 @@
+# Sender companion for crewrelay.lic.
+#
+# Keep crewrelay running as the listener:
+#   ;crewrelay listen
+#
+# Remote setup:
+#   1. Create/tune a hidden private LNet channel matching CREW_LNET_CHANNEL.
+#   2. Set the same CREW_SECRET in crew.lic and crewrelay.lic on both PCs.
+#   3. Autostart crewrelay listen on every character.
+#
+# Send commands with this script:
+#   ;crew look
+#   ;crew ;go2 bank
+#   ;crew ;osacrew
+#   ;crew --no-self look
+
+require 'json'
+require 'fileutils'
+require 'securerandom'
+require 'openssl'
+require 'base64'
+require 'yaml'
+
+CREW_NAMES = [
+  'Alarke',
+  'Astraen',
+  'Aurinda',
+  'Bethenia',
+  'Cheas',
+  'Deece',
+  'Grogbeard',
+  'Jennyfer',
+  'Lemmi',
+  'Lilisaria',
+  'Lymseia',
+  'Mystelle',
+  'Mystienne',
+  'Nythera',
+  'Sarahleigh',
+  'Valgo',
+].map(&:downcase).freeze
+
+CREW_SECRET = '4576a40ec4534e3f86c0079121a1c336'
+DEFAULT_CREW_TRANSPORT = :auto
+CREW_MODE_VAR = 'crewrelay_mode'
+CREW_BRIDGE_VAR = 'crewrelay_bridge'
+CREW_SECRET_VAR = 'crewrelay_secret'
+CREW_LNET_CHANNEL = 'hollow'
+CREW_REPORT_PREFIX = 'CREWRPT1'
+
+# Must match crewrelay.lic on every machine if CREW_TRANSPORT is :file.
+# For remote file use, set both scripts to the same shared/synced folder.
+CREW_RELAY_DIR = nil
+
+RELAY_DIR = CREW_RELAY_DIR || File.join(DATA_DIR, 'crewrelay')
+RELAY_FILE = File.join(RELAY_DIR, 'commands.jsonl')
+REPORT_FILE = File.join(RELAY_DIR, 'reports.jsonl')
+CREW_CONFIG_FILE = File.join(RELAY_DIR, 'config.yaml')
+
+def crew_config
+  return {} unless File.exist?(CREW_CONFIG_FILE)
+
+  YAML.load_file(CREW_CONFIG_FILE) || {}
+rescue
+  {}
+end
+
+def save_crew_config(config)
+  FileUtils.mkdir_p(RELAY_DIR)
+  File.write(CREW_CONFIG_FILE, config.to_yaml)
+end
+
+def crew_config_get(key)
+  crew_config[key.to_s]
+end
+
+def crew_config_set(key, value)
+  config = crew_config
+  if value.nil? || value.to_s.empty?
+    config.delete(key.to_s)
+  else
+    config[key.to_s] = value.to_s
+  end
+  save_crew_config(config)
+end
+
+def crew_payload(command, include_self, bridge_only = false, report_to = nil, report_id = nil)
+  {
+    id: SecureRandom.uuid,
+    sender: Char.name,
+    include_self: include_self,
+    command: command,
+    bridge_only: bridge_only,
+    report_to: report_to,
+    report_id: report_id,
+    at: Time.now.to_i,
+  }
+end
+
+def crew_signature(payload_json)
+  OpenSSL::HMAC.hexdigest('SHA256', crew_secret, payload_json)
+end
+
+def valid_signature?(payload_json, signature)
+  expected = crew_signature(payload_json)
+  return false unless expected.bytesize == signature.to_s.bytesize
+
+  expected.bytes.zip(signature.to_s.bytes).reduce(0) { |memo, pair| memo | (pair[0] ^ pair[1]) }.zero?
+end
+
+def decode_report_message(message)
+  prefix, encoded, signature = message.to_s.split(/\s+/, 3)
+  return nil unless prefix == CREW_REPORT_PREFIX
+  return nil if encoded.to_s.empty? || signature.to_s.empty?
+
+  payload_json = Base64.strict_decode64(encoded)
+  return nil unless valid_signature?(payload_json, signature)
+
+  JSON.parse(payload_json, symbolize_names: true)
+rescue
+  nil
+end
+
+def crew_secret
+  saved = crew_config_get(CREW_SECRET_VAR).to_s
+  saved = Vars[CREW_SECRET_VAR].to_s if saved.empty?
+  saved.empty? ? CREW_SECRET : saved
+end
+
+def save_crew_secret(secret)
+  crew_config_set(CREW_SECRET_VAR, secret.to_s.strip)
+  Vars[CREW_SECRET_VAR] = secret.to_s.strip
+  Vars.save if Vars.respond_to?(:save)
+end
+
+def ensure_lnet
+  Script.start('lnet') unless Script.running?('lnet')
+  20.times do
+    return true if defined?(LNet) && LNet.respond_to?(:send_message)
+    sleep 0.1
+  end
+  false
+end
+
+def send_lnet_payload(payload)
+  unless ensure_lnet
+    echo 'crew: LNet is not available; start ;lnet and try again.'
+    exit
+  end
+
+  payload_json = payload.to_json
+  message = "CREWREL1 #{Base64.strict_encode64(payload_json)} #{crew_signature(payload_json)}"
+  LNet.send_message({ 'type' => 'channel', 'channel' => CREW_LNET_CHANNEL }, message)
+  echo "sent to crew via LNet #{CREW_LNET_CHANNEL}: #{payload[:command]}"
+end
+
+def bridge_target
+  saved = crew_config_get(CREW_BRIDGE_VAR).to_s.strip
+  saved.empty? ? Vars[CREW_BRIDGE_VAR].to_s.strip : saved
+end
+
+def save_bridge_target(name)
+  crew_config_set(CREW_BRIDGE_VAR, name.to_s.strip)
+  Vars[CREW_BRIDGE_VAR] = name.to_s.strip
+  Vars.save if Vars.respond_to?(:save)
+end
+
+def clear_bridge_target
+  crew_config_set(CREW_BRIDGE_VAR, nil)
+  Vars[CREW_BRIDGE_VAR] = nil
+  Vars.save if Vars.respond_to?(:save)
+end
+
+def send_bridge_payload(payload)
+  target = bridge_target
+  if target.empty?
+    echo 'crew: no bridge target set. Use ;crew bridge <character>'
+    exit
+  end
+
+  unless ensure_lnet
+    echo 'crew: LNet is not available; start ;lnet and try again.'
+    exit
+  end
+
+  payload_json = payload.to_json
+  message = "CREWREL1 #{Base64.strict_encode64(payload_json)} #{crew_signature(payload_json)}"
+  LNet.send_message({ 'type' => 'private', 'to' => target }, message)
+  echo "sent to bridge #{target}: #{payload[:command]}"
+end
+
+def send_file_payload(payload)
+  FileUtils.mkdir_p(RELAY_DIR)
+  FileUtils.touch(RELAY_FILE)
+  File.open(RELAY_FILE, 'r+') do |file|
+    file.flock(File::LOCK_EX)
+    file.truncate(0)
+    file.rewind
+    file.puts(payload.merge(secret: crew_secret).to_json)
+  ensure
+    file.flock(File::LOCK_UN) rescue nil
+  end
+  echo "sent to crew: #{payload[:command]}"
+end
+
+def cleanup_file(path, keep_seconds = 300, keep_report_id = nil)
+  return unless File.exist?(path)
+
+  now = Time.now.to_i
+  kept = []
+  File.readlines(path).each do |line|
+    event = JSON.parse(line, symbolize_names: true)
+    next if event[:at].to_i > 0 && now - event[:at].to_i > keep_seconds
+    next if keep_report_id && event[:report_id].to_s == keep_report_id.to_s
+
+    kept << line
+  rescue JSON::ParserError
+    next
+  end
+
+  File.write(path, kept.join)
+rescue => error
+  echo "crew: cleanup failed for #{File.basename(path)}: #{error.class}: #{error.message}"
+end
+
+def run_locally(command)
+  do_client(command)
+rescue => error
+  echo "crew: local run failed: #{error.class}: #{error.message}"
+end
+
+def listen_for_reports(report_id, seconds = 8)
+  FileUtils.mkdir_p(RELAY_DIR)
+  FileUtils.touch(REPORT_FILE)
+  cleanup_file(REPORT_FILE)
+
+  deadline = Time.now + seconds
+  seen = {}
+
+  echo "crew report: waiting #{seconds}s for responses..."
+
+  while Time.now < deadline
+    File.readlines(REPORT_FILE).each do |line|
+      report = JSON.parse(line, symbolize_names: true)
+      next unless report[:secret] == crew_secret
+      next unless report[:report_id].to_s == report_id.to_s
+      from = report[:from].to_s
+      next if seen[from]
+
+      seen[from] = true
+      echo "crew report: #{from}: #{report[:body]}"
+      deadline = Time.now + 1.5
+    rescue JSON::ParserError
+      next
+    end
+
+    sleep 0.15
+  end
+
+  echo "crew report: #{seen.length} response#{seen.length == 1 ? '' : 's'}."
+  echo "crew report: saved report history in #{REPORT_FILE}"
+end
+
+def show_report_history(limit = 20)
+  FileUtils.mkdir_p(RELAY_DIR)
+  FileUtils.touch(REPORT_FILE)
+  lines = File.readlines(REPORT_FILE).last(limit)
+
+  echo "crew reports file: #{REPORT_FILE}"
+  if lines.empty?
+    echo 'crew reports: no report history found.'
+    return
+  end
+
+  lines.each do |line|
+    report = JSON.parse(line, symbolize_names: true)
+    body = report[:body].to_s.gsub(/\s+/, ' ').strip
+    echo "crew reports: #{report[:at]} #{report[:from]} #{report[:command]} ##{report[:report_id]}: #{body}"
+  rescue JSON::ParserError
+    echo "crew reports: malformed line: #{line.strip}"
+  end
+end
+
+def normalize_transport(value)
+  case value.to_s.downcase
+  when 'file', 'local'
+    :file
+  when 'lnet', 'remote'
+    :lnet
+  when 'bridge'
+    :bridge
+  when 'auto', 'hybrid'
+    :auto
+  else
+    DEFAULT_CREW_TRANSPORT
+  end
+end
+
+def saved_transport
+  saved = crew_config_get(CREW_MODE_VAR).to_s
+  saved = Vars[CREW_MODE_VAR].to_s if saved.empty?
+  normalize_transport(saved)
+end
+
+def save_transport(value)
+  transport = normalize_transport(value)
+  crew_config_set(CREW_MODE_VAR, transport.to_s)
+  Vars[CREW_MODE_VAR] = transport.to_s
+  Vars.save if Vars.respond_to?(:save)
+  transport
+end
+
+def crew_name
+  Char.name.to_s.downcase
+end
+
+unless CREW_NAMES.include?(crew_name)
+  echo "#{Char.name} is not in CREW_NAMES; crew will not run."
+  exit
+end
+
+args = Script.current.vars[1..].compact
+
+if args.empty? || args.first.to_s =~ /\A(?:help|-h|--help)\z/i
+  echo <<~HELP
+    crew usage:
+      ;crew <game command>
+      ;crew <lich command>
+      ;crew --no-self <command>
+      ;crew --file <command>
+      ;crew --local <command>
+      ;crew --bridge <command>
+      ;crew --bridge-only <command>
+      ;crew --lnet <command>
+      ;crew report <command>
+      ;crew reports [count]
+      ;crew mode
+      ;crew mode file
+      ;crew mode lnet
+      ;crew mode bridge
+      ;crew mode auto
+      ;crew bridge <character>
+      ;crew secret
+      ;crew secret <new secret>
+      ;crew rotate-secret <new secret>
+
+    examples:
+      ;crew look
+      ;crew --file look
+      ;crew --bridge-only look
+      ;crew report wealth
+      ;crew reports 30
+      ;crew deposit all
+      ;crew ;go2 bank
+      ;crew ;osacrew
+      ;crew ;k osacrew
+      ;crew ;reload
+      ;crew ;reload file
+      ;crew ;reload lnet
+
+    supported Lich control shortcuts:
+      ;k / ;kill <script>
+      ;force <script> [args]
+      ;reload
+      ;restart [script]
+      ;e / ;exec <ruby>
+      ;eq <ruby>
+      ;pause <script>
+      ;unpause <script>
+      ;list [all]
+      ;send [to <script>] <message>
+
+    LNet shortcuts routed through ;lnet:
+      ;chat, ;who, ;channels, ;tune, ;untune,
+      ;locate, ;spells, ;skills, ;info, ;health, ;bounty
+  HELP
+  exit
+end
+
+if args.first.to_s =~ /\A(?:reports|report-history|history)\z/i
+  show_report_history(args[1].to_i > 0 ? args[1].to_i : 20)
+  exit
+end
+
+if args.first.to_s =~ /\A(?:mode|transport)\z/i
+  if args[1].to_s.empty?
+    echo "crew mode: #{saved_transport}"
+  else
+    transport = save_transport(args[1])
+    echo "crew mode set to #{transport}"
+  end
+  exit
+end
+
+if args.first.to_s =~ /\Abridge\z/i
+  if args[1].to_s.empty?
+    echo "crew bridge: #{bridge_target.empty? ? '(not set)' : bridge_target}"
+  elsif args[1].to_s =~ /\A(?:clear|off|none|nil)\z/i
+    clear_bridge_target
+    echo 'crew bridge cleared'
+  else
+    save_bridge_target(args[1])
+    echo "crew bridge set to #{args[1]}"
+  end
+  exit
+end
+
+if args.first.to_s =~ /\Asecret\z/i
+  if args[1].to_s.empty?
+    echo "crew secret: #{crew_secret.empty? ? '(not set)' : '(set)'}"
+  else
+    save_crew_secret(args[1..].join(' '))
+    echo 'crew secret updated'
+  end
+  exit
+end
+
+if args.first.to_s =~ /\A(?:rotate-secret|rotatesecret|broadcast-secret)\z/i
+  new_secret = args[1..].join(' ').strip
+  if new_secret.empty?
+    echo 'usage: ;crew rotate-secret <new secret>'
+    exit
+  end
+
+  include_self = true
+  transport = saved_transport
+  command = ";secret #{new_secret}"
+  control_command = true
+  payload = crew_payload(command, include_self)
+
+  case transport
+  when :lnet
+    send_lnet_payload(payload)
+  when :bridge
+    send_bridge_payload(payload)
+  when :auto
+    send_file_payload(payload)
+    send_bridge_payload(payload) unless bridge_target.empty?
+  else
+    send_file_payload(payload)
+  end
+
+  save_crew_secret(new_secret)
+  echo 'crew secret rotated locally after sending update'
+  exit
+end
+
+args.delete('--self')
+include_self = !args.delete('--no-self')
+bridge_only = !!(args.delete('--bridge-only') || args.delete('--bridgeonly'))
+report_to = nil
+report_id = nil
+
+transport = if args.delete('--file') || args.delete('--local')
+              :file
+            elsif args.delete('--lnet') || args.delete('--remote')
+              :lnet
+            elsif args.delete('--bridge') || bridge_only
+              :bridge
+            else
+              saved_transport
+            end
+
+if args.first.to_s =~ /\A(?:report|ask)\z/i
+  args.shift
+  report_to = Char.name
+  report_id = SecureRandom.uuid
+end
+
+command = args.join(' ').strip
+
+if command.empty?
+  echo 'usage: ;crew [--no-self] <command>'
+  exit
+end
+
+if command =~ /\Areport(?:\s|$)/i
+  echo 'crew: refused unsafe game REPORT command. Use ;crew report <command> only for crew response collection.'
+  exit
+end
+
+control_command = command =~ /\A;+(?:k|kill|force|reload|restart|e|exec|eq|p|pause|u|unpause|l|la|list|s|send|chat|who|channels|tune|untune|locate|spells|skills|info|health|bounty)\b/i
+include_self ||= !!control_command
+
+payload = crew_payload(command, include_self, bridge_only, report_to, report_id)
+
+case transport
+when :lnet
+  send_lnet_payload(payload)
+when :bridge
+  send_bridge_payload(payload)
+  run_locally(command) if include_self
+when :auto
+  send_file_payload(payload)
+  send_bridge_payload(payload) unless bridge_target.empty?
+else
+  send_file_payload(payload)
+end
+
+listen_for_reports(report_id) if report_id

@@ -37,9 +37,312 @@
 
 
 
-VERSION = "1.9"
+VERSION = "1.10"
 
 AUTHOR = "Leafiara Autumnwind"
+
+PURIFYL_SETTINGS = {
+    unsungcontainer: 'Unsung gem container',
+    sungcontainer: 'Sung non-orb container',
+    orbcontainer: 'Sung orb container'
+}.freeze
+
+PURIFYL_SETTING_ALIASES = {
+    'unsung' => :unsungcontainer,
+    'unsungcontainer' => :unsungcontainer,
+    'sung' => :sungcontainer,
+    'sungcontainer' => :sungcontainer,
+    'orb' => :orbcontainer,
+    'orbcontainer' => :orbcontainer
+}.freeze
+
+def purifyl_init_settings
+    UserVars.PurifyL ||= {}
+    PURIFYL_SETTINGS.keys.each { |key| UserVars.PurifyL[key] = nil if UserVars.PurifyL[key].nil? }
+end
+
+def purifyl_normalize_setting(key)
+    PURIFYL_SETTING_ALIASES[key.to_s.downcase]
+end
+
+def purifyl_show_settings
+    purifyl_init_settings
+    respond ""
+    respond "PurifyL v#{VERSION} settings:"
+    PURIFYL_SETTINGS.each do |key, label|
+        value = UserVars.PurifyL[key]
+        respond "  #{label}: #{value.nil? || value.to_s.empty? ? '(not set)' : value}"
+    end
+    respond ""
+end
+
+def purifyl_help
+    respond ""
+    respond "PurifyL v#{VERSION}"
+    respond "  ;PurifyL setup"
+    respond "  ;PurifyL show"
+    respond "  ;PurifyL set unsung <container>"
+    respond "  ;PurifyL set sung <container>"
+    respond "  ;PurifyL set orb <container>"
+    respond "  ;PurifyL clear <unsung|sung|orb|all>"
+    respond "  ;PurifyL transfer <from container> <to container>"
+    respond "      Moves gems PurifyL considers worth purifying from one container to another, skipping smooth stones."
+    respond ""
+end
+
+def purifyl_set_setting(key, value)
+    purifyl_init_settings
+    setting = purifyl_normalize_setting(key)
+    unless setting
+        respond "PurifyL: unknown setting '#{key}'. Use unsung, sung, or orb."
+        return false
+    end
+    if value.to_s.strip.empty?
+        respond "PurifyL: no container provided for #{key}."
+        return false
+    end
+    UserVars.PurifyL[setting] = value.to_s.strip
+    respond "PurifyL: #{PURIFYL_SETTINGS[setting]} set to '#{UserVars.PurifyL[setting]}'."
+    true
+end
+
+def purifyl_clear_setting(key)
+    purifyl_init_settings
+    if key.to_s.downcase == 'all'
+        PURIFYL_SETTINGS.keys.each { |setting| UserVars.PurifyL[setting] = nil }
+        respond "PurifyL: all settings cleared."
+        return true
+    end
+    setting = purifyl_normalize_setting(key)
+    unless setting
+        respond "PurifyL: unknown setting '#{key}'. Use unsung, sung, orb, or all."
+        return false
+    end
+    UserVars.PurifyL[setting] = nil
+    respond "PurifyL: #{PURIFYL_SETTINGS[setting]} cleared."
+    true
+end
+
+def purifyl_pump_gtk_events
+    return unless defined?(Gtk) && Gtk.respond_to?(:events_pending?)
+
+    iterations = 0
+    while Gtk.events_pending? && iterations < 20
+        Gtk.main_iteration
+        iterations += 1
+    end
+rescue
+    nil
+end
+
+def purifyl_present_setup_window(window)
+    return unless window
+
+    window.show_all if window.respond_to?(:show_all)
+    window.deiconify if window.respond_to?(:deiconify)
+    window.set_keep_above(true) if window.respond_to?(:set_keep_above)
+    window.present if window.respond_to?(:present)
+    window.window.raise if window.respond_to?(:window) && window.window && window.window.respond_to?(:raise)
+
+    if defined?(GLib) && GLib.respond_to?(:Timeout)
+        GLib::Timeout.add(150) do
+            begin
+                window.deiconify if window.respond_to?(:deiconify)
+                window.present if window.respond_to?(:present)
+                window.window.raise if window.respond_to?(:window) && window.window && window.window.respond_to?(:raise)
+            rescue
+                nil
+            end
+            false
+        end
+        GLib::Timeout.add(900) do
+            begin
+                window.set_keep_above(false) if window.respond_to?(:set_keep_above)
+            rescue
+                nil
+            end
+            false
+        end
+    else
+        window.set_keep_above(false) if window.respond_to?(:set_keep_above)
+    end
+rescue
+    nil
+end
+
+def purifyl_remember_gtk_window(name, window, window_ref = nil)
+    $purifyl_gtk_windows = {} unless $purifyl_gtk_windows.is_a?(Hash)
+    if window_ref.is_a?(Hash)
+        window_ref[:name] = name
+        window_ref[:window] = window
+    end
+    $purifyl_gtk_windows[name] = window
+rescue
+    nil
+end
+
+def purifyl_forget_gtk_window(name, window_ref = nil, closed_ref = nil)
+    closed_ref[:closed] = true if closed_ref
+    window_ref[:window] = nil if window_ref.is_a?(Hash)
+    $purifyl_gtk_windows = {} unless $purifyl_gtk_windows.is_a?(Hash)
+    $purifyl_gtk_windows.delete(name)
+rescue
+    nil
+end
+
+def purifyl_close_gtk_window_now(window_ref, closed_ref = nil)
+    window = window_ref.is_a?(Hash) ? window_ref[:window] : window_ref
+    closed_ref[:closed] = true if closed_ref
+
+    if window
+        begin
+            if window.respond_to?(:destroy)
+                window.destroy
+            elsif window.respond_to?(:hide)
+                window.hide
+            elsif window.respond_to?(:close)
+                window.close
+            end
+        rescue
+            nil
+        end
+    end
+
+    window_ref[:window] = nil if window_ref.is_a?(Hash)
+rescue
+    nil
+end
+
+def purifyl_close_all_gtk_windows_now
+    tracked_windows = $purifyl_gtk_windows.is_a?(Hash) ? $purifyl_gtk_windows.values : []
+    tracked_windows.reverse_each { |window| purifyl_close_gtk_window_now(window) }
+
+    tracked_refs = $purifyl_gtk_window_refs.is_a?(Array) ? $purifyl_gtk_window_refs : []
+    tracked_refs.reverse_each { |ref, closed| purifyl_close_gtk_window_now(ref, closed) }
+
+    $purifyl_gtk_windows = {}
+    $purifyl_gtk_window_refs = []
+rescue
+    nil
+end
+
+def purifyl_register_gtk_window_cleanup(window_ref, closed_ref)
+    $purifyl_gtk_windows = {} unless $purifyl_gtk_windows.is_a?(Hash)
+    $purifyl_gtk_window_refs = [] unless $purifyl_gtk_window_refs.is_a?(Array)
+    $purifyl_gtk_window_refs.reject! { |ref, closed| closed[:closed] || ref[:window].nil? }
+    $purifyl_gtk_window_refs << [window_ref, closed_ref]
+    return if $purifyl_gtk_cleanup_registered
+
+    before_dying do
+        begin
+            purifyl_close_all_gtk_windows_now
+        rescue
+            nil
+        end
+    end if defined?(before_dying)
+    $purifyl_gtk_cleanup_registered = true
+rescue
+    nil
+end
+
+def purifyl_close_orphaned_gtk_windows
+    $purifyl_gtk_windows = {}
+    $purifyl_gtk_window_refs = []
+rescue
+    nil
+end
+def purifyl_setup
+    purifyl_init_settings
+
+    unless defined?(Gtk)
+        respond "PurifyL setup requires GTK. Use ';PurifyL set unsung <container>', ';PurifyL set sung <container>', and ';PurifyL set orb <container>' instead."
+        return
+    end
+
+    purifyl_close_orphaned_gtk_windows
+
+    action = nil
+    setup_error = nil
+    window_ref = { window: nil, name: 'Setup' }
+    closed_ref = { closed: false }
+    entries = {}
+    purifyl_register_gtk_window_cleanup(window_ref, closed_ref)
+
+    Gtk.queue do
+        begin
+            window = Gtk::Window.new(:toplevel)
+            purifyl_remember_gtk_window('Setup', window, window_ref)
+            window.title = "PurifyL Setup"
+            window.set_border_width(10) if window.respond_to?(:set_border_width)
+            window.set_default_size(420, 170) if window.respond_to?(:set_default_size)
+            window.set_position(Gtk::WindowPosition::CENTER) if defined?(Gtk::WindowPosition) && window.respond_to?(:set_position)
+
+            grid = Gtk::Grid.new
+            grid.row_spacing = 8 if grid.respond_to?(:row_spacing=)
+            grid.column_spacing = 10 if grid.respond_to?(:column_spacing=)
+            window.add(grid)
+
+            PURIFYL_SETTINGS.each_with_index do |(key, label_text), row|
+                label = Gtk::Label.new(label_text)
+                label.halign = :end if label.respond_to?(:halign=)
+                entry = Gtk::Entry.new
+                entry.text = UserVars.PurifyL[key].to_s if entry.respond_to?(:text=)
+                entry.width_chars = 28 if entry.respond_to?(:width_chars=)
+                entries[key] = entry
+                grid.attach(label, 0, row, 1, 1)
+                grid.attach(entry, 1, row, 2, 1)
+            end
+
+            save_button = Gtk::Button.new(label: "Save")
+            close_button = Gtk::Button.new(label: "Close")
+
+            save_button.signal_connect('clicked') { action = :save }
+            close_button.signal_connect('clicked') do
+                action = :close
+                purifyl_close_gtk_window_now(window_ref, closed_ref)
+            end
+
+            grid.attach(save_button, 1, PURIFYL_SETTINGS.length, 1, 1)
+            grid.attach(close_button, 2, PURIFYL_SETTINGS.length, 1, 1)
+
+            window.signal_connect('delete_event') do
+                action = :close
+                purifyl_close_gtk_window_now(window_ref, closed_ref)
+                true
+            end
+
+            window.signal_connect('destroy') do
+                purifyl_forget_gtk_window(window_ref[:name], window_ref, closed_ref)
+            end
+
+            purifyl_present_setup_window(window)
+        rescue => error
+            setup_error = error
+            action = :error
+        end
+    end
+
+    loop do
+        wait_until { action }
+        requested_action = action
+        action = nil
+
+        case requested_action
+        when :save
+            entries.each do |key, entry|
+                UserVars.PurifyL[key] = entry.text.to_s.strip.empty? ? nil : entry.text.to_s.strip
+            end
+            purifyl_show_settings
+        when :close
+            break
+        when :error
+            respond "PurifyL GTK setup failed: #{setup_error.class}: #{setup_error.message}"
+            break
+        end
+    end
+ensure
+    purifyl_close_gtk_window_now(window_ref, closed_ref) if defined?(window_ref) && window_ref
+end
 
 silence_me
 
@@ -76,10 +379,25 @@ silence_me
 	alreadyorbs = 0
 	smoothercount = 0 
 
-	UserVars.PurifyL ||= {}
-	UserVars.PurifyL[:unsungcontainer] = nil if UserVars.PurifyL[:unsungcontainer].nil?
-	UserVars.PurifyL[:sungcontainer] = nil if UserVars.PurifyL[:sungcontainer].nil?
-	UserVars.PurifyL[:orbcontainer] = nil if UserVars.PurifyL[:orbcontainer].nil?
+	purifyl_init_settings
+
+case script.vars[1].to_s.downcase
+when 'setup', 'config', 'configure'
+    purifyl_setup
+    exit
+when 'show', 'settings', 'list'
+    purifyl_show_settings
+    exit
+when 'help', '?'
+    purifyl_help
+    exit
+when 'set'
+    purifyl_set_setting(script.vars[2], Array(script.vars[3..]).join(' '))
+    exit
+when 'clear', 'unset'
+    purifyl_clear_setting(script.vars[2])
+    exit
+end
 
 if UserVars.PurifyL[:unsungcontainer].nil? || UserVars.PurifyL[:sungcontainer].nil? || UserVars.PurifyL[:orbcontainer].nil?
 	respond "\n

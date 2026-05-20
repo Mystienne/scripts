@@ -1,0 +1,718 @@
+# Lightweight command relay for your own Lich sessions.
+#
+# Setup:
+#   1. Put this file in your Lich scripts folder.
+#   2. For first test, you can leave CREW_NAMES empty.
+#      After testing, add your character names and change CREW_SECRET.
+#      Optionally set CREW_RELAY_DIR for a shared/synced remote folder.
+#   3. Start the listener on every character:
+#        ;autostart add crewrelay listen
+#      or start manually:
+#        ;crewrelay listen
+#
+# Usage from any allowed crew character:
+#   ;crewrelay ;go2 bank
+#   ;crewrelay Deposit all
+#   ;crewrelay ;osacrew
+#   ;crewrelay --self ;go2 town
+#
+# Default transport is LNet for remote PCs. Set CREW_LNET_CHANNEL and
+# CREW_SECRET the same way in crew.lic and crewrelay.lic on both machines.
+# File relay remains available by changing CREW_TRANSPORT to :file.
+#
+# By default the character that sends a command does not run it locally. Use
+# --self to include the sending character too.
+
+require 'json'
+require 'fileutils'
+require 'securerandom'
+require 'openssl'
+require 'base64'
+require 'yaml'
+
+# Leave empty for quick testing. Add names later to restrict who can send and
+# receive commands through this script.
+CREW_NAMES = [
+  'Alarke',
+  'Astraen',
+  'Aurinda',
+  'Bethenia',
+  'Cheas',
+  'Deece',
+  'Grogbeard',
+  'Jennyfer',
+  'Lemmi',
+  'Lilisaria',
+  'Lymseia',
+  'Mystelle',
+  'Mystienne',
+  'Nythera',
+  'Sarahleigh',
+  'Valgo',
+].map(&:downcase).freeze
+
+# Change this to any private phrase. It only needs to match in every copy of
+# this script, and prevents accidental cross-talk if another local setup uses
+# the same relay file.
+CREW_SECRET = '4576a40ec4534e3f86c0079121a1c336'
+DEFAULT_CREW_TRANSPORT = :auto
+CREW_MODE_VAR = 'crewrelay_mode'
+CREW_BRIDGE_VAR = 'crewrelay_bridge'
+CREW_SECRET_VAR = 'crewrelay_secret'
+CREW_LNET_CHANNEL = 'hollow'
+CREW_LNET_PREFIX = 'CREWREL1'
+CREW_REPORT_PREFIX = 'CREWRPT1'
+CREW_MAX_MESSAGE_AGE = 90
+
+# Examples:
+#   CREW_RELAY_DIR = 'C:/Users/Asus/Documents/Codex/crewrelay'
+#   CREW_RELAY_DIR = '//my-server/gs/crewrelay'
+#   CREW_RELAY_DIR = '/home/me/Sync/crewrelay'
+CREW_RELAY_DIR = nil
+
+RELAY_DIR = CREW_RELAY_DIR || File.join(DATA_DIR, 'crewrelay')
+RELAY_FILE = File.join(RELAY_DIR, 'commands.jsonl')
+REPORT_FILE = File.join(RELAY_DIR, 'reports.jsonl')
+SEEN_FILE = File.join(RELAY_DIR, "#{Char.name.downcase}.seen")
+CREW_CONFIG_FILE = File.join(RELAY_DIR, 'config.yaml')
+
+def crew_config
+  return {} unless File.exist?(CREW_CONFIG_FILE)
+
+  YAML.load_file(CREW_CONFIG_FILE) || {}
+rescue
+  {}
+end
+
+def save_crew_config(config)
+  FileUtils.mkdir_p(RELAY_DIR)
+  File.write(CREW_CONFIG_FILE, config.to_yaml)
+end
+
+def crew_config_get(key)
+  crew_config[key.to_s]
+end
+
+def crew_config_set(key, value)
+  config = crew_config
+  if value.nil? || value.to_s.empty?
+    config.delete(key.to_s)
+  else
+    config[key.to_s] = value.to_s
+  end
+  save_crew_config(config)
+end
+
+def crew_name
+  Char.name.to_s.downcase
+end
+
+def allowed_crew?
+  CREW_NAMES.empty? || CREW_NAMES.include?(crew_name)
+end
+
+def ensure_relay
+  FileUtils.mkdir_p(RELAY_DIR)
+  FileUtils.touch(RELAY_FILE)
+  FileUtils.touch(REPORT_FILE)
+end
+
+def cleanup_file(path, keep_seconds = 300)
+  return unless File.exist?(path)
+
+  now = Time.now.to_i
+  kept = []
+  File.readlines(path).each do |line|
+    event = JSON.parse(line, symbolize_names: true)
+    next if event[:at].to_i > 0 && now - event[:at].to_i > keep_seconds
+
+    kept << line
+  rescue JSON::ParserError
+    next
+  end
+
+  File.write(path, kept.join)
+rescue => error
+  echo "crewrelay: cleanup failed for #{File.basename(path)}: #{error.class}: #{error.message}"
+end
+
+def last_seen_pos
+  return File.size(RELAY_FILE) unless File.exist?(SEEN_FILE)
+
+  pos = File.read(SEEN_FILE).to_i
+  size = File.size(RELAY_FILE)
+  pos > size ? 0 : pos
+rescue
+  File.exist?(RELAY_FILE) ? File.size(RELAY_FILE) : 0
+end
+
+def save_seen_pos(pos)
+  File.write(SEEN_FILE, pos.to_s)
+end
+
+def crew_signature(payload_json)
+  OpenSSL::HMAC.hexdigest('SHA256', crew_secret, payload_json)
+end
+
+def crew_secret
+  saved = crew_config_get(CREW_SECRET_VAR).to_s
+  saved = Vars[CREW_SECRET_VAR].to_s if saved.empty?
+  saved.empty? ? CREW_SECRET : saved
+end
+
+def save_crew_secret(secret)
+  crew_config_set(CREW_SECRET_VAR, secret.to_s.strip)
+  Vars[CREW_SECRET_VAR] = secret.to_s.strip
+  Vars.save if Vars.respond_to?(:save)
+end
+
+def valid_crew_payload?(payload, signature)
+  payload_json = payload.to_json
+  expected = crew_signature(payload_json)
+  return false unless secure_compare(expected, signature.to_s)
+
+  at = payload[:at].to_i
+  return false if at <= 0
+  return false if (Time.now.to_i - at).abs > CREW_MAX_MESSAGE_AGE
+
+  sender = payload[:sender].to_s.downcase
+  CREW_NAMES.include?(sender)
+end
+
+def secure_compare(left, right)
+  return false unless left.bytesize == right.bytesize
+
+  left.bytes.zip(right.bytes).reduce(0) { |memo, pair| memo | (pair[0] ^ pair[1]) }.zero?
+end
+
+def decode_crew_lnet_message(message)
+  prefix, encoded, signature = message.to_s.split(/\s+/, 3)
+  return nil unless prefix == CREW_LNET_PREFIX
+  return nil if encoded.to_s.empty? || signature.to_s.empty?
+
+  payload_json = Base64.strict_decode64(encoded)
+  payload = JSON.parse(payload_json, symbolize_names: true)
+  return nil unless valid_crew_payload?(payload, signature)
+
+  payload
+rescue
+  nil
+end
+
+def encode_file_event(payload)
+  payload.merge(secret: crew_secret).to_json
+end
+
+def lich_command?(command)
+  command.start_with?(';')
+end
+
+def blocked_game_command?(command)
+  command.to_s.strip =~ /\Areport(?:\s|$)/i
+end
+
+def run_lich_command(command)
+  script, args = command.sub(/\A;+/, '').split(/\s+/, 2)
+  script = script.to_s.downcase
+  args = args.to_s.strip
+
+  case script
+  when 'k', 'kill'
+    if args.empty?
+      echo 'crewrelay: no script name given to kill'
+    else
+      target = args.split(/\s+/, 2).first
+      if Script.running?(target)
+        Script.kill(target)
+        echo "crewrelay: killed #{target}"
+      else
+        echo "crewrelay: #{target} is not running"
+      end
+    end
+  when 'force'
+    force_script, force_args = args.split(/\s+/, 2)
+    if force_script.to_s.empty?
+      echo 'crewrelay: no script name given to force'
+    else
+      Script.start(force_script, force_args.to_s, :force => true)
+      echo "crewrelay: forced #{force_script}"
+    end
+  when 'restart', 'reload'
+    first, rest = args.split(/\s+/, 2)
+    first = first.to_s.downcase
+
+    if %w[file local lnet remote bridge auto hybrid].include?(first) || first.empty? || first == 'crewrelay'
+      transport = if %w[file local].include?(first)
+                    :file
+                  elsif %w[lnet remote].include?(first)
+                    :lnet
+                  elsif first == 'bridge'
+                    :bridge
+                  elsif %w[auto hybrid].include?(first)
+                    :auto
+                  elsif rest.to_s =~ /\A(?:file|local|lnet|remote|bridge|auto|hybrid)\z/i
+                    normalize_transport(rest)
+                  else
+                    saved_transport
+                  end
+
+      save_transport(transport)
+      echo "crewrelay: restarting listener in #{transport} mode"
+      Script.start('crewrelay', "listen #{transport}", :force => true)
+      Script.current.kill
+    else
+      Script.kill(first) if Script.running?(first)
+      Script.start(first)
+      echo "crewrelay: restarted #{first}"
+    end
+  when 'e', 'exec', 'eq'
+    if args.empty?
+      echo 'crewrelay: no Ruby code given to exec'
+    else
+      ExecScript.start(args, { :quiet => script == 'eq' })
+      echo 'crewrelay: exec started'
+    end
+  when 'secret', 'setsecret', 'set-secret'
+    if args.empty?
+      echo "crewrelay secret: #{crew_secret.empty? ? '(not set)' : '(set)'}"
+    else
+      save_crew_secret(args)
+      echo 'crewrelay secret updated'
+    end
+  when 'p', 'pause'
+    target = args.split(/\s+/, 2).first.to_s
+    if target.empty?
+      echo 'crewrelay: no script name given to pause'
+    elsif Script.pause(target)
+      echo "crewrelay: paused #{target}"
+    else
+      echo "crewrelay: #{target} is not running or is already paused"
+    end
+  when 'u', 'unpause'
+    target = args.split(/\s+/, 2).first.to_s
+    if target.empty?
+      echo 'crewrelay: no script name given to unpause'
+    elsif Script.unpause(target)
+      echo "crewrelay: unpaused #{target}"
+    else
+      echo "crewrelay: #{target} is not paused"
+    end
+  when 'l', 'la', 'list'
+    list = args =~ /\Aall\z/i ? Script.running + Script.hidden : Script.running
+    if list.empty?
+      echo 'crewrelay: no active scripts'
+    else
+      names = list.map { |active| active.paused? ? "#{active.name} (paused)" : active.name }
+      echo "crewrelay: #{names.join(', ')}"
+    end
+  when 's', 'send'
+    tokens = args.split(/\s+/, 3)
+    if tokens[0].to_s.downcase == 'to' && tokens[1] && tokens[2]
+      target = tokens[1]
+      message = tokens[2]
+      target_script = (Script.running + Script.hidden).find { |scr| scr.name == target } ||
+                      (Script.running + Script.hidden).find { |scr| scr.name =~ /^#{Regexp.escape(target)}/i }
+
+      if target_script
+        if target_script.want_downstream
+          target_script.downstream_buffer.push(message)
+        else
+          target_script.unique_buffer.push(message)
+        end
+        echo "crewrelay: sent to #{target_script.name}: #{message}"
+      else
+        echo "crewrelay: #{target} does not match any active script"
+      end
+    elsif args.empty?
+      echo 'crewrelay: no message given to send'
+    else
+      Script.new_downstream(args)
+      echo "crewrelay: sent downstream: #{args}"
+    end
+  when 'chat'
+    send_lnet_chat(args)
+  when 'who', 'channels', 'tune', 'untune', 'locate', 'spells', 'skills', 'info', 'health', 'bounty'
+    ExecScript.start("do_client #{(';lnet ' + script + ' ' + args).strip.inspect}", { :quiet => true })
+  else
+    Script.start(script, args)
+  end
+end
+
+def send_lnet_chat(args)
+  case args
+  when /\Aon\s+(\S+)\s+(.+)\z/i, /\A:(\S+)\s+(.+)\z/
+    LNet.send_message({ 'type' => 'channel', 'channel' => $1 }, $2)
+    echo "crewrelay: sent LNet channel #{$1}: #{$2}"
+  when /\Ato\s+(\S+)\s+(.+)\z/i, /\A::(\S+)\s+(.+)\z/, /\A(\S+):(.+)\z/
+    LNet.send_message({ 'type' => 'private', 'to' => $1 }, $2)
+    echo "crewrelay: sent LNet private to #{$1}: #{$2}"
+  else
+    LNet.send_message({ 'type' => 'channel' }, args)
+    echo "crewrelay: sent LNet default chat: #{args}"
+  end
+rescue => error
+  echo "crewrelay: LNet chat failed: #{error.class}: #{error.message}"
+end
+
+def run_crew_command(command)
+  command = expand_crew_command(command)
+
+  if lich_command?(command)
+    run_lich_command(command)
+  elsif blocked_game_command?(command)
+    echo 'crewrelay: refused unsafe game REPORT command'
+  else
+    fput(command)
+  end
+end
+
+def expand_crew_command(command)
+  command.to_s.gsub(/\{\{\s*(?:me|self|name|char|character)\s*\}\}/i, Char.name.to_s)
+end
+
+def strip_crew_line(line)
+  line.to_s.gsub(/<[^>]+>/, '').gsub(/\s+/, ' ').strip
+end
+
+def report_patterns(command)
+  case command.to_s.strip.downcase
+  when /\Awealth\b/
+    [
+      /You have .*silver/i,
+      /You are carrying .*promissory notes/i,
+      /\[Enter WEALTH HELP/i,
+    ]
+  when /\Ahealth\b/
+    [
+      /You seem to be/i,
+      /\bBase\s+Enhanced\b/i,
+      /Maximum Health Points/i,
+      /Remaining Health Points/i,
+      /Health Recovery/i,
+      /Maximum Spirit Points/i,
+      /Remaining Spirit Points/i,
+      /Maximum Stamina Points/i,
+      /Remaining Stamina Points/i,
+      /Stamina Recovery/i,
+    ]
+  else
+    nil
+  end
+end
+
+def report_noise_line?(line)
+  text = strip_crew_line(line)
+  return true if text.empty?
+  return true if text =~ /\A(?:\[crewrelay:|--- Lich:|\[Private(?:To)?\]-|\[[^\]]+\]-GSIV:)/
+
+  false
+end
+
+def capture_report_lines(command)
+  patterns = report_patterns(command)
+  lines = []
+  deadline = Time.now + 4
+
+  while Time.now < deadline && lines.length < 18
+    line = get?
+    unless line
+      sleep 0.05
+      next
+    end
+
+    break if line =~ /<prompt\b|^\s*>$/
+    next if report_noise_line?(line)
+
+    clean_line = strip_crew_line(line)
+    next if patterns && !patterns.any? { |pattern| clean_line =~ pattern }
+
+    lines << line
+    deadline = Time.now + 0.7
+  end
+
+  lines
+end
+
+def send_report(to, command, lines)
+  return if to.to_s.empty?
+  ensure_relay
+
+  clean_lines = lines.map { |line| strip_crew_line(line) }.reject(&:empty?)
+  body = clean_lines.empty? ? '(no output captured)' : clean_lines.join(' | ')
+  payload = {
+    id: SecureRandom.uuid,
+    from: Char.name,
+    command: command,
+    report_id: $crewrelay_current_report_id,
+    body: body.slice(0, 900),
+    at: Time.now.to_i,
+    secret: crew_secret,
+  }
+
+  File.open(REPORT_FILE, 'a') do |file|
+    file.flock(File::LOCK_EX)
+    file.puts(payload.to_json)
+  ensure
+    file.flock(File::LOCK_UN) rescue nil
+  end
+rescue => error
+  echo "crewrelay: report failed: #{error.class}: #{error.message}"
+end
+
+def run_report_command(command, report_to, report_id)
+  command = expand_crew_command(command)
+  $crewrelay_current_report_id = report_id
+
+  if lich_command?(command)
+    run_lich_command(command)
+    send_report(report_to, command, ['Lich command started/executed; output capture is only reliable for game commands.'])
+    $crewrelay_current_report_id = nil
+    return
+  end
+
+  if blocked_game_command?(command)
+    send_report(report_to, command, ['Refused unsafe game REPORT command.'])
+    return
+  end
+
+  Script.current.want_downstream = true
+  Script.current.downstream_buffer.clear
+  put(command)
+  sleep 0.05
+
+  send_report(report_to, command, capture_report_lines(command))
+ensure
+  $crewrelay_current_report_id = nil
+end
+
+def process_crew_payload(payload)
+  sender = payload[:sender].to_s
+  return if sender.downcase == crew_name && !payload[:include_self]
+
+  $crewrelay_seen_ids ||= {}
+  id = payload[:id].to_s
+  return if id.empty? || $crewrelay_seen_ids[id]
+
+  $crewrelay_seen_ids[id] = Time.now.to_i
+  $crewrelay_seen_ids.delete_if { |_seen_id, seen_at| Time.now.to_i - seen_at > 300 }
+
+  command = payload[:command].to_s.strip
+  return if command.empty?
+
+  echo "#{sender} => #{command}"
+  if payload[:report_to].to_s.empty?
+    run_crew_command(command)
+  else
+    run_report_command(command, payload[:report_to], payload[:report_id])
+  end
+end
+
+def publish_payload_to_file(payload)
+  ensure_relay
+  File.open(RELAY_FILE, 'r+') do |file|
+    file.flock(File::LOCK_EX)
+    file.truncate(0)
+    file.rewind
+    file.puts(encode_file_event(payload))
+  ensure
+    file.flock(File::LOCK_UN) rescue nil
+  end
+end
+
+def ensure_lnet
+  Script.start('lnet') unless Script.running?('lnet')
+  20.times do
+    return true if defined?(LNet) && LNet.respond_to?(:send_message)
+    sleep 0.1
+  end
+  false
+end
+
+def listen_for_lnet_commands
+  unless ensure_lnet
+    echo 'crewrelay: LNet is not available; start ;lnet and restart crewrelay.'
+    exit
+  end
+
+  LNet.tune_channel(CREW_LNET_CHANNEL) if LNet.respond_to?(:tune_channel)
+  Script.current.want_downstream = true
+  echo "listening for crew commands on LNet channel #{CREW_LNET_CHANNEL} as #{Char.name}"
+
+  channel_pattern = Regexp.escape(CREW_LNET_CHANNEL)
+
+  loop do
+    line = get
+    next unless line =~ /\[#{channel_pattern}\]-.*?:\s+"([^"]+)"/
+
+    payload = decode_crew_lnet_message($1)
+    process_crew_payload(payload) if payload
+  rescue => error
+    echo "LNet listener error: #{error.class}: #{error.message}"
+    sleep 0.5
+  end
+end
+
+def listen_for_bridge_commands
+  unless ensure_lnet
+    echo 'crewrelay: LNet is not available; start ;lnet and restart crewrelay.'
+    exit
+  end
+
+  Script.current.want_downstream = true
+  echo "listening for bridge private commands as #{Char.name}"
+
+  loop do
+    line = get
+    next unless line =~ /\[Private\]-(.*?):\s+"([^"]+)"/
+
+    payload = decode_crew_lnet_message($2)
+    next unless payload
+
+    process_crew_payload(payload)
+    publish_payload_to_file(payload) unless payload[:bridge_only]
+  rescue => error
+    echo "bridge listener error: #{error.class}: #{error.message}"
+    sleep 0.5
+  end
+end
+
+def publish_crew_command(command, include_self)
+  ensure_relay
+
+  event = {
+    id: SecureRandom.uuid,
+    secret: crew_secret,
+    sender: Char.name,
+    include_self: include_self,
+    command: command,
+    at: Time.now.to_i,
+  }
+
+  File.open(RELAY_FILE, 'r+') do |file|
+    file.flock(File::LOCK_EX)
+    file.truncate(0)
+    file.rewind
+    file.puts(event.to_json)
+  ensure
+    file.flock(File::LOCK_UN) rescue nil
+  end
+  echo "sent to crew: #{command}"
+end
+
+def current_transport
+  $crewrelay_transport || DEFAULT_CREW_TRANSPORT
+end
+
+def normalize_transport(value)
+  case value.to_s.downcase
+  when 'file', 'local'
+    :file
+  when 'lnet', 'remote'
+    :lnet
+  when 'bridge'
+    :bridge
+  when 'auto', 'hybrid'
+    :auto
+  else
+    DEFAULT_CREW_TRANSPORT
+  end
+end
+
+def saved_transport
+  saved = crew_config_get(CREW_MODE_VAR).to_s
+  saved = Vars[CREW_MODE_VAR].to_s if saved.empty?
+  normalize_transport(saved)
+end
+
+def save_transport(value)
+  transport = normalize_transport(value)
+  crew_config_set(CREW_MODE_VAR, transport.to_s)
+  Vars[CREW_MODE_VAR] = transport.to_s
+  Vars.save if Vars.respond_to?(:save)
+  transport
+end
+
+def listen_for_file_commands
+  ensure_relay
+  echo "listening for local file crew commands as #{Char.name}"
+  echo 'warning: CREW_NAMES is empty; add names to restrict this script.' if CREW_NAMES.empty?
+
+  loop do
+    begin
+      pos = last_seen_pos
+
+      File.open(RELAY_FILE, 'r') do |file|
+        file.seek(pos, IO::SEEK_SET)
+
+        file.each_line do |line|
+          event = JSON.parse(line, symbolize_names: true)
+          next unless event[:secret] == crew_secret
+          next unless CREW_NAMES.include?(event[:sender].to_s.downcase)
+          next if event[:at].to_i <= 0
+          next if Time.now.to_i - event[:at].to_i > CREW_MAX_MESSAGE_AGE
+
+          process_crew_payload(event)
+        rescue JSON::ParserError
+          echo 'ignored a malformed relay line'
+        end
+
+        save_seen_pos(file.pos)
+      end
+    rescue => error
+      echo "listener error: #{error.class}: #{error.message}"
+    end
+
+    sleep 0.5
+  end
+end
+
+def listen_for_auto_commands
+  Thread.new { listen_for_file_commands }
+  listen_for_bridge_commands
+end
+
+def listen_for_crew_commands(transport = DEFAULT_CREW_TRANSPORT)
+  $crewrelay_transport = transport
+  return listen_for_lnet_commands if transport == :lnet
+  return listen_for_bridge_commands if transport == :bridge
+  return listen_for_auto_commands if transport == :auto
+
+  listen_for_file_commands
+end
+
+unless allowed_crew?
+  echo "#{Char.name} is not in CREW_NAMES; crewrelay will not run."
+  exit
+end
+
+args = Script.current.vars[1..].compact
+mode = args.first.to_s.downcase
+
+case mode
+when 'listen'
+  listen_for_crew_commands(args[1] ? normalize_transport(args[1]) : saved_transport)
+when 'mode', 'transport'
+  if args[1].to_s.empty?
+    echo "crewrelay mode: #{saved_transport}"
+  else
+    transport = save_transport(args[1])
+    echo "crewrelay mode set to #{transport}"
+  end
+when 'secret'
+  if args[1].to_s.empty?
+    echo "crewrelay secret: #{crew_secret.empty? ? '(not set)' : '(set)'}"
+  else
+    save_crew_secret(args[1..].join(' '))
+    echo 'crewrelay secret updated'
+  end
+else
+  include_self = args.delete('--self')
+  command = args.join(' ').strip
+
+  if command.empty?
+    echo 'usage: ;crewrelay listen | ;crewrelay [--self] <command>'
+    exit
+  end
+
+  publish_crew_command(command, include_self)
+end

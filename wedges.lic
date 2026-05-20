@@ -138,16 +138,16 @@ else
 				end
 			else
 				#-----TO KEEP ALL WEDGES, COMMENT THIS LINE AND UNCOMMENT THE OTHER LINES-----
-				#fput "drop my wedge"
+				fput "drop my wedge"
 				
 				#-----UNCOMMENT THESE LINES AND COMMENT OUT THE LINE ABOVE TO KEEP ALL WEDGES-----
-				fput "put my wedge in my #{container}"
-				result = waitfor "You put a","fit in the"
-				
-				if result =~ /fit in the/
-					_respond "<preset id='whisper'>[wedges] - The wedge won't fit in the container you specified.</preset>"
-					exit
-				end
+				#fput "put my wedge in my #{container}"
+				#result = waitfor "You put a","fit in the"
+				#
+				#if result =~ /fit in the/
+				#	_respond "<preset id='whisper'>[wedges] - The wedge won't fit in the container you specified.</preset>"
+				#	exit
+				#end
 			end
 		end
 		

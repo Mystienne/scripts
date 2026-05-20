@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Elanthia World Map</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #0b0d12; color: #d0d3da;
+                font-family: -apple-system, "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+  #stage { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+  #stage:active { cursor: grabbing; }
+  #panel { position: absolute; top: 10px; left: 10px; width: 320px;
+           background: rgba(15, 18, 26, 0.92); border: 1px solid #2a2f3a;
+           border-radius: 6px; padding: 10px 12px; max-height: calc(100% - 20px);
+           display: flex; flex-direction: column; box-shadow: 0 4px 16px rgba(0,0,0,0.5); }
+  #panel h1 { font-size: 14px; margin: 0 0 8px; color: #f0c674; letter-spacing: 0.5px; }
+  #panel .stats { font-size: 11px; color: #6f7585; margin-bottom: 8px; }
+  #search { width: 100%; box-sizing: border-box; background: #1a1f2a; border: 1px solid #2a2f3a;
+            color: #e6e8ee; padding: 6px 8px; border-radius: 4px; font-size: 12px; margin-bottom: 8px; }
+  #search:focus { outline: none; border-color: #f0c674; }
+  #results { overflow: auto; flex: 1; font-size: 12px; }
+  #results .group { margin-bottom: 6px; }
+  #results .group-title { color: #8aa; text-transform: uppercase; font-size: 10px;
+                          letter-spacing: 0.5px; margin-bottom: 2px; }
+  #results .row { padding: 3px 4px; cursor: pointer; border-radius: 3px;
+                  display: flex; align-items: center; gap: 6px; line-height: 1.2; }
+  #results .row:hover { background: #1f2532; }
+  #results .swatch { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  #results .room-title { color: #c8ccd4; flex: 1; min-width: 0;
+                         overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #results .room-area { color: #6f7585; font-size: 10px; flex-shrink: 0; }
+  #legend { font-size: 11px; color: #8d92a0; margin-top: 8px; line-height: 1.5; border-top: 1px solid #2a2f3a; padding-top: 6px; }
+  #tooltip { position: absolute; pointer-events: none; background: rgba(15,18,26,0.95);
+             border: 1px solid #3a4050; padding: 4px 8px; font-size: 12px; border-radius: 4px;
+             color: #e6e8ee; max-width: 320px; display: none; z-index: 10; }
+  #help { position: absolute; bottom: 10px; right: 10px; font-size: 11px; color: #6f7585;
+          background: rgba(15,18,26,0.85); padding: 4px 8px; border-radius: 4px;
+          border: 1px solid #2a2f3a; }
+  .toggle { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #8d92a0;
+            margin-top: 4px; cursor: pointer; user-select: none; }
+  .toggle input { margin: 0; }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<div id="panel">
+  <h1>Elanthia World Map</h1>
+  <div class="stats" id="stats">loading...</div>
+  <input id="search" placeholder="Search rooms or areas..." autocomplete="off">
+  <div id="results"></div>
+  <div style="display:flex;gap:6px;margin-top:6px">
+    <button id="btn-fit" style="flex:1;background:#1a1f2a;color:#e6e8ee;border:1px solid #2a2f3a;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer">Fit world</button>
+  </div>
+  <label class="toggle"><input type="checkbox" id="show-edges" checked> Show edges (when zoomed in)</label>
+  <label class="toggle"><input type="checkbox" id="show-labels" checked> Show area labels</label>
+  <div id="legend">
+    Drag to pan, scroll to zoom. Click an area or room in the list to fly to it. Hover for details.
+  </div>
+</div>
+<div id="tooltip"></div>
+<div id="help">rooms shown depend on zoom level</div>
+
+<script id="world-data" type="application/json">__WORLD_DATA_PLACEHOLDER__</script>
+<script>
+'use strict';
+
+const DATA = JSON.parse(document.getElementById('world-data').textContent);
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const tip = document.getElementById('tooltip');
+
+let DPR = window.devicePixelRatio || 1;
+function resize() {
+  DPR = window.devicePixelRatio || 1;
+  canvas.width  = canvas.clientWidth  * DPR;
+  canvas.height = canvas.clientHeight * DPR;
+  draw();
+}
+window.addEventListener('resize', resize);
+
+// ---------- bounds & initial view ----------
+// Full-world bounds (for the spatial index).
+let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+for (const r of DATA.rooms) {
+  if (r.x < minX) minX = r.x;
+  if (r.y < minY) minY = r.y;
+  if (r.x > maxX) maxX = r.x;
+  if (r.y > maxY) maxY = r.y;
+}
+const worldW = maxX - minX;
+const worldH = maxY - minY;
+
+// Main-component bounds: areas marked main:true form the connected world;
+// the rest are parked off to the side so we don't fit the initial view to them.
+const mainAreas = DATA.areas.filter(a => a.main !== false);
+let mMinX = Infinity, mMinY = Infinity, mMaxX = -Infinity, mMaxY = -Infinity;
+for (const a of mainAreas) {
+  const x0 = a.cx - a.w / 2, x1 = a.cx + a.w / 2;
+  const y0 = a.cy - a.h / 2, y1 = a.cy + a.h / 2;
+  if (x0 < mMinX) mMinX = x0;
+  if (y0 < mMinY) mMinY = y0;
+  if (x1 > mMaxX) mMaxX = x1;
+  if (y1 > mMaxY) mMaxY = y1;
+}
+
+// Build by-id index, area room lookup, adjacency for edge drawing.
+const roomById = new Map();
+for (const r of DATA.rooms) roomById.set(r.id, r);
+
+const areaRooms = new Map();  // area index -> rooms[]
+for (const r of DATA.rooms) {
+  if (!areaRooms.has(r.a)) areaRooms.set(r.a, []);
+  areaRooms.get(r.a).push(r);
+}
+
+// ---------- spatial index (uniform grid) ----------
+const GRID = 200;  // world units per cell
+const grid = new Map();
+function gkey(gx, gy) { return gx + ',' + gy; }
+for (const r of DATA.rooms) {
+  const gx = Math.floor((r.x - minX) / GRID);
+  const gy = Math.floor((r.y - minY) / GRID);
+  const k = gkey(gx, gy);
+  if (!grid.has(k)) grid.set(k, []);
+  grid.get(k).push(r);
+}
+
+function roomsInRect(x0, y0, x1, y1) {
+  const gx0 = Math.floor((x0 - minX) / GRID);
+  const gy0 = Math.floor((y0 - minY) / GRID);
+  const gx1 = Math.floor((x1 - minX) / GRID);
+  const gy1 = Math.floor((y1 - minY) / GRID);
+  const out = [];
+  for (let gy = gy0; gy <= gy1; gy++) {
+    for (let gx = gx0; gx <= gx1; gx++) {
+      const cell = grid.get(gkey(gx, gy));
+      if (!cell) continue;
+      for (const r of cell) {
+        if (r.x >= x0 && r.x <= x1 && r.y >= y0 && r.y <= y1) out.push(r);
+      }
+    }
+  }
+  return out;
+}
+
+// ---------- view transform ----------
+const view = { tx: 0, ty: 0, scale: 1 };
+
+function fitToWorld() {
+  const cw = canvas.clientWidth, ch = canvas.clientHeight;
+  const pad = 60;
+  const w = mMaxX - mMinX, h = mMaxY - mMinY;
+  const sx = (cw - pad * 2) / w;
+  const sy = (ch - pad * 2) / h;
+  view.scale = Math.min(sx, sy);
+  view.tx = cw / 2 - ((mMinX + mMaxX) / 2) * view.scale;
+  view.ty = ch / 2 - ((mMinY + mMaxY) / 2) * view.scale;
+}
+
+function worldToScreen(x, y) {
+  return [x * view.scale + view.tx, y * view.scale + view.ty];
+}
+function screenToWorld(px, py) {
+  return [(px - view.tx) / view.scale, (py - view.ty) / view.scale];
+}
+
+// ---------- drawing ----------
+let showEdges = true, showLabels = true;
+document.getElementById('show-edges').addEventListener('change', e => {
+  showEdges = e.target.checked; draw();
+});
+document.getElementById('show-labels').addEventListener('change', e => {
+  showLabels = e.target.checked; draw();
+});
+document.getElementById('btn-fit').addEventListener('click', () => { fitToWorld(); draw(); });
+
+let highlighted = null;     // room id to flash
+let highlightUntil = 0;
+
+function draw() {
+  const cw = canvas.clientWidth, ch = canvas.clientHeight;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = '#0b0d12';
+  ctx.fillRect(0, 0, cw, ch);
+
+  // Compute visible world rect (plus margin).
+  const margin = 50 / view.scale;
+  const [vx0, vy0] = screenToWorld(0, 0);
+  const [vx1, vy1] = screenToWorld(cw, ch);
+
+  // Choose level of detail.
+  const s = view.scale;
+  const LOD_AREA   = s < 0.06;   // far out: only area blobs
+  const LOD_DOTS   = s >= 0.06 && s < 0.4;
+  const LOD_DETAIL = s >= 0.4;
+
+  if (LOD_AREA) {
+    // Draw each area as a filled disk sized by room count (so small guilds
+    // are still visible at low zoom).
+    for (const area of DATA.areas) {
+      if (area.cx < vx0 - 1000 || area.cx > vx1 + 1000) continue;
+      if (area.cy < vy0 - 1000 || area.cy > vy1 + 1000) continue;
+      const [sx, sy] = worldToScreen(area.cx, area.cy);
+      const bboxR = Math.sqrt(area.w * area.h) * 0.4 * s;
+      const countR = Math.sqrt(area.n) * 1.2;
+      const sr = Math.max(3, Math.min(bboxR, countR));
+      ctx.beginPath();
+      ctx.fillStyle = area.color + 'cc';
+      ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (showLabels) {
+      ctx.fillStyle = '#e6e8ee';
+      ctx.font = '12px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = '#000';
+      ctx.shadowBlur = 4;
+      for (const area of DATA.areas) {
+        if (area.n < 100) continue;
+        const [sx, sy] = worldToScreen(area.cx, area.cy);
+        const labelOffset = Math.max(8, Math.sqrt(area.n) * 1.2 + 6);
+        ctx.fillText(area.name, sx, sy + labelOffset);
+      }
+      ctx.shadowBlur = 0;
+    }
+  } else {
+    // Edges first (so dots sit on top).
+    if (showEdges && LOD_DETAIL) {
+      ctx.lineWidth = Math.max(0.5, 0.6 * Math.min(2, s));
+      const colors = ['#5b6680', '#7a6a4f', '#4f6b6a', '#5b4f6b', '#3f4757'];
+      const buckets = [[], [], [], [], []];
+      for (const e of DATA.edges) {
+        const a = roomById.get(e[0]);
+        const b = roomById.get(e[1]);
+        if (!a || !b) continue;
+        if ((a.x < vx0 && b.x < vx0) || (a.x > vx1 && b.x > vx1)) continue;
+        if ((a.y < vy0 && b.y < vy0) || (a.y > vy1 && b.y > vy1)) continue;
+        buckets[e[2]].push([a, b]);
+      }
+      for (let t = 0; t < 5; t++) {
+        if (!buckets[t].length) continue;
+        ctx.strokeStyle = colors[t];
+        ctx.globalAlpha = t === 0 ? 0.65 : (t === 1 ? 0.5 : 0.3);
+        ctx.beginPath();
+        for (const [a, b] of buckets[t]) {
+          const [ax, ay] = worldToScreen(a.x, a.y);
+          const [bx, by] = worldToScreen(b.x, b.y);
+          ctx.moveTo(ax, ay);
+          ctx.lineTo(bx, by);
+        }
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // Rooms (only those in viewport).
+    const visible = roomsInRect(vx0, vy0, vx1, vy1);
+    const dotR = LOD_DETAIL ? Math.max(1.5, 3 * Math.min(2, s)) : Math.max(0.8, 2.0 * s);
+    // Bucket by area to minimize fillStyle changes.
+    const byArea = new Map();
+    for (const r of visible) {
+      if (!byArea.has(r.a)) byArea.set(r.a, []);
+      byArea.get(r.a).push(r);
+    }
+    for (const [aIdx, rs] of byArea) {
+      ctx.fillStyle = DATA.areas[aIdx].color;
+      ctx.beginPath();
+      for (const r of rs) {
+        const [sx, sy] = worldToScreen(r.x, r.y);
+        ctx.moveTo(sx + dotR, sy);
+        ctx.arc(sx, sy, dotR, 0, Math.PI * 2);
+      }
+      ctx.fill();
+    }
+
+    // Area labels at medium zoom too.
+    if (showLabels) {
+      ctx.fillStyle = '#e6e8ee';
+      ctx.font = (LOD_DETAIL ? '12px' : '11px') + ' system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = '#000';
+      ctx.shadowBlur = 4;
+      const minN = LOD_DETAIL ? 1 : 20;
+      for (const area of DATA.areas) {
+        if (area.n < minN) continue;
+        if (area.cx < vx0 - 200 || area.cx > vx1 + 200) continue;
+        if (area.cy < vy0 - 200 || area.cy > vy1 + 200) continue;
+        const [sx, sy] = worldToScreen(area.cx, area.cy - area.h / 2 - 12);
+        ctx.fillText(area.name, sx, sy);
+      }
+      ctx.shadowBlur = 0;
+    }
+
+    // Highlight pulse.
+    if (highlighted != null && performance.now() < highlightUntil) {
+      const r = roomById.get(highlighted);
+      if (r) {
+        const [sx, sy] = worldToScreen(r.x, r.y);
+        const pulse = 6 + 8 * Math.abs(Math.sin(performance.now() / 200));
+        ctx.beginPath();
+        ctx.strokeStyle = '#f0c674';
+        ctx.lineWidth = 2;
+        ctx.arc(sx, sy, pulse, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      requestAnimationFrame(draw);
+    }
+  }
+}
+
+// ---------- pan / zoom ----------
+let dragging = false, lastX = 0, lastY = 0, dragStart = null, didDrag = false;
+canvas.addEventListener('mousedown', e => {
+  dragging = true; lastX = e.clientX; lastY = e.clientY;
+  dragStart = [e.clientX, e.clientY]; didDrag = false;
+});
+window.addEventListener('mouseup', () => { dragging = false; });
+canvas.addEventListener('mousemove', e => {
+  if (dragging) {
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+    if (Math.abs(e.clientX - dragStart[0]) + Math.abs(e.clientY - dragStart[1]) > 3) didDrag = true;
+    view.tx += dx; view.ty += dy;
+    lastX = e.clientX; lastY = e.clientY;
+    draw();
+    hideTooltip();
+  } else {
+    handleHover(e);
+  }
+});
+canvas.addEventListener('mouseleave', () => hideTooltip());
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = Math.pow(1.0015, -e.deltaY);
+  const [wx, wy] = screenToWorld(e.clientX, e.clientY);
+  view.scale *= factor;
+  view.scale = Math.min(Math.max(view.scale, 0.005), 40);
+  // Keep the world point under cursor fixed.
+  view.tx = e.clientX - wx * view.scale;
+  view.ty = e.clientY - wy * view.scale;
+  draw();
+  hideTooltip();
+}, { passive: false });
+
+canvas.addEventListener('click', e => {
+  if (didDrag) return;
+  const r = pickRoom(e.clientX, e.clientY);
+  if (r) {
+    showTooltip(e.clientX, e.clientY, r);
+  }
+});
+
+function pickRoom(px, py) {
+  const [wx, wy] = screenToWorld(px, py);
+  const radius = 12 / view.scale;
+  const candidates = roomsInRect(wx - radius, wy - radius, wx + radius, wy + radius);
+  let best = null, bestD = Infinity;
+  for (const r of candidates) {
+    const d = (r.x - wx) ** 2 + (r.y - wy) ** 2;
+    if (d < bestD) { bestD = d; best = r; }
+  }
+  return best;
+}
+
+function showTooltip(px, py, r) {
+  const area = DATA.areas[r.a];
+  tip.innerHTML = '<div style="color:' + area.color + ';font-weight:600">' +
+                  escapeHtml(r.t || '(no title)') + '</div>' +
+                  '<div style="font-size:10px;color:#888">' + escapeHtml(area.name) +
+                  ' &middot; #' + r.id + '</div>';
+  tip.style.display = 'block';
+  tip.style.left = (px + 12) + 'px';
+  tip.style.top  = (py + 12) + 'px';
+}
+function hideTooltip() { tip.style.display = 'none'; }
+function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function handleHover(e) {
+  if (view.scale < 0.4) { hideTooltip(); return; }
+  const r = pickRoom(e.clientX, e.clientY);
+  if (r) showTooltip(e.clientX, e.clientY, r);
+  else hideTooltip();
+}
+
+// ---------- search ----------
+const search = document.getElementById('search');
+const results = document.getElementById('results');
+
+function renderResults(q) {
+  results.innerHTML = '';
+  if (!q) {
+    // Default: list areas by size.
+    const list = DATA.areas.map((a, i) => ({a, i}))
+      .filter(({a}) => a.name && a.name !== '_unsorted')
+      .sort((x, y) => y.a.n - x.a.n);
+    const g = document.createElement('div');
+    g.className = 'group';
+    g.innerHTML = '<div class="group-title">All Areas (' + list.length + ')</div>';
+    for (const {a, i} of list) {
+      g.appendChild(makeAreaRow(a, i));
+    }
+    results.appendChild(g);
+    return;
+  }
+  const ql = q.toLowerCase();
+
+  const areaMatches = DATA.areas
+    .map((a, i) => ({a, i}))
+    .filter(({a}) => a.name && a.name.toLowerCase().includes(ql))
+    .slice(0, 30);
+
+  const roomMatches = [];
+  for (const r of DATA.rooms) {
+    if (r.t && r.t.toLowerCase().includes(ql)) roomMatches.push(r);
+    if (roomMatches.length >= 80) break;
+  }
+
+  if (areaMatches.length) {
+    const g = document.createElement('div');
+    g.className = 'group';
+    g.innerHTML = '<div class="group-title">Areas (' + areaMatches.length + ')</div>';
+    for (const {a, i} of areaMatches) g.appendChild(makeAreaRow(a, i));
+    results.appendChild(g);
+  }
+  if (roomMatches.length) {
+    const g = document.createElement('div');
+    g.className = 'group';
+    g.innerHTML = '<div class="group-title">Rooms (' + roomMatches.length + ')</div>';
+    for (const r of roomMatches) g.appendChild(makeRoomRow(r));
+    results.appendChild(g);
+  }
+  if (!areaMatches.length && !roomMatches.length) {
+    results.innerHTML = '<div style="color:#666;padding:8px">no matches</div>';
+  }
+}
+function makeAreaRow(area, i) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = '<span class="swatch" style="background:' + area.color + '"></span>' +
+                  '<span class="room-title">' + escapeHtml(area.name) + '</span>' +
+                  '<span class="room-area">' + area.n + '</span>';
+  row.addEventListener('click', () => flyToArea(area));
+  return row;
+}
+function makeRoomRow(r) {
+  const area = DATA.areas[r.a];
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = '<span class="swatch" style="background:' + area.color + '"></span>' +
+                  '<span class="room-title">' + escapeHtml(r.t || '(no title)') + '</span>' +
+                  '<span class="room-area">' + escapeHtml(area.name) + '</span>';
+  row.addEventListener('click', () => flyToRoom(r));
+  return row;
+}
+
+function flyToArea(area) {
+  const cw = canvas.clientWidth, ch = canvas.clientHeight;
+  const span = Math.max(area.w, area.h, 100);
+  view.scale = Math.min(cw, ch) / (span * 1.3);
+  view.scale = Math.min(Math.max(view.scale, 0.005), 40);
+  view.tx = cw / 2 - area.cx * view.scale;
+  view.ty = ch / 2 - area.cy * view.scale;
+  draw();
+}
+function flyToRoom(r) {
+  const cw = canvas.clientWidth, ch = canvas.clientHeight;
+  view.scale = Math.max(view.scale, 1.5);
+  view.tx = cw / 2 - r.x * view.scale;
+  view.ty = ch / 2 - r.y * view.scale;
+  highlighted = r.id;
+  highlightUntil = performance.now() + 4000;
+  draw();
+}
+
+let searchTimer = null;
+search.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => renderResults(search.value.trim()), 120);
+});
+
+// ---------- init ----------
+document.getElementById('stats').textContent =
+  DATA.meta.room_count.toLocaleString() + ' rooms · ' +
+  DATA.meta.area_count + ' areas · ' +
+  DATA.meta.edge_count.toLocaleString() + ' edges';
+renderResults('');
+resize();
+fitToWorld();
+draw();
+</script>
+</body>
+</html>

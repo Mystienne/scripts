@@ -33,9 +33,15 @@ Configuration options and other functionality will be in a proper release.
 	  tags: utility
 	  required: Lich >= 4.6.0.
 
-  version: 0.1.5 (2020-04-07)
+  version: 0.1.6 (2026-05-17)
 
   changelog:
+  version: 0.1.6 (2026-05-17)
+      * Track bodies by GameObj/exist id instead of name.
+      * Fix room-order tracking, lifekeep aliases, and tend-message handling.
+      * Use white flasks for paladin lifekeep requests.
+      * Appraise before lifekeep requests to avoid preserving already-kept bodies.
+
   version: 0.1.5 (2020-04-07)
       * Fix Symbol of Recall support
       * Speculatively identify Symbol of Recall when it is used rather than merely on appraise.
@@ -135,7 +141,7 @@ TODO: Tend messaging?
 EXPERIMENTAL_EXPIRES = nil
 
 module TriageScript
-    VERSION = '0.1.5 (2020-04-07)'
+    VERSION = '0.1.6 (2026-05-17)'
     SHORT_VERSION = VERSION.split(' ', 2)[0]
 
     PATTERNS = {
@@ -204,7 +210,9 @@ module TriageScript
         end
 
         def pc
-            return GameObj.pcs.find{|x| x.name == @name and x.status =~ /\bdead\b/}
+            id = @exist.to_s
+            return GameObj.pcs.find{|x| x.id.to_s == id and x.status =~ /\bdead\b/} if id.length > 0
+            return GameObj.pcs.find{|x| x.noun == @name and x.status =~ /\bdead\b/}
         end
 
         def maxttl(n)
@@ -272,11 +280,22 @@ module TriageScript
         return @appq
     end
 
+    def self.body_key(exist, name=nil)
+        exist = exist.to_s.strip
+        return "id:#{exist}" unless exist.empty?
+        return "name:#{name.to_s.downcase}"
+    end
+
     def self.get_body(name, exist, ttl: nil, appraise: false)
-        body = @bodies[name]
-        return body if body
+        key = body_key(exist, name)
+        body = @bodies[key]
+        if body
+            body.name = name if name && body.name != name
+            body.exist = exist if exist && body.exist.to_s != exist.to_s
+            return body
+        end
         body = Body.new(name, exist)
-        @bodies[name] = body
+        @bodies[key] = body
         body.ttl = Time.now + ttl if ttl
         body.appraise if appraise
         return body
@@ -291,7 +310,7 @@ module TriageScript
         dead_pcs = {}
         GameObj.pcs.each do |pc|
             next unless pc.status =~ /\bdead\b/
-            dead_pcs[pc.noun] = pc
+            dead_pcs[body_key(pc.id, pc.noun)] = pc
         end
 
         @lock.synchronize do
@@ -303,7 +322,7 @@ module TriageScript
             # Make sure all bodies are in the list.
             dead_pcs.each do|name, pc|
                 body = get_body(pc.noun, pc.id, ttl: 10, appraise: true)
-                body.roomorder == ix
+                body.roomorder = ix
                 ix += 1
             end
 
@@ -328,6 +347,72 @@ module TriageScript
 
     def self.your_lifekeep_expires
         return Time.now + your_lifekeep_duration
+    end
+
+    def self.white_flask_in_hand
+        return [GameObj.right_hand, GameObj.left_hand].find { |obj|
+            obj && obj.id && obj.name.to_s =~ /\bwhite flask\b/i
+        }
+    end
+
+    def self.white_flask_in_inventory
+        return GameObj.inv.find { |obj|
+            obj && obj.id && obj.name.to_s =~ /\bwhite flask\b/i
+        }
+    end
+
+    def self.hands_full?
+        return GameObj.right_hand.id && GameObj.left_hand.id
+    end
+
+    def self.paladin_lifekeep(target)
+        waitrt?
+        flask = white_flask_in_hand
+
+        unless flask
+            empty_hand if hands_full?
+            inv_flask = white_flask_in_inventory
+            get_command = inv_flask ? "get ##{inv_flask.id}" : "get my white flask"
+            result = dothistimeout get_command, 5, /You (?:remove|take|get)|You need a free hand|Get what\?|What were you|You are already holding/
+            if result.to_s =~ /free hand/i
+                empty_hand
+                dothistimeout get_command, 5, /You (?:remove|take|get)|Get what\?|What were you|You are already holding/
+            end
+            flask = white_flask_in_hand
+        end
+
+        unless flask
+            echo "I couldn't find a white flask in your hands or inventory."
+            return
+        end
+
+        result = dothistimeout "pour ##{flask.id} on #{target}", 8, /You pour|A luminescent web|But your .*flask is empty|What were you|I could not find|You can't/
+        fput "stow ##{flask.id}" if white_flask_in_hand
+        fput "appraise #{target}" if result.to_s !~ /What were you|I could not find|You can't/
+    end
+
+    def self.lifekeep_target(target)
+        pc = get_dead_pc(target)
+        unless pc
+            echo "I don't see a dead #{target} here."
+            return
+        end
+
+        result = dothistimeout "appraise #{pc.noun}", 5, /^You glance at <a exist="#{pc.id}".*spirit levels|Appraise what\?|I could not find|What were you/
+        if result.to_s =~ /currently preserved|soul to/i
+            body = get_body(pc.noun, pc.id, ttl: 30, appraise: true)
+            body.lifekept = true
+            refresh_window
+            echo "#{pc.noun} already appears to be preserved."
+            return
+        end
+
+        if Char.prof == 'Paladin'
+            paladin_lifekeep(pc.noun)
+        else
+            Spell[305].cast(pc.noun)
+            fput "appraise #{pc.noun}"
+        end
     end
 
     def self.debug(*what)
@@ -780,7 +865,7 @@ module TriageScript
                         end
 
                         unless t[:dead]
-                            if @bodies.delete(t[:name])
+                            if @bodies.delete(body_key(t[:exist], t[:name]))
                                 @dormant = true if @bodies.length == 0
                                 refresh_window
                             end
@@ -822,11 +907,11 @@ module TriageScript
                 debug("Detected tend #{xml}, pronoun: #{pronoun}")
                 # Tended
                 body = self.healed($~[:name])
-                body.appraise if pronoun == 'your'
+                body.appraise if body && pronoun == 'your'
             elsif xml =~ PATTERNS[:tend_expired]
                 pc = get_dead_pc($~[:name])
                 next unless pc
-                body = get_body(pc.name, pc.id, appraise: true)
+                body = get_body(pc.noun, pc.id, appraise: true)
                 unless body.bleeding  # If they were already bleeding, there's no need to schedule a refresh -- they're definitely still bleeding.
                     body.bleeding = true
                     body.maxttl(10)
@@ -873,13 +958,12 @@ module TriageScript
                     send buffer.join
                 end  # Bodies
             end  # Lock
-        when 'l', 'lk', 'li', 'lif', 'life', 'lifek' 'lifeke', 'lifekee', 'lifekeep'
+        when 'l', 'lk', 'li', 'lif', 'life', 'lifek', 'lifeke', 'lifekee', 'lifekeep'
             unless args
                 echo "Lifekeep whom?"
                 return
             end
-            Spell[305].cast(args)
-            fput "appraise #{args}"
+            lifekeep_target(args)
         when 'sh', 'sho', 'show'
             unless $frontend == 'stormfront'
                 echo "This function requires Stormfront."

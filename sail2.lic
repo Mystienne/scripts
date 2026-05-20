@@ -1,0 +1,1230 @@
+=begin
+	   Sail2 Version: 1.0.4 (May 17, 2026)
+
+	   This Is A Go2 Style Script For OSA Shipboard Travel. Using The Oceandb, Sail2 Will
+	   Sail Your Ship From Any Location In The Ocean To Any Other Using UIDs And Port Names.
+	   Must Be Ran From Your Ship While Your Ship Is At Sea. First Time Users Must Run ;sail2 update
+	   First To Download Appropriate Mapdb files.
+
+	   Use:
+	       ;sail2 <Port or UID>                        Will Begin Sailing To Destination.
+	       ;sail2 <Port or UID> <Port or UID>          Will Display Step-by-step Route For Designated Travel.
+	       ;sail2 update                               Will Check For Up-To-Date Ocean Mapdb files.
+	   
+	   Available Ports:
+	   
+	                   Brisker's Cove                  briskercove
+	                   Glaoveln                        glaoveln
+	                   Icemule Trace                   icemule
+	                   Kraken's Fall                   kraken
+	                   Wehnimer's Landing              landing
+	                   Sleeping Drake Harbor           ornath
+	                   Nielira Harbor                  nielira
+	                   River's Rest                    riversrest
+	                   Solhaven                        solhaven
+	                   Teras Isle                      teras
+	                   Ta'Vaalor                       vaalor
+	                   Talon Isle                      talon
+					   
+	   Enjoy!
+	
+	   ~Peggyanne
+	   
+	   PS: feel free to send me any bugs via discord Bait#4376 and I'll try my best to fix them.
+	 
+	   Change Log:
+	 
+                March 7, 2026 - Initial Release. I'll Be Doing Cleanup On The Interface Over Time But All Should Be Functional.
+               March 14, 2026 - Added Support For Getting Your Ship Underway For You. Added Update Support. (Removing Nautical-Charts-Update Dependancy)
+               April 12, 2026 - Fixed Definition Issue For Ship Functions. Fixed UID Room Detection and Fixed Watch Ocean Issues.
+               April 30, 2026 - Small Update To Location Regex.
+                 May 11, 2026 - Small Update To Room Detection.
+                 May 17, 2026 - Added usage/help display when run with no arguments.
+                 May 17, 2026 - ship_flag now handles the 15-minute cooldown; warns user and offers continue or exit.
+=end 
+
+i_stand_alone
+require 'json'
+require 'set'
+require 'timeout'
+require 'open-uri'
+require 'fileutils'
+require "yaml"
+
+# -- No-argument check - must be first so we never get the ship underway -------
+if variable[1].to_s.empty?
+  respond ""
+  respond " =================================================="
+  respond "  Sail2 - Help"
+  respond " =================================================="
+  respond "  Usage:"
+  respond "    ;sail2 <port or uid>          Sail to destination"
+  respond "    ;sail2 <port> <port>          Show route between two points"
+  respond "    ;sail2 update                 Update ocean map files"
+  respond " =================================================="
+  respond "  Available Ports:"
+  respond "    Brisker's Cove        briskercove"
+  respond "    Glaoveln              glaoveln"
+  respond "    Icemule Trace         icemule"
+  respond "    Kraken's Fall         kraken"
+  respond "    Wehnimer's Landing    landing"
+  respond "    Sleeping Drake Hbr    ornath"
+  respond "    Nielira Harbor        nielira"
+  respond "    River's Rest          riversrest"
+  respond "    Solhaven              solhaven"
+  respond "    Teras Isle            teras"
+  respond "    Ta'Vaalor             vaalor"
+  respond "    Talon Isle            talon"
+  respond " =================================================="
+  respond "  Notes:"
+  respond "    - Must be run from your ship while at sea"
+  respond "    - First time users must run ;sail2 update first"
+  respond "    - You may use a 7-digit room UID instead of a port name"
+  respond " =================================================="
+  respond ""
+  exit
+end
+# -- End no-argument check ------------------------------------------------------
+
+# JSON Data
+JSON_GIT_USER  = 'jmbreitfeld'
+JSON_GIT_REPO  = 'OSA-Ocean-Database'
+JSON_GIT_PATH  = ''
+LOCAL_JSON_DIR = File.join(MAP_DIR, 'OSAMaps', 'Database')
+
+# -- Sail2 Timing System ----------------------------------------------------
+
+def sail2_yaml_path
+	File.join(DATA_DIR, XMLData.game, Char.name, "sail2.yaml")
+end
+
+def load_sail2_data
+	path = sail2_yaml_path
+	return {} unless File.exist?(path)
+	raw = File.read(path)
+	return {} if raw.strip.empty?
+	YAML.safe_load(raw, permitted_classes: [Time, Symbol], aliases: true) || {}
+rescue StandardError
+	{}
+end
+
+def load_yaml_file(path)
+	return {} unless File.exist?(path)
+	raw = File.read(path)
+	return {} if raw.strip.empty?
+	YAML.safe_load(raw, permitted_classes: [Time, Symbol], aliases: true) || {}
+rescue StandardError
+	{}
+end
+
+def save_sail2_data(data)
+	path = sail2_yaml_path
+	FileUtils.mkdir_p(File.dirname(path))
+	File.open(path, File::RDWR | File::CREAT, 0o644) do |file|
+		file.flock(File::LOCK_EX)
+		file.rewind
+		YAML.dump(data, file)
+		file.flush
+		file.truncate(file.pos)
+	end
+rescue StandardError => e
+	echo "--- sail2: failed to save timing data: #{e.message}"
+end
+
+def ship_timing_key
+	case Room.current.id
+	when 29038..29042 then "sloop_times"
+	when 30140..30147 then "brigantine_times"
+	when 30119..30127 then "carrack_times"
+	when 30176..30186 then "galleon_times"
+	when 30166..30175 then "frigate_times"
+	when 30128..30139 then "manowar_times"
+	else "unknown_times"
+	end
+end
+
+def ship_display_name
+	case Room.current.id
+	when 29038..29042 then "Sloop"
+	when 30140..30147 then "Brigantine"
+	when 30119..30127 then "Carrack"
+	when 30176..30186 then "Galleon"
+	when 30166..30175 then "Frigate"
+	when 30128..30139 then "Man O\'War"
+	else "Unknown"
+	end
+end
+
+def record_move_time(seconds)
+	data = load_sail2_data
+	key  = ship_timing_key
+	data[key] ||= []
+	data[key] << seconds.round(4)
+	data[key] = data[key].last(50)
+	save_sail2_data(data)
+end
+
+def average_move_seconds
+	data  = load_sail2_data
+	times = data[ship_timing_key]
+	return 0.35 if times.nil? || times.empty?
+	(times.sum / times.size.to_f).round(4)
+end
+
+def eastern_time(time)
+	# Convert any Time object to US Eastern (auto DST)
+	# DST: second Sunday in March through first Sunday in November
+	year = time.utc.year
+	dst_start = Time.utc(year, 3,  8 + (7 - Time.utc(year, 3,  8).wday) % 7, 2)
+	dst_end   = Time.utc(year, 11, 1 + (7 - Time.utc(year, 11, 1).wday) % 7, 2)
+	offset = (time.utc >= dst_start && time.utc < dst_end) ? -4 * 3600 : -5 * 3600
+	Time.at(time.to_i + offset).utc
+end
+
+def format_duration(total_seconds)
+	total_seconds = total_seconds.to_i
+	h = total_seconds / 3600
+	m = (total_seconds % 3600) / 60
+	s = total_seconds % 60
+	h > 0 ? "#{h}h #{m}m #{s}s" : (m > 0 ? "#{m}m #{s}s" : "#{s}s")
+end
+# -- End Sail2 Timing System ------------------------------------------------
+
+
+def sync_echo(msg); respond "[MapSync: #{msg}]" rescue puts msg; end
+
+def download_folder(user, repo, api_path, local_dir)
+  FileUtils.mkdir_p(local_dir) unless Dir.exist?(local_dir)
+  api_url = "https://api.github.com/repos/#{user}/#{repo}/contents/#{api_path}"
+  
+  begin
+    # GitHub API requires a User-Agent header [cite: 26, 27]
+    response = URI.open(api_url, "User-Agent" => "Lich-Map-Syncer").read
+    data = JSON.parse(response)
+
+    unless data.is_a?(Array)
+      sync_echo("Error: #{api_path} in #{repo} is not a folder.")
+      return 0
+    end
+
+    count = 0
+    data.each do |file|
+      next unless file['type'] == 'file' # Only download files, skip folders [cite: 30]
+      
+      file_name    = file['name']
+      remote_size  = file['size'].to_i
+      download_url = file['download_url']
+      local_path   = File.join(local_dir, file_name)
+
+      # Only download if file is missing or size has changed [cite: 31]
+      if !File.exist?(local_path) || File.size(local_path) != remote_size
+        sync_echo("Downloading: #{file_name} from #{repo}...")
+        URI.open(download_url) do |remote|
+          File.open(local_path, "wb") { |local| local.write(remote.read) }
+        end
+        count += 1
+      end
+    end
+    count
+  rescue => e
+    sync_echo("Error syncing #{repo}/#{api_path}: #{e.message}")
+    0
+  end
+end
+
+def sync_all
+  sync_echo("Connecting to GitHub APIs...")
+  
+  # 1. Sync the JSON data from the separate Git 
+  json_updates = download_folder(JSON_GIT_USER, JSON_GIT_REPO, JSON_GIT_PATH, LOCAL_JSON_DIR)
+
+  total = json_updates
+  if total > 0
+    sync_echo("Success! Updated #{total} files from one repository.")
+  else
+    sync_echo("All files are up to date.")
+  end
+end
+
+MAP_FILE = 'oceandb.json'
+
+PORTS = {
+  "briskerscove" => "7116594",
+  "glaoveln"     => "7116863",
+  "icemule"      => "7116870",
+  "kraken"       => "7116096",
+  "landing"      => "7116500",
+  "ornath"       => "7143512",
+  "nielira"      => "7137145",
+  "riversrest"   => "7116700",
+  "solhaven"     => "7116362",
+  "teras"        => "7116279",
+  "vaalor"       => "7137293",
+  "talon"        => "7116648"
+}
+
+script.want_downstream_xml = true
+
+$current_room_id = nil
+$ocean_watch_started = false
+$current_heading  = nil
+$sail2_trip_start = nil
+$sail2_trip_moves = 0
+$sail2_est_seconds = 0
+$roomflagon = nil
+
+def wait_for_go2
+  Timeout.timeout(30) do
+    loop do
+      break unless Script.running?("go2")
+      sleep 0.2
+    end
+  end
+rescue Timeout::Error
+  echo "--- WARNING: go2 did not finish within 30 seconds."
+end
+
+def flag_settings
+	flagset = Lich::Util.quiet_command("flag", /You may also access these settings through/, end_pattern = /war in towns with active justice./, include_end = true ,timeout = 3, silent = true)
+		if flagset.to_s =~ /ShowRoomID         OFF/
+			#do_client "flag showroomid on"
+			Lich::Util.quiet_command("flag showroomid on", /You will now display the room ID./, end_pattern = /You will now display the room ID./, include_end = true ,timeout = 3, silent = true)
+			$roomflagon = true
+		end
+		if flagset.to_s =~ /ShowRoomID         ON/
+			$roomflagon = false
+		end
+end
+
+def lower_sail
+	result = dothistimeout "lower sail", 3, /you slowly lower the (.*) sail until it is at half mast|you slowly lower the (.*) sail until it is fully open|far as it can go!/
+        waitrt?
+	if result.to_s =~ /...wait/
+		waitrt?
+		lower_sail
+	elsif result.to_s =~ /you slowly lower the (.*) sail until it is at half mast/
+		waitrt?
+		lower_sail
+	elsif result.to_s =~ /you slowly lower the (.*) sail until it is fully open/
+		waitrt?
+	elsif result.to_s =~ /far as it can go!/
+		end
+end
+
+def main_mast
+	start_script("go2", ["main_mast"])
+	wait_while { running?("go2") }
+end
+
+def mid_mast
+	start_script("go2", ["mid_mast"])
+	wait_while { running?("go2") }
+end 
+
+def forward_mast
+	start_script("go2", ["forward_mast"])
+	wait_while { running?("go2") }
+end
+
+def raise_anchor
+  result = dothistimeout "push capstan", 3, /begin to push|one final push|anchor is already up/
+  waitrt?
+  if result.to_s =~ /...wait/
+    waitrt?
+    raise_anchor
+  elsif result.to_s =~ /begin to push/
+    waitrt?
+    raise_anchor
+  elsif result.to_s =~ /one final push/
+    @anchor_aweigh = true
+    waitrt?
+  elsif result.to_s =~ /anchor is already up/
+    return
+  end
+end
+
+def ensure_at_helm
+  return if Room.current.tags.include?("helm")
+
+  echo "--- Moving to helm"
+  start_script("go2", ["helm"])
+  wait_for_go2
+  waitrt?
+end
+
+def ship_flag
+	check_flag = Lich::Util.quiet_command("ship flag", //, end_pattern = /\[To change your flag please provide a valid option. Valid options: WHITE, BLACK, or NEUTRAL\]/, include_end = false ,timeout = 3, silent = true)
+	if check_flag.to_s =~ /is currently flying (.*) flag./
+		if $1 != "a white"
+			crows_nest
+			change_result = Lich::Util.quiet_command("ship flag white", /Your ship is now flying|Time until flag can be changed/, end_pattern = /Your ship is now flying|Time until flag can be changed/, include_end = true, timeout = 5, silent = true)
+			if change_result.to_s =~ /Time until flag can be changed: (.*)/
+				cooldown = $1.strip
+				respond ""
+				respond " =========================================================="
+				respond "  WARNING: Your ship flag could not be changed to white."
+				respond "  #{cooldown} remaining before you can change it again."
+				respond "  Sailing without a white flag is dangerous - enemy ships"
+				respond "  may engage you on sight."
+				respond " =========================================================="
+				respond "  How would you like to proceed?"
+				respond "    1. Continue sailing with your current flag (risky)"
+				respond "    2. Exit sail2 and wait for the cooldown to expire"
+				respond " =========================================================="
+				respond "  Please select an option - ;send <#>"
+				respond ""
+				clear
+				answer = nil
+				answer = get until answer.to_s.strip =~ /^[12]$/
+				if answer.strip == "2"
+					respond "  Exiting sail2. Please try again in #{cooldown}."
+					exit
+				else
+					respond "  Understood. Proceeding with current flag. Sail carefully!"
+					respond ""
+				end
+			end
+		end
+	end
+end
+
+def start_nav
+	ensure_at_helm
+	check_city = Lich::Util.quiet_command("look ocean", //, end_pattern = /(Open waters:|Obvious paths:)/, include_end = true ,timeout = 3, silent = true)
+	if check_city.to_s =~ /Potential docking options include|Open waters:/
+		ship_flag
+		return
+	elsif check_city.to_s =~ /Obvious paths:/
+		if Room.current.id.between?(29039, 29042)
+			$mast_count = 1
+		elsif Room.current.id.between?(310145, 310147)
+			$mast_count = 2
+		elsif Room.current.id.between?(30119, 30127)
+			$mast_count = 2
+		elsif Room.current.id.between?(30176, 30185)
+			$mast_count = 2
+		elsif Room.current.id.between?(30166, 30175)
+			$mast_count = 2
+		elsif Room.current.id.between?(30129, 30139)
+			$mast_count = 3
+		end
+		if $mast_count >= 1
+			main_mast
+			fput "pull gang"
+			lower_sail
+		end
+		if $mast_count >= 2
+			forward_mast
+			lower_sail
+		end
+		if $mast_count == 3
+			mid_mast
+			lower_sail
+		end
+		ensure_at_helm
+		raise_anchor
+		waitrt?
+		fput "depart"
+		fput "depart"
+	else
+		echo "Please get your ship underway, then restart Sail2.lic."
+		exit
+	end
+end
+
+def ship_type
+	if Room.current.id.between?(29039, 29042)
+		$mast_count = 1
+	elsif Room.current.id.between?(310145, 310147)
+		$mast_count = 2
+	elsif Room.current.id.between?(30119, 30127)
+		$mast_count = 2
+	elsif Room.current.id.between?(30176, 30185)
+		$mast_count = 2
+	elsif Room.current.id.between?(30166, 30175)
+		$mast_count = 2
+	elsif Room.current.id.between?(30128, 30139)
+		$mast_count = 3
+	end
+	#Sloop Map
+	if !Room[29038].tags.include? "main_deck"
+		Room[29039].tags.push("cargo_hold")
+		Room[29038].tags.push("main_deck")
+		Room[29038].tags.push("main_mast")
+		Room[29040].tags.push("crows_nest")
+		Room[29041].tags.push("helm")
+		Room[29042].tags.push("captains_quarters")
+		Room[29038].tags.push("main_cannon")
+	end
+	if !Room[30787].tags.include? "enemy_main_deck"
+		Room[30790].tags.push("enemy_cargo_hold")
+		Room[30787].tags.push("enemy_main_deck")
+		Room[30791].tags.push("enemy_crows_nest")
+		Room[30788].tags.push("enemy_helm")
+		Room[30789].tags.push("enemy_quarters")
+	end
+	if Room[29038].wayto["30787"].nil?
+		Room[29038].wayto["30787"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[29038].timeto["30787"] = 0.2
+		Room[29038].wayto["30792"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[29038].timeto["30792"] = 0.2
+		Room[29038].wayto["30266"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[29038].timeto["30266"] = 0.2
+		Room[29038].wayto["30798"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[29038].timeto["30798"] = 0.2
+		Room[29038].wayto["30805"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[29038].timeto["30805"] = 0.2
+		Room[29038].wayto["30778"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[29038].timeto["30778"] = 0.2
+	end
+	#Brigantine Map
+	if !Room[30142].tags.include? "main_deck"
+		Room[30145].tags.push("cargo_hold")
+		Room[30142].tags.push("main_deck")
+		Room[30142].tags.push("main_mast")
+		Room[30144].tags.push("forward_deck")
+		Room[30144].tags.push("forward_mast")
+		Room[30143].tags.push("crows_nest")
+		Room[30147].tags.push("mess_hall")
+		Room[30146].tags.push("crew_quarters")
+		Room[30141].tags.push("helm")
+		Room[30140].tags.push("captains_quarters")
+		Room[30142].tags.push("main_cannon")
+		Room[30144].tags.push("forward_cannon")
+	end
+	if !Room[30792].tags.include? "enemy_main_deck"
+		Room[30795].tags.push("enemy_cargo_hold")
+		Room[30792].tags.push("enemy_main_deck")
+		Room[30797].tags.push("enemy_forward_deck")
+		Room[30796].tags.push("enemy_crows_nest")
+		Room[30793].tags.push("enemy_helm")
+		Room[30794].tags.push("enemy_quarters")
+	end
+	if Room[30142].wayto["30787"].nil?
+		Room[30142].wayto["30787"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30142].timeto["30787"] = 0.2
+		Room[30142].wayto["30792"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30142].timeto["30792"] = 0.2
+		Room[30142].wayto["30266"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30142].timeto["30266"] = 0.2
+		Room[30142].wayto["30798"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30142].timeto["30798"] = 0.2
+		Room[30142].wayto["30805"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30142].timeto["30805"] = 0.2
+		Room[30142].wayto["30778"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30142].timeto["30778"] = 0.2
+	end
+	#Carrack Map
+	if !Room[30119].tags.include? "main_deck"
+		Room[30125].tags.push("cargo_hold")
+		Room[30119].tags.push("main_deck")
+		Room[30119].tags.push("main_mast")
+		Room[30121].tags.push("forward_deck")
+		Room[30121].tags.push("forward_mast")
+		Room[30122].tags.push("bow")
+		Room[30123].tags.push("crows_nest")
+		Room[30127].tags.push("mess_hall")
+		Room[30126].tags.push("crew_quarters")
+		Room[30120].tags.push("helm")
+		Room[30124].tags.push("captains_quarters")
+		Room[30119].tags.push("main_cannon")
+		Room[30121].tags.push("forward_cannon")
+	end
+	if !Room[30266].tags.include? "enemy_main_deck"
+		Room[30269].tags.push("enemy_cargo_hold")
+		Room[30266].tags.push("enemy_main_deck")
+		Room[30271].tags.push("enemy_forward_deck")
+		Room[30272].tags.push("enemy_bow")
+		Room[30270].tags.push("enemy_crows_nest")
+		Room[30267].tags.push("enemy_helm")
+		Room[30268].tags.push("enemy_quarters")
+	end
+	if Room[30119].wayto["30787"].nil?
+		Room[30119].wayto["30787"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30119].timeto["30787"] = 0.2
+		Room[30119].wayto["30792"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30119].timeto["30792"] = 0.2
+		Room[30119].wayto["30266"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30119].timeto["30266"] = 0.2
+		Room[30119].wayto["30798"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30119].timeto["30798"] = 0.2
+		Room[30119].wayto["30805"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30119].timeto["30805"] = 0.2
+		Room[30119].wayto["30778"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30119].timeto["30778"] = 0.2
+	end
+	#Galleon Map
+	if !Room[30176].tags.include? "main_deck"
+		Room[30182].tags.push("cargo_hold")
+		Room[30176].tags.push("main_deck")
+		Room[30176].tags.push("main_mast")
+		Room[30177].tags.push("forward_deck")
+		Room[30177].tags.push("forward_mast")
+		Room[30178].tags.push("bow")
+		Room[30181].tags.push("crows_nest")
+		Room[30185].tags.push("social_room")
+		Room[30184].tags.push("mess_hall")
+		Room[30183].tags.push("crew_quarters")
+		Room[30179].tags.push("helm")
+		Room[30180].tags.push("captains_quarters")
+		Room[30176].tags.push("main_cannon")
+		Room[30177].tags.push("forward_cannon")
+	end
+	if !Room[30798].tags.include? "enemy_main_deck"
+		Room[30801].tags.push("enemy_cargo_hold")
+		Room[30798].tags.push("enemy_main_deck")
+		Room[30803].tags.push("enemy_forward_deck")
+		Room[30804].tags.push("enemy_bow")
+		Room[30802].tags.push("enemy_crows_nest")
+		Room[30799].tags.push("enemy_helm")
+		Room[30800].tags.push("enemy_quarters")
+	end
+	if Room[30176].wayto["30787"].nil?
+		Room[30176].wayto["30787"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30176].timeto["30787"] = 0.2
+		Room[30176].wayto["30792"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30176].timeto["30792"] = 0.2
+		Room[30176].wayto["30266"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30176].timeto["30266"] = 0.2
+		Room[30176].wayto["30798"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30176].timeto["30798"] = 0.2
+		Room[30176].wayto["30805"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30176].timeto["30805"] = 0.2
+		Room[30176].wayto["30778"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30176].timeto["30778"] = 0.2
+	end
+	#Frigate Map
+	if !Room[30166].tags.include? "main_deck"
+		Room[30167].tags.push("cargo_hold")
+		Room[30166].tags.push("main_deck")
+		Room[30166].tags.push("main_mast")
+		Room[30171].tags.push("forward_deck")
+		Room[30171].tags.push("forward_mast")
+		Room[30172].tags.push("bow")
+		Room[30173].tags.push("crows_nest")
+		Room[30170].tags.push("social_room")
+		Room[30169].tags.push("mess_hall")
+		Room[30168].tags.push("crew_quarters")
+		Room[30174].tags.push("helm")
+		Room[30175].tags.push("captains_quarters")
+		Room[30166].tags.push("main_cannon")
+		Room[30171].tags.push("forward_cannon")
+	end
+	if !Room[30805].tags.include? "enemy_main_deck"
+		Room[30808].tags.push("enemy_cargo_hold")
+		Room[30805].tags.push("enemy_main_deck")
+		Room[30810].tags.push("enemy_forward_deck")
+		Room[30809].tags.push("enemy_crows_nest")
+		Room[30806].tags.push("enemy_helm")
+		Room[30807].tags.push("enemy_quarters")
+	end
+	if Room[30166].wayto["30787"].nil?
+		Room[30166].wayto["30787"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30166].timeto["30787"] = 0.2
+		Room[30166].wayto["30792"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30166].timeto["30792"] = 0.2
+		Room[30166].wayto["30266"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30166].timeto["30266"] = 0.2
+		Room[30166].wayto["30798"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30166].timeto["30798"] = 0.2
+		Room[30166].wayto["30805"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30166].timeto["30805"] = 0.2
+		Room[30166].wayto["30778"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30166].timeto["30778"] = 0.2
+	end
+	#Man O' War Map
+	if !Room[30130].tags.include? "main_deck"
+		Room[30136].tags.push("cargo_hold")
+		Room[30130].tags.push("main_deck")
+		Room[30130].tags.push("main_mast")
+		Room[30131].tags.push("mid_deck")
+		Room[30131].tags.push("mid_mast")
+		Room[30132].tags.push("forward_deck")
+		Room[30132].tags.push("forward_mast")
+		Room[30133].tags.push("bow")
+		Room[30135].tags.push("crows_nest")
+		Room[30134].tags.push("forward_crows_nest")
+		Room[30139].tags.push("social_room")
+		Room[30138].tags.push("mess_hall")
+		Room[30137].tags.push("crew_quarters")
+		Room[30128].tags.push("helm")
+		Room[30129].tags.push("captains_quarters")
+		Room[30130].tags.push("main_cannon")
+		Room[30131].tags.push("mid_cannon")
+		Room[30132].tags.push("forward_cannon")
+	end
+	if !Room[30778].tags.include? "enemy_main_deck"
+		Room[30781].tags.push("enemy_cargo_hold")
+		Room[30778].tags.push("enemy_main_deck")
+		Room[30783].tags.push("enemy_mid_deck")
+		Room[30786].tags.push("enemy_forward_deck")
+		Room[30784].tags.push("enemy_bow")
+		Room[30782].tags.push("enemy_crows_nest")
+		Room[30785].tags.push("enemy_forward_crows_nest")
+		Room[30779].tags.push("enemy_helm")
+		Room[30780].tags.push("enemy_quarters")
+	end
+	if Room[30130].wayto["30787"].nil?
+		Room[30130].wayto["30787"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30130].timeto["30787"] = 0.2
+		Room[30130].wayto["30792"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30130].timeto["30792"] = 0.2
+		Room[30130].wayto["30266"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30130].timeto["30266"] = 0.2
+		Room[30130].wayto["30798"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30130].timeto["30798"] = 0.2
+		Room[30130].wayto["30805"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30130].timeto["30805"] = 0.2
+		Room[30130].wayto["30778"] = StringProc.new("fput \"push gang\";fput \"go gang\"")
+		Room[30130].timeto["30778"] = 0.2
+	end
+	if Room.current.location != "Ships"
+		echo "You are not currently on a ship! Please restart from your ship."
+		exit
+	else
+		start_nav
+	end
+end
+
+if script.vars[1] == 'update'
+	sync_all
+	exit
+end
+
+ship_type
+flag_settings
+
+def fatal(msg)
+  echo "--- ERROR: #{msg}"
+  exit
+end
+
+def valid_room_id?(s)
+  s.to_s.match?(/^\d{7}$/)
+end
+
+def normalize_input(raw)
+  s = raw.to_s.strip.downcase
+  return "" if s.empty?
+  return PORTS[s] if PORTS.key?(s)
+  return s if valid_room_id?(s)
+  ""
+end
+
+def port_destination?(room_id)
+  PORTS.value?(room_id.to_s)
+end
+
+def load_ocean_map_flat
+  path = File.join(MAP_DIR, 'OSAMaps', 'Database', 'oceandb.json')
+  fatal("Missing #{MAP_FILE} in DATA_DIR (#{path})") unless File.exist?(path)
+
+  raw = JSON.parse(File.read(path))
+  flat = {}
+
+  if raw.is_a?(Hash) && raw.keys.any? { |k| k.to_s.match?(/^\d{7}$/) }
+    raw.each do |rid, exits|
+      rid = rid.to_s.strip
+      next unless valid_room_id?(rid)
+      flat[rid] = exits.is_a?(Hash) ? exits : {}
+    end
+    return flat
+  end
+
+  raw.each do |_, rooms|
+    next unless rooms.is_a?(Hash)
+    rooms.each do |rid, exits|
+      rid = rid.to_s.strip
+      next unless valid_room_id?(rid)
+      flat[rid] = exits.is_a?(Hash) ? exits : {}
+    end
+  end
+
+  flat
+end
+
+def bfs(map, start_id, goal_id)
+  visited = Set.new([start_id])
+  queue = [[start_id, []]]
+
+  until queue.empty?
+    cur, path = queue.shift
+    return path if cur == goal_id
+
+    exits = map[cur]
+    next unless exits.is_a?(Hash)
+
+    exits.each do |dir, nxt|
+      nid = nxt.to_s.strip
+      next unless valid_room_id?(nid)
+      next if visited.include?(nid)
+
+      visited << nid
+      queue << [nid, path + [[dir.to_s.downcase, nid]]]
+    end
+  end
+
+  nil
+end
+
+def compress_route(path)
+  return [] if path.nil? || path.empty?
+
+  legs = []
+  current_dir = path.first[0].to_s.downcase
+  expected_rooms = [path.first[1].to_s]
+
+  path[1..-1].each do |dir, nid|
+    dir = dir.to_s.downcase
+    nid = nid.to_s
+
+    if dir == current_dir
+      expected_rooms << nid
+    else
+      legs << [current_dir, expected_rooms.dup]
+      current_dir = dir
+      expected_rooms = [nid]
+    end
+  end
+
+  legs << [current_dir, expected_rooms.dup]
+  legs
+end
+
+def update_current_room_from_watch(line)
+  return false if line.nil?
+
+  text = line.to_s
+
+  if text =~ /roomName.*?\((\d{7})\)/
+    $current_room_id = $1.to_s
+    return true
+  end
+
+  if text =~ /\((\d{7})\)/
+    $current_room_id = $1.to_s
+    return true
+  end
+
+  false
+end
+
+def ensure_ocean_watch
+  return if $ocean_watch_started
+
+  begin
+    raw_location = Room.current.location
+    raw_location = raw_location.first if raw_location.is_a?(Array)
+    location = raw_location.to_s.downcase
+
+    if location == 'ships'
+      watch_result = Lich::Util.quiet_command("watch ocean", /You begin to watch the ocean waters surrounding the ship|You are already watching the ocean|I could not find what you were referring to/, end_pattern = /You begin to watch the ocean waters surrounding the ship|You are already watching the ocean|I could not find what you were referring to/, include_end = true, timeout = 3, silent = true)
+
+      if watch_result.to_s =~ /You begin to watch the ocean waters surrounding the ship/
+        # Fresh watch -- try to get room ID from bracket line
+        look_result = Lich::Util.quiet_command("look ocean", /\[.*?\]\s*\(\d{6,8}\)|I could not find what you were referring to/, end_pattern = /\[.*?\]\s*\(\d{6,8}\)|I could not find what you were referring to/, include_end = true, timeout = 2, silent = true)
+        if look_result.to_s =~ /\((\d{6,8})\)/
+          $current_room_id = $1
+        end
+
+      elsif watch_result.to_s =~ /You are already watching the ocean/
+        # Already watching -- look ocean to get current room
+        look_result = Lich::Util.quiet_command("look ocean", /\[.*?\]\s*\(\d{6,8}\)|I could not find what you were referring to/, end_pattern = /\[.*?\]\s*\(\d{6,8}\)|I could not find what you were referring to/, include_end = true, timeout = 2, silent = true)
+        if look_result.to_s =~ /\((\d{6,8})\)/
+          $current_room_id = $1
+        end
+
+      elsif watch_result.to_s =~ /I could not find what you were referring to/
+        # Cannot see ocean -- inside ship, wait for room detection via stream
+        nil
+      end
+
+      $ocean_watch_started = true
+    end
+  rescue => e
+    respond "[sail2: ensure_ocean_watch error: #{e.message}]"
+  end
+end
+
+def wait_for_current_room(timeout = 8)
+  start_time = Time.now
+
+  loop do
+    rid = $current_room_id.to_s
+    return rid unless rid.empty?
+
+    break if (Time.now - start_time) > timeout
+
+    line = get?
+    if line
+      update_current_room_from_watch(line)
+    else
+      sleep 0.1
+    end
+  end
+
+  ""
+end
+
+def wait_for_room_change(previous_room, timeout = 8)
+  start_time = Time.now
+  previous_room = previous_room.to_s
+
+  loop do
+    current = $current_room_id.to_s
+    return current if !current.empty? && current != previous_room
+
+    break if (Time.now - start_time) > timeout
+
+    line = get?
+    if line
+      update_current_room_from_watch(line)
+    else
+      sleep 0.1
+    end
+  end
+
+  $current_room_id.to_s
+end
+
+def current_sea_room
+  $current_room_id.to_s
+end
+
+def set_heading(dir)
+  dir = dir.to_s.strip.downcase
+
+  if $current_heading.to_s.strip.downcase == dir
+    echo "--- Wheel already set to #{dir.upcase}"
+    return
+  end
+
+  ensure_at_helm
+  fput "turn wheel #{dir}"
+  waitrt?
+  $current_heading = dir
+end
+
+def wait_for_sailing_result(timeout = 300)
+  start_time = Time.now
+
+  loop do
+    return :timeout if (Time.now - start_time) > timeout
+
+    line = get?
+    unless line
+      sleep 0.1
+      next
+    end
+
+    update_current_room_from_watch(line)
+
+    case line
+    when /The (.*) (cuts through the ocean, heading|drifts slowly)/
+      return :moved
+    when /A large swell crashes into the side of the/
+      return :rogue_wave
+    when /The sound of ropes coming free of the rigging/
+      return :rigging
+    when /The (.*) suddenly drifts from its course as the/
+      return :off_course
+    when /The (.*) drifts steadily toward the/
+      return :arrival
+    when /The .* wheel slowly turns off course\./
+      return :invalid_heading
+    when /Aimless, the .* rocks idly in the ocean waters\./
+      return :aimless
+    end
+  end
+end
+
+def sail_leg(dir, expected_rooms)
+  echo "--- Heading #{dir.upcase} for #{expected_rooms.length} move(s)"
+  set_heading(dir)
+
+  moved = 0
+
+  move_start_time = Time.now
+  while moved < expected_rooms.length
+    previous_room = current_sea_room
+    result = wait_for_sailing_result
+
+    if result == :moved
+      actual_room = wait_for_room_change(previous_room, 8)
+      expected_room = expected_rooms[moved]
+
+      if actual_room.empty?
+        echo "--- WARNING: Could not confirm current room after movement."
+        return [:reroute, actual_room]
+      end
+
+      if actual_room == previous_room
+        echo "--- WARNING: Room did not update after movement. Still showing #{actual_room}."
+        return [:reroute, actual_room]
+      end
+
+      if actual_room != expected_room
+        echo "--- Course deviation: expected #{expected_room}, got #{actual_room}"
+        return [:reroute, actual_room]
+      end
+
+      move_secs = (Time.now - move_start_time).round(2)
+      record_move_time(move_secs)
+      move_start_time = Time.now
+      moved += 1
+      echo "--- Move #{moved}/#{expected_rooms.length}: now at #{actual_room} (#{move_secs}s)"
+      next
+    elsif result == :rogue_wave
+      waitrt?
+      fput "yell Rogue Wave! Secure the Anchor!"
+      ensure_at_helm
+      waitrt?
+      waitcastrt?
+      raise_anchor
+      $current_heading = nil
+      echo "--- Rogue wave handled. Resuming travel..."
+      return [:reroute, current_sea_room]
+    elsif result == :rigging
+      echo "The Sails Have Been Furled"
+      if $mast_count >= 1
+        main_mast
+        lower_sail
+      end
+      if $mast_count >= 2
+        forward_mast
+        lower_sail
+      end
+      if $mast_count == 3
+        mid_mast
+        lower_sail
+      end
+      ensure_at_helm
+      $current_heading = nil
+      echo "--- Rigging secured. Resuming travel..."
+      return [:reroute, current_sea_room]
+    end
+
+    if [:invalid_heading, :aimless, :off_course].include?(result)
+      $current_heading = nil
+    end
+
+    actual_room = wait_for_current_room(5)
+    echo "--- Sailing interrupted (#{result}). Current room: #{actual_room.empty? ? 'UNKNOWN' : actual_room}"
+    return [:reroute, actual_room]
+  end
+
+  [:ok, current_sea_room]
+end
+
+def before_dying
+	if $roomflagon == true
+		#fput "flag showroomid off"
+		Lich::Util.quiet_command("flag showroomid off", /You will no longer display the room ID./, end_pattern = /You will no longer display the room ID./, include_end = true ,timeout = 3, silent = true)
+	end
+end
+
+def sail_into_port
+  echo "--- Final approach: turning wheel PORT"
+  $current_heading = nil
+  ensure_at_helm
+  fput "turn wheel port"
+  waitrt?
+
+  loop do
+    result = wait_for_sailing_result
+
+    case result
+    when :arrival
+      echo "--- Port approach confirmed."
+      return :arrived
+    when :moved
+      next
+    when :invalid_heading, :aimless, :off_course
+      $current_heading = nil
+      return :reroute
+    else
+      return :reroute
+    end
+  end
+end
+
+def sail2_broadcast_depart(crew_cfg, goal_id, eta_time)
+  origin_name = PORTS.key(current_sea_room.to_s)&.capitalize
+  dest_name   = PORTS.key(goal_id.to_s)&.capitalize || goal_id.to_s
+  ship_name   = crew_cfg["commander_ship_name"].to_s
+  crew_chan    = crew_cfg["crew"].to_s
+  msg = if origin_name
+    "#{ship_name} Expects To Make Way From #{origin_name} And Will Be Moored In #{dest_name} At Approximately: #{eta_time}"
+  else
+    "#{ship_name} Expects To Make Way And Will Be Moored In #{dest_name} At Approximately: #{eta_time}"
+  end
+  LNet.send_message(attr = { 'type' => 'channel', 'channel' => crew_chan }, msg)
+  waitrt?
+  pause 0.2
+  fput "yell #{msg}"
+end
+
+def sail2_broadcast_moored(crew_cfg)
+  crew_chan = crew_cfg["crew"].to_s
+  look = Lich::Util.quiet_command("look ocean", /\[(.*)\]/, end_pattern = /(Open waters: (.*)|Obvious paths: (.*))/, include_end = false, timeout = 3, silent = true)
+  if look.to_s =~ /\(([0-9,]+)\)/
+    room      = Room["u#{$1}"]
+    room_id   = room&.id
+    city      = room&.location.to_s
+    title     = room&.title&.first.to_s
+    msg = "The Ship Is Now Moored In #{city}. #{title}"
+	lnetmsg = "The Ship Is Now Moored In #{city}. Room Number: #{room_id} #{title}"
+  else
+    msg = "The Ship Is Now Moored."
+  end
+  LNet.send_message(attr = { 'type' => 'channel', 'channel' => crew_chan }, lnetmsg)
+  waitrt?
+  pause 0.2
+  fput "yell #{msg}"
+end
+
+def autopilot_to(map, start_id, goal_id)
+  current_id   = start_id.to_s
+  goal_is_port = port_destination?(goal_id)
+  crew_cfg     = load_yaml_file(File.join(DATA_DIR, XMLData.game, Char.name, "osacrew.yaml"))
+  is_commander = checkname == crew_cfg["commander"]
+
+  # Calculate initial ETA and broadcast departure once before the loop
+  path = bfs(map, current_id, goal_id)
+  fatal("No path found from #{current_id} to #{goal_id}.") if path.nil?
+
+  avg       = average_move_seconds
+  est_secs  = (path.length * avg).round
+  eta_time  = eastern_time(Time.now + est_secs).strftime("%I:%M %p EST")
+  echo "--- [#{ship_display_name}] Estimated travel time: #{format_duration(est_secs)} (#{est_secs}s total) (ETA: #{eta_time} EST)"
+  echo "--- Based on #{load_sail2_data[ship_timing_key]&.size || 0} recorded moves (avg #{avg.round(2)}s/move)"
+  $sail2_trip_start  = Time.now
+  $sail2_trip_moves  = path.length
+  $sail2_est_seconds = est_secs
+
+  sail2_broadcast_depart(crew_cfg, goal_id, eta_time) if is_commander
+
+  loop do
+    path = bfs(map, current_id, goal_id)
+    fatal("No path found from #{current_id} to #{goal_id}.") if path.nil?
+
+    legs = compress_route(path)
+
+    echo "--- ROUTE (#{path.length} moves / #{legs.length} heading changes#{goal_is_port ? ' + port entry' : ''}) ---"
+    legs.each_with_index do |(dir, rooms), i|
+      echo "#{i + 1}. #{dir.upcase.ljust(3)} x #{rooms.length} -> #{rooms.last}"
+    end
+    echo "#{legs.length + 1}. PORT entry from #{goal_id}" if goal_is_port
+
+    reroute_needed = false
+
+    legs.each do |dir, expected_rooms|
+      status, new_room = sail_leg(dir, expected_rooms)
+
+      if status == :reroute
+        new_room = wait_for_current_room(5) if new_room.to_s.empty?
+        fatal("Unable to determine current room for reroute.") if new_room.to_s.empty?
+
+        if new_room.to_s == goal_id.to_s && !goal_is_port
+          echo "--- ARRIVED AT #{goal_id}"
+          sail2_broadcast_moored(crew_cfg) if is_commander
+		  main_mast
+          return
+        end
+
+        echo "--- Re-routing from #{new_room} to #{goal_id}"
+        current_id = new_room.to_s
+        reroute_needed = true
+        break
+      end
+    end
+
+    next if reroute_needed
+
+    actual = wait_for_current_room(5)
+
+    if actual != goal_id.to_s
+      current_id = actual unless actual.empty?
+      echo "--- Route exhausted but destination not confirmed. Re-routing from #{current_id}"
+      next
+    end
+
+    if goal_is_port
+      port_result = sail_into_port
+
+      if port_result == :arrived
+        actual_secs = (Time.now - $sail2_trip_start).round
+        echo "--- ARRIVED AT PORT #{goal_id}"
+        echo "--- Estimated: #{format_duration($sail2_est_seconds)} (#{$sail2_est_seconds}s) | Actual: #{format_duration(actual_secs)} (#{actual_secs}s) | Moves: #{$sail2_trip_moves}"
+        sail2_broadcast_moored(crew_cfg) if is_commander
+        return
+      end
+
+      current_id = wait_for_current_room(5)
+      fatal("Unable to determine current room after failed port entry.") if current_id.to_s.empty?
+
+      echo "--- Re-routing from #{current_id} to #{goal_id}"
+      next
+    end
+
+    actual_secs = (Time.now - $sail2_trip_start).round
+    echo "--- ARRIVED AT #{goal_id}"
+    echo "--- Estimated: #{format_duration($sail2_est_seconds)} (#{$sail2_est_seconds}s) | Actual: #{format_duration(actual_secs)} (#{actual_secs}s) | Moves: #{$sail2_trip_moves}"
+    sail2_broadcast_moored(crew_cfg) if is_commander
+    return
+  end
+end
+# ---------------- MAIN ----------------
+
+arg1 = variable[1].to_s
+arg2 = variable[2].to_s
+
+map = load_ocean_map_flat
+
+
+if arg2.empty?
+  # Verify player is on a ship before proceeding
+  raw_location = Room.current.location rescue nil
+  raw_location = raw_location.first if raw_location.is_a?(Array)
+  if raw_location.to_s.downcase != 'ships'
+    respond "[sail2: You must be on your ship to use this script. Please board your ship and try again.]"
+    exit
+  end
+
+  ensure_ocean_watch
+
+  start_id = wait_for_current_room(8)
+  goal_id  = normalize_input(arg1)
+
+  fatal("Could not determine current ocean room from watch ocean.") if start_id.empty?
+  fatal("End must be a known port or 7-digit room id.") if goal_id.empty?
+  fatal("Start room #{start_id} not found in #{MAP_FILE}.") unless map.key?(start_id)
+  fatal("End room #{goal_id} not found in #{MAP_FILE}.") unless map.key?(goal_id)
+
+  $current_room_id = start_id
+
+  echo "--- Voyage: #{start_id} -> #{goal_id}"
+  autopilot_to(map, start_id, goal_id)
+
+else
+  start_id = normalize_input(arg1)
+  goal_id  = normalize_input(arg2)
+
+  fatal("Start must be a known port or 7-digit room id.") if start_id.empty?
+  fatal("End must be a known port or 7-digit room id.") if goal_id.empty?
+  fatal("Start room #{start_id} not found in #{MAP_FILE}.") unless map.key?(start_id)
+  fatal("End room #{goal_id} not found in #{MAP_FILE}.") unless map.key?(goal_id)
+
+  echo "--- Voyage: #{start_id} -> #{goal_id}"
+
+  path = bfs(map, start_id, goal_id)
+
+  if path
+    echo "--- ROUTE FOUND (#{path.length} moves) ---"
+    path.each_with_index do |(dir, nid), i|
+      echo "#{i + 1}. Steer #{dir.to_s.upcase.ljust(3)} -> #{nid}"
+    end
+  else
+    echo "--- ERROR: No path found."
+  end
+end
