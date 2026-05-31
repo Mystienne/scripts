@@ -73,7 +73,7 @@
        author: Mystienne
          game: gs
          tags: heal, empath, triage, injury, window, hud
-      version: 0.7.0
+      version: 0.1.0
      required: Lich >= 5.11.0
         email: Mystienne@mystienne.com
       discord: Mystienne
@@ -81,7 +81,7 @@
   Version Control:
     Major_change.feature_addition.bugfix
 
-  v0.7.0 (2026-05-31)
+  v0.1.0 (2026-05-31)
     - The window now tries to update on its own when someone is being healed,
       without needing a manual appraise. It watches for healing activity in
       the room (someone healing a patient, an empath healing their own
