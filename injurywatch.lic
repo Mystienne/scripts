@@ -37,7 +37,7 @@
   fully custom messaging may be missed. A manual appraise always corrects it.
 
   Empath identification uses three sources (any combination works):
-      1. Your namehighlights character data, if you have that script installed
+      1. Your Highlight-manager character data, if you have that script installed
       2. A silent WHO PROFESSION EMPATH check run when the script starts
       3. Live detection - anyone seen performing a wound transfer in-room
 
