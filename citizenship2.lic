@@ -90,7 +90,7 @@ def do_clerk(data)
   if (citstring =~ /you do seem to be eligible for full citizenship/i)
     fput "write book"
     echo "********************************************************"
-    echo "**************** Citizenship Aquired! ******************"
+    echo "**************** Citizenship Acquired! ******************"
     echo "********************************************************"
   elsif citstring =~ /already have citizenship/i
     echo "### You're already a citizen somewhere!"
