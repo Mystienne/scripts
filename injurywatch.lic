@@ -73,7 +73,7 @@
        author: Mystienne
          game: gs
          tags: heal, empath, triage, injury, window, hud
-      version: 0.1.1
+      version: 0.1.2
      required: Lich >= 5.11.0
         email: Mystienne@mystienne.com
       discord: Mystienne
@@ -81,10 +81,14 @@
   Version Control:
     Major_change.feature_addition.bugfix
 
-  v0.1.1 (06-25-2026)
+  v0.1.2 (06-25-2026)
     - Fixed a Mac compatibility error that caused the script to crash on
       startup after downloading from the repository. Caused by special
       characters in comments that Mac's Ruby rejected.
+    - Fixed a bug reported by Nisugi where appraising someone who left the
+      room would get the story window stuck in monospaced text. The game
+      sends an opening mono tag that was leaking through; it is now closed
+      immediately when this is detected.
 
   v0.1.0 (2026-05-31)
     - The window now tries to update on its own when someone is being healed,
@@ -459,6 +463,14 @@ module InjuryWatch
       lines.each do |line|
         plain = line.gsub(/<[^>]+>/, ' ').gsub(/\s+/, ' ').strip
         is_dead = true if plain =~ /quite dead/i
+
+        # When the target is gone the game sends <output class="mono"/> before
+        # Usage: -- issue_command consumes Usage: onward but the open mono tag
+        # leaks to the frontend and locks it in mono. Close it here.
+        if plain =~ /^Usage:/i
+          _respond '<output class=""/>'
+          break
+        end
 
         # Empath appraise format
         if line =~ /You take a quick appraisal of <a [^>]*>([^<]+)<\/a> and find that [^<]*<[^>]+>[^<]*<\/[^>]+> has (.*?)\./i
