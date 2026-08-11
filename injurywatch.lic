@@ -514,7 +514,7 @@ module InjuryWatch
       end
 
       break if wound_text || scar_text
-      break unless GameObj.pcs&.any? { |pc| pc.noun.downcase == pc_noun.downcase }
+      break if GameObj.pcs && !GameObj.pcs.any? { |pc| pc.noun.downcase == pc_noun.downcase }
       dbg "appraise #{pc_noun} -> no lines (attempt #{attempt + 1}/3), retrying..."
       sleep 0.5
     end
@@ -680,6 +680,7 @@ module InjuryWatch
       # Covers default + all known Rumor Woods custom themes via shared vocabulary.
       # Any future custom that uses similar language is caught automatically.
       if plain =~ HEALED_FULLY
+        matched = false
         people_status.each do |id, p|
           next if p[:status] =~ /^Dead/
           next unless plain =~ /\b#{Regexp.escape(p[:noun])}\b/i
@@ -687,9 +688,10 @@ module InjuryWatch
           people_status[id][:status] = "OK"
           heal_pending.delete(p[:noun].downcase)
           display(people_status)
+          matched = true
           break
         end
-        next line
+        next line if matched
       end
 
       # --- "X's [body part] looks better." ---
@@ -887,9 +889,11 @@ module InjuryWatch
         end
       end
 
-      # Process wound line
-      # Suppress plain text "She/He has..." follow-up lines - we handle these internally
+      # Suppress plain text "She/He has..." scar follow-up lines - we handle these
+      # internally via the XML path. Reset last_appraised_noun after suppressing so
+      # later unrelated "He/She has..." story text isn't also silently dropped.
       if plain =~ /^(?:He|She) has /i && last_appraised_noun
+        last_appraised_noun = nil
         next nil
       end
 
@@ -935,7 +939,7 @@ module InjuryWatch
     loop do
       # Check for ;send injurywatch refresh / refresh room commands
       while (msg = Script.current.gets?)
-        msg = msg.strip.downcase
+        msg = msg.strip.downcase.split.join(' ')
         if msg == "refresh room"
           refresh_queue << "refresh_room"
           dbg "refresh room queued"
