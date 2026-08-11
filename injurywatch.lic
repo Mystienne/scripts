@@ -279,12 +279,35 @@ module InjuryWatch
   # ---------------------------------------------------------------------------
   # Display mode detection
   # ---------------------------------------------------------------------------
+
+  def self.current_frontend
+    raw = if defined?(Frontend) && Frontend.respond_to?(:client)
+      Frontend.client.to_s
+    elsif defined?($frontend)
+      $frontend.to_s
+    else
+      ''
+    end
+    case raw.downcase.strip
+    when 'sf', 'stormfront' then 'stormfront'
+    when 'wrayth'           then 'wrayth'
+    when 'warlock'          then 'warlock'
+    when 'wizard'           then 'wizard'
+    when 'avalon'           then 'avalon'
+    else raw.downcase.strip
+    end
+  end
+
+  def self.dock_frontend?
+    ['stormfront', 'wrayth', 'warlock'].include?(current_frontend)
+  end
+
   def self.display_mode
     saved = Vars[:injurywatch_display].to_s.strip
     mode = if saved.empty?
-      if ['stormfront', 'wrayth'].include?($frontend) then :dock
-      elsif defined?(Gtk)                              then :popup
-      else                                                  :text
+      if dock_frontend?      then :dock
+      elsif defined?(Gtk)    then :popup
+      else                        :text
       end
     else
       saved.to_sym
@@ -296,9 +319,9 @@ module InjuryWatch
         @warned_mode = true
       end
       :text
-    elsif mode == :dock && !['stormfront', 'wrayth'].include?($frontend)
+    elsif mode == :dock && !dock_frontend?
       unless @warned_mode
-        respond "[InjuryWatch] Dock requires StormFront/Wrayth - using text mode."
+        respond "[InjuryWatch] Dock requires StormFront, Wrayth, or Warlock - using text mode."
         @warned_mode = true
       end
       :text
@@ -1195,7 +1218,7 @@ module InjuryWatch
 end
 
 before_dying do
-  if ['stormfront', 'wrayth'].include?($frontend) && !['popup', 'text'].include?(Vars[:injurywatch_display].to_s)
+  if InjuryWatch.dock_frontend? && !['popup', 'text'].include?(Vars[:injurywatch_display].to_s)
     puts(
       "<closeDialog id='InjuryWatch'/>" \
       "<openDialog type='dynamic' id='InjuryWatch' title='Injury Watch' " \
